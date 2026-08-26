@@ -1,0 +1,4 @@
+interface:
+  display_name: "Crypto Fund Research"
+  short_description: "Monitor crypto markets and rank opportunities"
+  default_prompt: "Use $crypto-fund-research to run a source-backed crypto market scan and return decision-ready research without placing trades."
