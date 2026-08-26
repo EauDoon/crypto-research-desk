@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.1, 27-08-2026
+
+- Added an LF checkout policy so exact-byte verification passes on Windows when `core.autocrlf=true`.
+
 ## 1.0.0, 27-08-2026
 
 - Published the accepted Revision Three research core.

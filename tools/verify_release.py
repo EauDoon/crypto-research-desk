@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify the exact v1 research core and its local Codex configuration."""
+"""Verify the exact released research core and its local Codex configuration."""
 
 from __future__ import annotations
 
@@ -146,7 +146,8 @@ def verify_markdown_links() -> int:
 
 
 def verify() -> dict[str, Any]:
-    require(VERSION_PATH.read_bytes() == b"1.0.0\n", "VERSION bytes mismatch")
+    require((ROOT / ".gitattributes").read_bytes() == b"* text=auto eol=lf\n", ".gitattributes bytes mismatch")
+    require(VERSION_PATH.read_bytes() == b"1.0.1\n", "VERSION bytes mismatch")
     hashes = verify_core()
     verify_configuration()
     links = verify_markdown_links()
@@ -154,7 +155,8 @@ def verify() -> dict[str, Any]:
         "core_file_count": len(hashes),
         "links_checked": links,
         "ordinal_tree_sha256": ORDINAL_TREE_SHA256,
-        "release_version": "1.0.0",
+        "checkout_eol": "lf",
+        "release_version": "1.0.1",
         "specialist_count": len(EXPECTED_AGENTS),
         "status": "VERIFIED",
     }
