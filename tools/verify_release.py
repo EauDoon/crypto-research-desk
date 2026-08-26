@@ -34,6 +34,10 @@ CONTROL: dict[str, tuple[int, str]] = {
     ".codex/config.toml": (63, "af00171d0ae3470aa41fb82e4165d91e5871e912d635e7545f9dc8f4a7752fc9"),
     "AGENTS.md": (6063, "6efd5eec6fc84fbbe1574007a47fee1bbc0fc8f21038584e863f36a2ebdf6b44"),
 }
+PRESENTATION_ASSETS: dict[str, tuple[int, str]] = {
+    "assets/hero.svg": (2078, "be121975269013b658165310d52b8ad083ccbfc2aa658dd93631bdd20200ce8d"),
+    "assets/research-flow.svg": (4119, "d59292042e530ba5efd2cd1138ee279b141114980e78fd5f376a72c2526ed14d"),
+}
 FIXED_ORDER = [
     SKILL_ROOT + "/agents/openai.yaml",
     SKILL_ROOT + "/references/mandate.md",
@@ -113,6 +117,18 @@ def verify_core() -> dict[str, str]:
     return hashes
 
 
+def verify_presentation_assets() -> dict[str, str]:
+    hashes: dict[str, str] = {}
+    for relative in sorted(PRESENTATION_ASSETS):
+        expected_bytes, expected_hash = PRESENTATION_ASSETS[relative]
+        data = safe_target(relative).read_bytes()
+        require(len(data) == expected_bytes, f"presentation asset byte count mismatch: {relative}")
+        actual_hash = digest(data)
+        require(actual_hash == expected_hash, f"presentation asset hash mismatch: {relative}")
+        hashes[relative] = actual_hash
+    return hashes
+
+
 def verify_configuration() -> None:
     config = tomllib.loads((ROOT / ".codex" / "config.toml").read_text(encoding="utf-8"))
     require(config == {"agents": {"enabled": True, "max_concurrent_threads_per_session": 3}}, "project agent config mismatch")
@@ -147,16 +163,18 @@ def verify_markdown_links() -> int:
 
 def verify() -> dict[str, Any]:
     require((ROOT / ".gitattributes").read_bytes() == b"* text=auto eol=lf\n", ".gitattributes bytes mismatch")
-    require(VERSION_PATH.read_bytes() == b"1.0.1\n", "VERSION bytes mismatch")
+    require(VERSION_PATH.read_bytes() == b"1.1.0\n", "VERSION bytes mismatch")
     hashes = verify_core()
+    presentation_assets = verify_presentation_assets()
     verify_configuration()
     links = verify_markdown_links()
     return {
         "core_file_count": len(hashes),
         "links_checked": links,
         "ordinal_tree_sha256": ORDINAL_TREE_SHA256,
+        "presentation_asset_count": len(presentation_assets),
         "checkout_eol": "lf",
-        "release_version": "1.0.1",
+        "release_version": "1.1.0",
         "specialist_count": len(EXPECTED_AGENTS),
         "status": "VERIFIED",
     }

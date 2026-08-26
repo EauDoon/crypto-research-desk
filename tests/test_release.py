@@ -29,9 +29,10 @@ class ReleaseVerificationTests(unittest.TestCase):
         self.assertEqual(result.stderr, "")
         receipt = json.loads(result.stdout)
         self.assertEqual(receipt["status"], "VERIFIED")
-        self.assertEqual(receipt["release_version"], "1.0.1")
+        self.assertEqual(receipt["release_version"], "1.1.0")
         self.assertEqual(receipt["checkout_eol"], "lf")
         self.assertEqual(receipt["core_file_count"], 13)
+        self.assertEqual(receipt["presentation_asset_count"], 2)
         self.assertEqual(receipt["specialist_count"], 5)
 
     def test_core_mutation_fails_closed(self) -> None:
@@ -67,6 +68,16 @@ class ReleaseVerificationTests(unittest.TestCase):
             copy = Path(temporary) / "release"
             shutil.copytree(ROOT, copy)
             (copy / ".gitattributes").write_bytes(b"* text=auto\n")
+            result = run_verifier(copy)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertEqual(json.loads(result.stderr)["status"], "ERROR")
+
+    def test_presentation_asset_mutation_fails_closed(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="crypto-fund-release-test-") as temporary:
+            copy = Path(temporary) / "release"
+            shutil.copytree(ROOT, copy)
+            target = copy / "assets" / "hero.svg"
+            target.write_bytes(target.read_bytes() + b"\n")
             result = run_verifier(copy)
             self.assertNotEqual(result.returncode, 0)
             self.assertEqual(json.loads(result.stderr)["status"], "ERROR")

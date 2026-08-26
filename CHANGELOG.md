@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.1.0, 27-08-2026
+
+- Added local SVG hero and research-flow graphics.
+- Reworked the README for faster scanning, clearer roles, and tighter navigation.
+- Added exact presentation-asset verification.
+- Kept the research core and execution boundary unchanged.
+
 ## 1.0.1, 27-08-2026
 
 - Added an LF checkout policy so exact-byte verification passes on Windows when `core.autocrlf=true`.

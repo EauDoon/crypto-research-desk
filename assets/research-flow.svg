@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 610" role="img" aria-labelledby="title desc">
+  <title id="title">Crypto Research Desk workflow</title>
+  <desc id="desc">Three independent research lanes feed evidence resolution, followed by quantitative analysis, independent risk review, Chief of Crypto synthesis, and a research-only decision brief.</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0L10 5L0 10Z" fill="#6f8192"/>
+    </marker>
+  </defs>
+  <rect width="1600" height="610" rx="24" fill="#0b1420"/>
+  <g font-family="Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">
+    <g>
+      <rect x="70" y="54" width="420" height="108" rx="16" fill="#111f2c" stroke="#58758c" stroke-width="2"/>
+      <text x="100" y="100" fill="#e7edf2" font-size="25" font-weight="650">Market regime</text>
+      <text x="100" y="132" fill="#9cabb7" font-size="18">Macro, liquidity, and structure</text>
+    </g>
+    <g>
+      <rect x="590" y="54" width="420" height="108" rx="16" fill="#111f2c" stroke="#4e8785" stroke-width="2"/>
+      <text x="620" y="100" fill="#e7edf2" font-size="25" font-weight="650">Fundamentals and on-chain</text>
+      <text x="620" y="132" fill="#9cabb7" font-size="18">Protocol, token, and network evidence</text>
+    </g>
+    <g>
+      <rect x="1110" y="54" width="420" height="108" rx="16" fill="#111f2c" stroke="#a87542" stroke-width="2"/>
+      <text x="1140" y="100" fill="#e7edf2" font-size="25" font-weight="650">Opportunity scout</text>
+      <text x="1140" y="132" fill="#9cabb7" font-size="18">Catalysts, rotations, and dislocations</text>
+    </g>
+    <g fill="none" stroke="#526779" stroke-width="2.5" marker-end="url(#arrow)">
+      <path d="M280,162V212C280,242 340,252 500,252"/>
+      <path d="M800 162V214"/>
+      <path d="M1320 162V212C1320 242 1260 252 1100 252"/>
+    </g>
+    <g>
+      <rect x="500" y="214" width="600" height="96" rx="16" fill="#152433" stroke="#6f8192" stroke-width="2"/>
+      <text x="800" y="252" fill="#e7edf2" font-size="24" font-weight="650" text-anchor="middle">Evidence and conflicts</text>
+      <text x="800" y="282" fill="#9cabb7" font-size="18" text-anchor="middle">Dated inputs, frozen calculations, and source resolution</text>
+    </g>
+    <path d="M800 310V356H210V394" fill="none" stroke="#6f8192" stroke-width="2.5" marker-end="url(#arrow)"/>
+    <g>
+      <rect x="40" y="394" width="340" height="118" rx="16" fill="#111f2c" stroke="#75698a" stroke-width="2"/>
+      <text x="210" y="442" fill="#e7edf2" font-size="24" font-weight="650" text-anchor="middle">Quant and portfolio</text>
+      <text x="210" y="474" fill="#9cabb7" font-size="18" text-anchor="middle">Comparisons and scenarios</text>
+    </g>
+    <g>
+      <rect x="430" y="394" width="340" height="118" rx="16" fill="#111f2c" stroke="#9a6678" stroke-width="2"/>
+      <text x="600" y="442" fill="#e7edf2" font-size="24" font-weight="650" text-anchor="middle">Independent risk</text>
+      <text x="600" y="474" fill="#9cabb7" font-size="18" text-anchor="middle">Challenge and research gate</text>
+    </g>
+    <g>
+      <rect x="820" y="394" width="340" height="118" rx="16" fill="#111f2c" stroke="#58758c" stroke-width="2"/>
+      <text x="990" y="442" fill="#e7edf2" font-size="24" font-weight="650" text-anchor="middle">Chief of Crypto</text>
+      <text x="990" y="474" fill="#9cabb7" font-size="18" text-anchor="middle">Routing and synthesis</text>
+    </g>
+    <g>
+      <rect x="1210" y="394" width="340" height="118" rx="16" fill="#111f2c" stroke="#4e8785" stroke-width="2"/>
+      <text x="1380" y="442" fill="#e7edf2" font-size="24" font-weight="650" text-anchor="middle">Decision brief</text>
+      <text x="1380" y="474" fill="#9cabb7" font-size="18" text-anchor="middle">Research only</text>
+    </g>
+    <g fill="none" stroke="#6f8192" stroke-width="2.5" marker-end="url(#arrow)">
+      <path d="M380 453H430"/>
+      <path d="M770 453H820"/>
+      <path d="M1160 453H1210"/>
+    </g>
+  </g>
+</svg>

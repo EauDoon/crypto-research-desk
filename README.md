@@ -1,19 +1,30 @@
+![Five research streams pass through an independent risk gate to one research output.](assets/hero.svg)
+
 # Crypto Research Desk
 
-A research-only Codex project that routes crypto market questions through four specialist research lanes and an independent risk gate.
+**Research-only crypto market intelligence with five specialist functions and an independent risk gate.**
 
-## What it provides
+The desk tests market-regime claims and compares current evidence. It frames scenarios while keeping every external action with the human operator.
 
-- Market regime analysis across macro, liquidity, flows, derivatives, breadth, and cycle conditions.
-- Fundamental and on-chain diligence for protocols, token mechanics, value capture, governance, and security risk.
-- Opportunity discovery for catalysts, sector rotations, narratives, and market dislocations.
-- Quantitative comparison for signal testing, scenarios, relative ranking, and portfolio interaction.
-- Independent risk review before any actionable opportunity or portfolio-level conclusion reaches the user.
-- A fixed named-ticker forecast contract covering 12 hours, 24 hours, 3 days, and 7 days from one reference-price cutoff.
+## The desk
+
+| Function | Owns | Produces |
+| --- | --- | --- |
+| [Market regime](.codex/agents/market-regime.toml) | Macro, liquidity, flows, derivatives, breadth, and cycle structure | Regime packet |
+| [Fundamentals and on-chain](.codex/agents/fundamental-onchain.toml) | Protocol design, token mechanics, value capture, governance, and network evidence | Diligence packet |
+| [Opportunity scout](.codex/agents/opportunity-scout.toml) | Catalysts, sector rotations, narratives, and market dislocations | Candidate queue |
+| [Quant and portfolio](.codex/agents/quant-portfolio.toml) | Calculations, signal tests, relative ranking, scenarios, and portfolio interaction | Comparison packet |
+| [Independent risk](.codex/agents/risk-officer.toml) | Mandate checks, downside challenge, liquidity, and unresolved uncertainty | Risk verdict |
 
 The Chief of Crypto routes the work, resolves evidence conflicts, and delivers one decision-ready brief. The Chief is not a sixth specialist.
 
-## Quick start
+## Research flow
+
+![Three independent research lanes feed evidence resolution, quantitative analysis, independent risk, Chief of Crypto synthesis, and a research-only decision brief.](assets/research-flow.svg)
+
+The first three functions work independently. Their packets are reconciled before Quant. Independent Risk receives the evidence and proposed conclusions without the producers' persuasive rationale. The Chief resolves contradictions by evidence and sends one brief to the human operator.
+
+## Use it
 
 Requirements:
 
@@ -21,7 +32,7 @@ Requirements:
 - Read access to public research sources.
 - No exchange, broker, wallet, or custody connection.
 
-Clone the repository, open the folder in Codex, then ask:
+Clone the repository, open the folder in Codex, then request a market read:
 
 ```text
 Use $crypto-fund-research to test the current crypto market regime. Treat a bull cycle as a hypothesis, use current evidence, and send every material conclusion through Independent Risk.
@@ -33,47 +44,59 @@ For a named ticker:
 Use $crypto-fund-research to produce a risk-cleared BTC price probability analysis for 12 hours, 24 hours, 3 days, and 7 days from one exact reference price.
 ```
 
-## How it works
+## Forecast contract
 
-```text
-Market Regime     Fundamental and On-chain     Opportunity Scout
-       \                    |                         /
-        \                   |                        /
-         +---------- evidence and conflicts --------+
-                              |
-                       Quant and Portfolio
-                              |
-                       Independent Risk
-                              |
-                        Chief of Crypto
-                              |
-                     decision-ready research
-```
+| Requirement | Rule |
+| --- | --- |
+| Reference | One exact price, capture time, and timezone across every horizon |
+| Horizons | 12 hours, 24 hours, 3 days, and 7 days |
+| Scenarios | Mutually exclusive price ranges totaling 100% within each horizon |
+| Chart | `Price target range by horizon`, built from final risk-cleared thresholds |
+| Failure behavior | Return `UNKNOWN` and `INCOMPLETE` when evidence cannot support the output |
 
-The workflow keeps facts, calculations, assumptions, inferences, and forecasts separate. Material inputs carry dates or capture times. Conflicting figures are resolved at the source or reported separately. Missing evidence stays unknown.
+Probabilities are not added across horizons. Unsupported values are never invented.
 
-## Named-ticker forecasts
+## Evidence controls
 
-A named-ticker price forecast must use one exact reference price and show all four horizons. Each horizon uses mutually exclusive ranges whose probabilities total 100%. The default output also includes a `Price target range by horizon` chart built from the final risk-cleared scenario thresholds.
+- Facts and forecasts stay distinct from calculations, assumptions, and inferences.
+- Material numbers carry a source date. Price-sensitive inputs carry a capture time.
+- Search results are discovery leads. Current claims require the opened source.
+- Conflicting figures are resolved at the source or presented separately with the reason they differ.
+- Every promoted thesis includes its strongest disconfirming evidence and an invalidation condition.
 
-If the available evidence cannot support a horizon, the workflow returns `UNKNOWN` and `INCOMPLETE`. It does not invent probabilities or a chart.
+## Safety boundary
 
-## Safety and limits
+This project cannot:
 
-This project does not place trades, connect accounts, handle credentials, sign transactions, transfer assets, or manage capital. Research visibility never grants execution authority. The human operator owns every external action.
+- Place trades or manage capital.
+- Connect accounts or handle credentials.
+- Sign transactions or transfer assets.
 
-The accepted v1 core passed a visible 20-case calibration covering authority refusal, source conflict, stale data, invalid probability tables, liquidity gaps, security incidents, thesis invalidation, and named-ticker output behavior. That calibration is not a sealed holdout. It does not establish forecast accuracy, investment performance, or future reliability.
+Research visibility never grants execution authority. The human operator owns every external action.
+
+## Validation status
+
+The accepted research core passed a visible 20-case calibration covering:
+
+- Authority refusal and source conflict.
+- Stale data, invalid probability tables, and liquidity gaps.
+- Security incidents, thesis invalidation, and named-ticker output behavior.
+
+The calibration is not a sealed holdout. It does not establish forecast accuracy, investment performance, or future reliability.
 
 ## Repository map
 
-- [`AGENTS.md`](AGENTS.md): project authority, routing, evidence, and delivery rules.
-- [`.agents/skills`](.agents/skills): reusable research workflow.
-- [`.codex/agents`](.codex/agents): five read-only specialist definitions.
-- [`examples`](examples): sample research requests.
-- [`tools/verify_release.py`](tools/verify_release.py): exact core-file and configuration verifier.
-- [`RELEASE_POLICY.md`](RELEASE_POLICY.md): semantic versioning and publication gates.
+| Path | Purpose |
+| --- | --- |
+| [`AGENTS.md`](AGENTS.md) | Authority, routing, evidence, and delivery rules |
+| [`.agents/skills`](.agents/skills) | Reusable research workflow |
+| [`.codex/agents`](.codex/agents) | Five read-only specialist definitions |
+| [`examples`](examples) | Sample research requests |
+| [`assets`](assets) | Local README graphics |
+| [`tools/verify_release.py`](tools/verify_release.py) | Exact core, configuration, and presentation verifier |
+| [`RELEASE_POLICY.md`](RELEASE_POLICY.md) | Versioning and publication gates |
 
-## Verify the release
+## Verify locally
 
 ```powershell
 py -B tools/verify_release.py

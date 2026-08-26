@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 520" role="img" aria-labelledby="title desc">
+  <title id="title">Five research streams passing through an independent risk gate</title>
+  <desc id="desc">A restrained diagram with five muted input lines, one central checkpoint, and one decision output.</desc>
+  <rect width="1600" height="520" rx="24" fill="#0b1420"/>
+  <path d="M0 82H1600M0 260H1600M0 438H1600" fill="none" stroke="#142334" stroke-width="1" opacity="0.55"/>
+  <path d="M190,88H582C686,88 704,210 838,210H910" fill="none" stroke="#58758c" stroke-width="3" stroke-linecap="round"/>
+  <path d="M190,174H590C690,174 718,232 838,232H910" fill="none" stroke="#4e8785" stroke-width="3" stroke-linecap="round"/>
+  <path d="M190 260H910" fill="none" stroke="#718b7b" stroke-width="3" stroke-linecap="round"/>
+  <path d="M190,346H590C690,346 718,288 838,288H910" fill="none" stroke="#a87542" stroke-width="3" stroke-linecap="round"/>
+  <path d="M190,432H582C686,432 704,310 838,310H910" fill="none" stroke="#75698a" stroke-width="3" stroke-linecap="round"/>
+  <g stroke-width="2">
+    <circle cx="170" cy="88" r="12" fill="#58758c" stroke="#7792a7"/>
+    <circle cx="170" cy="174" r="12" fill="#4e8785" stroke="#6ca5a1"/>
+    <circle cx="170" cy="260" r="12" fill="#718b7b" stroke="#91aa99"/>
+    <circle cx="170" cy="346" r="12" fill="#a87542" stroke="#c19363"/>
+    <circle cx="170" cy="432" r="12" fill="#75698a" stroke="#9487aa"/>
+  </g>
+  <path d="M920 174L1002 206V314L920 346Z" fill="#111f2c" stroke="#718292" stroke-width="3" stroke-linejoin="round"/>
+  <g fill="#53697b" opacity="0.7">
+    <circle cx="946" cy="218" r="3"/>
+    <circle cx="970" cy="230" r="3"/>
+    <circle cx="946" cy="248" r="3"/>
+    <circle cx="970" cy="260" r="3"/>
+    <circle cx="946" cy="278" r="3"/>
+    <circle cx="970" cy="290" r="3"/>
+    <circle cx="946" cy="308" r="3"/>
+  </g>
+  <path d="M1002 260H1410" fill="none" stroke="#698398" stroke-width="3" stroke-linecap="round"/>
+  <circle cx="1430" cy="260" r="13" fill="#698398" stroke="#8ea4b5" stroke-width="2"/>
+</svg>
