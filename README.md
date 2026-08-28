@@ -68,7 +68,9 @@ Read the [packet guide](docs/WORKBENCH.md), [deployment runbook](docs/DEPLOYMENT
 | Reference | One exact price, capture time, and timezone across every horizon |
 | Horizons | 12 hours, 24 hours, 3 days, and 7 days |
 | Scenarios | Mutually exclusive price ranges totaling 100% within each horizon |
-| Chart | `Price target range by horizon`, built from final risk-cleared thresholds |
+| Chart | `Price target range by horizon`, built from the final scenario thresholds |
+
+The research workflow requires an independent Risk gate before delivery. The browser displays submitted thresholds and labels review dispositions as unauthenticated, including warning dispositions.
 | Failure behavior | Return `UNKNOWN` and `INCOMPLETE` when evidence cannot support the output |
 
 Probabilities are not added across horizons. Unsupported values are never invented.

@@ -305,8 +305,9 @@ function applyPacket(candidate, label, localEdit = false) {
   return reviewReset;
 }
 function confirmReplacement() {
-  const meaningful = dirty || $('remember-packet').checked || (packet.kind === 'research'
-    && JSON.stringify(canonical(packet)) !== JSON.stringify(canonical(blankPacket())));
+  const current = JSON.stringify(canonical(packet));
+  const meaningful = dirty || $('remember-packet').checked || (current !== JSON.stringify(canonical(blankPacket()))
+    && current !== JSON.stringify(canonical(examplePacket())));
   return !meaningful || window.confirm('Replace the open research packet? Export a copy first if you need to keep it.');
 }
 function field(name) { return form.elements.namedItem(name); }
@@ -507,12 +508,15 @@ function updateNavigation() {
 window.addEventListener('hashchange', updateNavigation);
 window.addEventListener('storage', event => {
   if (event.key !== STORAGE_KEY && event.key !== null) return;
+  dirty = true;
   $('remember-packet').checked = false;
   setText('storage-status', 'Browser storage changed in another tab. Automatic saving is paused.');
   announce('Another tab changed the saved draft. Your open packet is unchanged. Export it before re-enabling local saving.');
 });
 window.addEventListener('beforeunload', event => {
-  if (dirty && !$('remember-packet').checked) { event.preventDefault(); event.returnValue = ''; }
+  if ((dirty && !$('remember-packet').checked) || (editor.open && editorSnapshot() !== editorInitial)) {
+    event.preventDefault(); event.returnValue = '';
+  }
 });
 try {
   const saved = localStorage.getItem(STORAGE_KEY);

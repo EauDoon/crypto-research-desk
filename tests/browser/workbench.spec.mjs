@@ -190,6 +190,15 @@ test('prices that would lose decimal precision are rejected in the details form'
   await expect(page.locator('#reference-price')).toHaveText('100 USD');
 });
 
+test('imported synthetic packets with distinct content require replacement confirmation', async ({ page }) => {
+  const packet = examplePacket(); packet.thesis = 'Preserve this imported synthetic packet.';
+  await importPacket(page, packet);
+  page.once('dialog', dialog => dialog.dismiss());
+  await page.locator('#new-packet').click();
+  await expect(page.locator('#thesis')).toHaveText(packet.thesis);
+  await expect(page.locator('#packet-editor')).toBeHidden();
+});
+
 test('edited synthetic drafts cannot be replaced without a confirmation', async ({ page }) => {
   await page.locator('#edit-details').click();
   await page.locator('textarea[name="thesis"]').fill('Keep this draft.');
@@ -206,6 +215,10 @@ test('edited synthetic drafts cannot be replaced without a confirmation', async 
 test('Escape preserves unapplied changes when canceled and restores focus after discard', async ({ page }) => {
   await page.locator('#edit-details').click();
   await page.locator('textarea[name="thesis"]').fill('Unapplied edit.');
+  expect(await page.evaluate(() => {
+    const event = new Event('beforeunload', { cancelable: true });
+    window.dispatchEvent(event); return event.defaultPrevented;
+  })).toBe(true);
   page.once('dialog', dialog => dialog.dismiss());
   await page.keyboard.press('Escape');
   await expect(page.locator('#packet-editor')).toBeVisible();
@@ -257,6 +270,10 @@ test('another tab changing storage pauses saving without replacing the open pack
   await expect(page.locator('#remember-packet')).not.toBeChecked();
   await expect(page.locator('#storage-status')).toContainText('another tab');
   await expect(page.locator('#asset-symbol')).toHaveText('DEMO');
+  expect(await page.evaluate(() => {
+    const event = new Event('beforeunload', { cancelable: true });
+    window.dispatchEvent(event); return event.defaultPrevented;
+  })).toBe(true);
   await other.close();
 });
 
