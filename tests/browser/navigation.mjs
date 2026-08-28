@@ -54,18 +54,30 @@ export async function navigate(page, { reload = false } = {}) {
   } catch (error) {
     const evidence = {
       browserName: page.context().browser()?.browserType().name(), errorName: error.name, reload,
-      documentState: await snapshot(page), events, responses, failures, runtimeErrors,
+      events: [...events], responses: [...responses], failures: [...failures], runtimeErrors: [...runtimeErrors],
       pending: [...pending].map(request => new URL(request.url()).pathname),
     };
+    evidence.documentState = await snapshot(page);
     console.warn('Navigation diagnostics: ' + JSON.stringify(evidence));
     if (!isFirefoxStartupRace(evidence)) throw error;
     // One fresh navigation releases this driver race. Reload tests and app failures stay fatal.
     console.warn('Recovering completed Firefox startup navigation once (microsoft/playwright#42183).');
+    events.length = responses.length = failures.length = runtimeErrors.length = 0;
+    pending.clear();
     const response = await page.goto('/', { timeout: 10000 });
     assert.equal(response?.status(), 200, 'recovered workbench navigation status');
     assert.deepEqual(runtimeErrors, [], 'recovered navigation runtime errors');
     assert.deepEqual(failures, [], 'recovered navigation resource failures');
     assert.ok(responses.every(response => response.status === 200), 'recovered navigation resource statuses');
+    assert.equal(pending.size, 0, 'recovered navigation pending requests');
+    assert.ok(events.includes('domcontentloaded') && events.includes('load'), 'recovered navigation lifecycle');
+    for (const name of ['app', 'packet', 'example', 'styles']) {
+      assert.ok(responses.some(response => response.path.startsWith('/' + name + '.') &&
+        HASHED_ASSET.test(response.path.slice(1))), 'recovered navigation missing asset: ' + name);
+    }
+    assert.deepEqual(await snapshot(page), {
+      origin: 'http://127.0.0.1:4173', path: '/', readyState: 'complete', symbol: 'DEMO', stylesheets: 1,
+    }, 'recovered navigation document');
   } finally {
     for (const [event, listener] of Object.entries(listeners)) page.off(event, listener);
   }

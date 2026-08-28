@@ -189,25 +189,27 @@ test('Firefox startup recovery makes one attempt and preserves subsequent failur
   t.mock.method(console, 'warn', () => {});
   const manifest = await build(await fixture(t));
   const paths = ['/', ...manifest.files.filter(name => HASHED_ASSET.test(name)).map(name => '/' + name)];
-  for (const secondFailure of [false, true]) {
+  for (const secondFailure of [null, 'timeout', 'asset', 'missing', 'document']) {
     const page = new EventEmitter(); let calls = 0;
     page.context = () => ({ browser: () => ({ browserType: () => ({ name: () => 'firefox' }) }) });
-    page.evaluate = async () => ({ origin: 'http://127.0.0.1:4173', path: '/', readyState: 'complete', symbol: 'DEMO', stylesheets: 1 });
+    page.evaluate = async () => ({ origin: 'http://127.0.0.1:4173', path: '/', readyState: 'complete',
+      symbol: calls === 2 && secondFailure === 'document' ? 'UNKNOWN' : 'DEMO', stylesheets: 1 });
     page.goto = async () => {
       calls++;
       for (const path of paths) {
+        if (calls === 2 && secondFailure === 'missing' && path.startsWith('/styles.')) continue;
         const request = { url: () => 'http://127.0.0.1:4173' + path };
         page.emit('request', request);
-        page.emit('response', { url: request.url, status: () => 200 });
+        page.emit('response', { url: request.url, status: () => calls === 2 && secondFailure === 'asset' && path.startsWith('/styles.') ? 404 : 200 });
         page.emit('requestfinished', request);
       }
       page.emit('domcontentloaded'); page.emit('load');
-      if (calls === 1 || secondFailure) {
+      if (calls === 1 || secondFailure === 'timeout') {
         const error = new Error('Navigation still failed'); error.name = 'TimeoutError'; throw error;
       }
       return { status: () => 200 };
     };
-    if (secondFailure) await assert.rejects(navigate(page), /Navigation still failed/);
+    if (secondFailure) await assert.rejects(navigate(page), /Navigation still failed|recovered navigation/);
     else await navigate(page);
     assert.equal(calls, 2, 'only one recovery attempt');
     assert.equal(page.eventNames().length, 0, 'temporary listeners are removed');
