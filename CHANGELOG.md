@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+- Added a static browser workbench for named-ticker research packets, with JSON import/edit/export, Markdown briefs, and printable forecast charts.
+- Added strict packet validation, exact percentage totals, timestamp and evidence checks, explicit unknowns, and manual review assertions.
+- Added opt-in local drafts, safe errors, keyboard navigation, mobile layouts, and automated browser/accessibility checks.
+- Added deterministic hashed builds, a restricted local preview server, Vercel configuration, and a GitHub quality workflow.
+- Added packet, privacy, deployment, and recovery documentation. Preserved the version 1.1.0 research core and original assets.
+- Production publication and deployment remain separate release actions.
+
 ## 1.1.0, 27-08-2026
 
 - Added local SVG hero and research-flow graphics.

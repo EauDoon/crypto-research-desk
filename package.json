@@ -1,0 +1,20 @@
+{
+  "name": "crypto-research-desk",
+  "version": "1.1.0",
+  "private": true,
+  "type": "module",
+  "description": "A browser-only workspace for evidence-led crypto research.",
+  "engines": { "node": ">=24 <25" },
+  "scripts": {
+    "build": "node tools/build.mjs",
+    "dev": "node tools/serve.mjs",
+    "preview": "node tools/serve.mjs --dist",
+    "test": "node --test tests/*.test.mjs",
+    "check": "node --check web/app.js && node --check web/packet.js && node --check web/example.js && npm test && npm run build",
+    "test:browser": "playwright test"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "4.13.0",
+    "@playwright/test": "1.62.1"
+  }
+}
