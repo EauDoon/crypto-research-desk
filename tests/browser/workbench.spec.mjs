@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import { examplePacket } from '../../web/example.js';
+import { navigate } from './navigation.mjs';
 
 const NOW = new Date('2026-08-20T10:00:00Z');
 const STORAGE_KEY = 'crypto-research-desk.packet.v1';
@@ -12,42 +13,6 @@ function research() {
   packet.sources[0].url = 'https://www.iana.org/domains/reserved';
   packet.sources[1].url = 'https://www.rfc-editor.org/rfc/rfc2606';
   return packet;
-}
-async function navigate(page, { reload = false } = {}) {
-  const events = []; const pending = new Set(); const responses = []; const failures = [];
-  const onRequest = request => pending.add(request);
-  const onFinished = request => pending.delete(request);
-  const onFailed = request => {
-    pending.delete(request);
-    failures.push({ path: new URL(request.url()).pathname, error: request.failure()?.errorText });
-  };
-  const onResponse = response => responses.push({ path: new URL(response.url()).pathname, status: response.status() });
-  const onDOMContentLoaded = () => events.push('domcontentloaded');
-  const onLoad = () => events.push('load');
-  const listeners = { request: onRequest, requestfinished: onFinished, requestfailed: onFailed,
-    response: onResponse, domcontentloaded: onDOMContentLoaded, load: onLoad };
-  for (const [event, listener] of Object.entries(listeners)) page.on(event, listener);
-  try {
-    // Leave time for diagnostics before the test deadline closes the page.
-    const response = await (reload ? page.reload({ timeout: 15000 }) : page.goto('/', { timeout: 15000 }));
-    expect(response?.status(), 'workbench navigation status').toBe(200);
-  } catch (error) {
-    const documentState = await page.evaluate(() => ({
-      path: location.pathname, readyState: document.readyState,
-      symbol: document.querySelector('#asset-symbol')?.textContent,
-      stylesheets: document.styleSheets.length,
-      resources: performance.getEntriesByType('resource').slice(0, 16).map(entry => ({
-        path: new URL(entry.name).pathname, duration: entry.duration, responseEnd: entry.responseEnd,
-      })),
-    })).catch(() => ({ unavailable: true }));
-    console.error('Navigation diagnostics: ' + JSON.stringify({
-      documentState, events, responses, failures,
-      pending: [...pending].map(request => new URL(request.url()).pathname),
-    }));
-    throw error;
-  } finally {
-    for (const [event, listener] of Object.entries(listeners)) page.off(event, listener);
-  }
 }
 async function importText(page, text) {
   await page.locator('#packet-file').setInputFiles({ name: 'packet.json', mimeType: 'application/json', buffer: Buffer.from(text) });
