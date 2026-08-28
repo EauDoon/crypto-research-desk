@@ -146,9 +146,13 @@ def verify_configuration() -> None:
 
 def verify_markdown_links() -> int:
     checked = 0
-    for path in ROOT.rglob("*.md"):
-        if ".git" in path.parts:
-            continue
+    generated_roots = {".git", "node_modules", "dist", "work", "test-results", "playwright-report"}
+    markdown_files: list[Path] = []
+    for current, directories, files in os.walk(ROOT, followlinks=False):
+        if Path(current) == ROOT:
+            directories[:] = [name for name in directories if name not in generated_roots]
+        markdown_files.extend(Path(current) / name for name in files if name.endswith(".md"))
+    for path in markdown_files:
         text = path.read_text(encoding="utf-8")
         for match in MARKDOWN_LINK.finditer(text):
             target = match.group(1).split("#", 1)[0]

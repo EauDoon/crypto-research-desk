@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="A browser-only workspace for crypto research packets, dated evidence, scenario checks, and independent risk records. No live feed or trading.">
+  <meta name="theme-color" content="#142d34">
+  <title>Crypto Research Desk | Research workspace</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="stylesheet" href="/styles.css">
+  <script type="module" src="/app.js"></script>
+</head>
+<body>
+  <a class="skip-link" href="#workspace">Skip to research workspace</a>
+  <aside class="sidebar" aria-label="Desk navigation">
+    <a class="brand" href="#workspace" aria-label="Crypto Research Desk home">
+      <span class="brand-mark" aria-hidden="true">c<span>.</span></span>
+      <span>crypto<span class="brand-subtitle">research desk</span></span>
+    </a>
+    <p class="nav-label">YOUR WORKSPACE</p>
+    <nav aria-label="Research sections">
+      <a href="#workspace" aria-current="page"><span aria-hidden="true">01</span> Overview</a>
+      <a href="#scenarios"><span aria-hidden="true">02</span> Scenarios</a>
+      <a href="#evidence"><span aria-hidden="true">03</span> Evidence</a>
+      <a href="#method"><span aria-hidden="true">04</span> Method</a>
+      <a href="#guide"><span aria-hidden="true">05</span> Field guide</a>
+    </nav>
+    <div class="sidebar-bottom">
+      <div class="local-label"><span aria-hidden="true"></span> Browser only</div>
+      <p>No live feed.<br>No account connections.<br>No execution.</p>
+      <a class="repository-link" href="https://github.com/EauDoon/crypto-research-desk" target="_blank" rel="noopener noreferrer">Project on GitHub <span aria-hidden="true">↗</span><span class="visually-hidden"> (opens in a new tab)</span></a>
+    </div>
+  </aside>
+  <div class="shell">
+    <header class="utility-bar">
+      <span class="breadcrumb">Desk <span aria-hidden="true">/</span> Research workspace</span>
+      <div class="actions">
+        <button id="load-demo" class="button subtle" type="button">Load demo</button>
+        <button id="new-packet" class="button" type="button">New packet</button>
+        <button id="import-packet" class="button primary" type="button"><span aria-hidden="true">↑</span> Import JSON</button>
+        <input id="packet-file" class="visually-hidden" type="file" accept=".json,application/json" tabindex="-1" aria-label="Choose a research packet JSON file">
+      </div>
+    </header>
+    <main id="workspace" tabindex="-1">
+      <div class="page-heading">
+        <div><p class="eyebrow">EVIDENCE BEFORE CONVICTION</p><h1>Research workspace</h1>
+          <p class="intro">Inspect the thesis. Test the scenarios. Keep the uncertainty in view.</p></div>
+        <span class="boundary-tag">Research only</span>
+      </div>
+      <div id="notice" class="notice" role="status" aria-live="polite" hidden></div>
+      <div id="app-error" class="notice error-notice" role="alert" hidden></div>
+      <div id="provenance" class="provenance-banner">
+        <span id="provenance-tag" class="tag amber">SYNTHETIC EXAMPLE</span>
+        <p id="provenance-text">Fictional inputs and a fictional review. This is an interface example, not a market forecast.</p>
+      </div>
+      <noscript><div class="notice error-notice">JavaScript is required for local packet validation. No research packet is loaded or sent without it.</div></noscript>
+      <section class="packet-context panel" aria-labelledby="asset-name">
+        <div class="asset-heading">
+          <span id="asset-symbol" class="asset-symbol">DEMO</span>
+          <div><p class="eyebrow">CURRENT PACKET</p><h2 id="asset-name">Demonstration asset</h2><p id="venue" class="muted"></p></div>
+        </div>
+        <dl class="context-facts">
+          <div><dt>Reference price</dt><dd id="reference-price"></dd></div>
+          <div><dt>Captured at</dt><dd id="reference-time" class="timestamp"></dd></div>
+          <div><dt>Probability basis</dt><dd id="probability-basis"></dd></div>
+        </dl>
+        <div class="packet-toolbar">
+          <div class="actions"><button id="edit-details" class="button small" type="button">Edit details</button><button id="edit-json" class="button small subtle" type="button">Edit full packet</button></div>
+          <div class="actions"><button id="export-json" class="button small subtle" type="button">Export JSON</button><button id="export-brief" class="button small subtle" type="button">Export brief</button><button id="print-packet" class="button small subtle" type="button">Print / PDF</button></div>
+        </div>
+      </section>
+      <div class="workspace-grid">
+        <div class="primary-column">
+          <section class="panel chart-panel" aria-labelledby="chart-heading">
+            <div class="section-heading"><div><p class="eyebrow">THE SCENARIO MAP</p><h2 id="chart-heading">Price target range by horizon</h2></div><span id="chart-badge" class="tag"></span></div>
+            <p id="chart-reference" class="chart-reference"></p>
+            <div id="chart-area"></div>
+            <p class="chart-caption">Targets are scenario thresholds, not guaranteed closing prices. Probabilities are not additive across horizons.</p>
+          </section>
+          <section class="panel thesis-panel" aria-labelledby="thesis-heading">
+            <div class="section-heading"><div><p class="eyebrow">THE RESEARCH CASE</p><h2 id="thesis-heading">A thesis needs a countercase.</h2></div></div>
+            <div class="thesis-grid">
+              <article><h3><span class="section-dot teal-dot" aria-hidden="true"></span>Thesis</h3><p id="thesis"></p></article>
+              <article><h3><span class="section-dot pink-dot" aria-hidden="true"></span>Disconfirming evidence</h3><p id="countercase"></p></article>
+              <article><h3>Observable invalidation</h3><p id="invalidation"></p></article>
+              <article><h3>Liquidity and access evidence</h3><p id="liquidity"></p></article>
+            </div>
+          </section>
+        </div>
+        <div class="secondary-column">
+          <section class="panel gate-panel" aria-labelledby="gate-heading">
+            <p class="eyebrow">LOCAL CHECKS</p><h2 id="gate-heading">Packet structure</h2>
+            <div id="structure-status" class="structure-status"></div>
+            <p class="small-copy">A structural check does not verify a source, authenticate a reviewer, or establish forecast accuracy.</p>
+            <ul id="gate-checks" class="gate-checks"></ul>
+            <details id="gap-details" class="gap-details"><summary id="gap-summary"></summary><ul id="gap-list"></ul></details>
+          </section>
+          <section class="panel risk-panel" aria-labelledby="risk-heading">
+            <p class="eyebrow">INDEPENDENT RISK</p><h2 id="risk-heading">Submitted review record</h2>
+            <span id="review-status" class="tag amber"></span>
+            <dl class="review-facts"><div><dt>Reviewer alias</dt><dd id="reviewer"></dd></div><div><dt>Recorded at</dt><dd id="reviewed-at"></dd></div></dl>
+            <p id="review-notes" class="small-copy"></p>
+            <details class="gap-details"><summary>Submitted review assertions</summary><div id="assertion-record"></div></details>
+            <p class="review-caveat">Self-reported. Identity, independence, and approval authority are not authenticated.</p>
+          </section>
+          <section class="panel storage-panel" aria-labelledby="storage-heading">
+            <h2 id="storage-heading">Keep control of your draft.</h2>
+            <label class="checkbox-label" for="remember-packet"><input id="remember-packet" type="checkbox"><span>Remember in this browser</span></label>
+            <p id="storage-status" class="small-copy">Off by default. Export a copy before closing. Shared-device users can access saved drafts.</p>
+            <button id="clear-saved" class="button small subtle" type="button">Clear saved draft</button>
+          </section>
+        </div>
+      </div>
+      <section id="scenarios" class="panel scenarios-section" aria-labelledby="scenarios-heading">
+        <div class="section-heading"><div><p class="eyebrow">FOUR HORIZONS, SEPARATE DISTRIBUTIONS</p><h2 id="scenarios-heading">Scenario tables</h2></div><span class="muted small-copy">Lower bound included. Upper bound excluded.</span></div>
+        <div id="horizon-tabs" class="horizon-tabs" role="tablist" aria-label="Forecast horizons"></div>
+        <div id="horizon-panels"></div>
+      </section>
+      <section id="evidence" class="panel evidence-section" aria-labelledby="evidence-heading">
+        <div class="section-heading"><div><p class="eyebrow">THE SOURCE RECORD</p><h2 id="evidence-heading">Evidence, with its dates.</h2></div><span id="source-count" class="tag"></span></div>
+        <p class="section-description">These are supplied claims and excerpts. Source pages open only when you choose a link; the app does not retrieve or verify them.</p>
+        <div id="source-list"></div>
+      </section>
+      <div class="bottom-grid">
+        <section id="method" class="panel" aria-labelledby="method-heading"><p class="eyebrow">REPRODUCIBILITY</p><h2 id="method-heading">Method and limits</h2><dl id="method-list" class="method-list"></dl></section>
+        <section class="panel" aria-labelledby="unknowns-heading"><p class="eyebrow">WHAT COULD CHANGE THE VIEW</p><h2 id="unknowns-heading">Risk and uncertainty</h2><h3>Major risks</h3><ul id="risk-list" class="text-list"></ul><h3>Unresolved unknowns</h3><ul id="unknown-list" class="text-list"></ul></section>
+      </div>
+      <section id="guide" class="panel guide-section" aria-labelledby="guide-heading">
+        <div><p class="eyebrow">FIELD GUIDE</p><h2 id="guide-heading">From research packet to review.</h2><p>This workbench supports the project's named-ticker forecast contract. It does not conduct research or replace the five specialist functions.</p></div>
+        <ol class="guide-steps"><li><strong>Prepare the record.</strong><span>Use dated public evidence, one exact reference price, and all four horizons. Leave unsupported forecasts incomplete.</span></li><li><strong>Inspect the gaps.</strong><span>Import schema version 1 JSON or start a blank packet. Edit full packet opens the source, scenarios, and method fields.</span></li><li><strong>Record an actual review.</strong><span>Only record a disposition after independent risk review. Editing research inputs resets an existing local review record.</span></li><li><strong>Export the result.</strong><span>JSON preserves the packet. The brief includes validation gaps. Print / PDF includes the chart when its input and review requirements are met.</span></li></ol>
+      </section>
+      <footer class="page-footer">
+        <p><strong>Your research stays in your browser.</strong> There is no app upload endpoint, analytics, or cloud sync. The host serves app files and may retain request metadata. External source pages have their own privacy practices.</p>
+        <p>Never import credentials, wallet information, personal data, or confidential research. This tool cannot place trades, size positions, connect accounts, or authorize external action.</p>
+        <a href="https://github.com/EauDoon/crypto-research-desk/blob/main/docs/WORKBENCH.md" target="_blank" rel="noopener noreferrer">Packet format and project documentation <span aria-hidden="true">↗</span><span class="visually-hidden"> (opens in a new tab)</span></a>
+      </footer>
+    </main>
+  </div>
+  <dialog id="packet-editor" aria-labelledby="editor-heading">
+    <div class="editor-header"><div><p class="eyebrow">LOCAL DRAFT</p><h2 id="editor-heading">Edit research details</h2></div><button id="close-editor" class="button small" type="button">Close</button></div>
+    <p id="editor-help" class="editor-help">Fields may remain unknown. Editing research inputs resets the review. Save the inputs before recording a new independent review.</p>
+    <div id="editor-error" class="notice error-notice" role="alert" hidden></div>
+    <form id="details-form">
+      <div class="form-grid">
+        <label>Asset symbol<input name="symbol" maxlength="20" autocomplete="off" placeholder="BTC"></label>
+        <label>Asset name<input name="name" maxlength="120" autocomplete="off"></label>
+        <label>Quote currency<input name="quoteCurrency" maxlength="12" autocomplete="off"></label>
+        <label>Venue or composite<input name="venue" maxlength="120" autocomplete="off"></label>
+        <label>Reference price<input name="price" type="number" step="any" min="0" max="1000000000000"></label>
+        <label>Captured at (ISO, with offset)<input name="capturedAt" autocomplete="off" placeholder="2026-08-28T09:00:00Z"></label>
+        <label>Display timezone<input name="timezone" maxlength="100" autocomplete="off" placeholder="UTC"></label>
+        <label>Researcher alias<input name="preparedBy" maxlength="100" autocomplete="off"></label>
+        <label class="span-two">Thesis<textarea name="thesis" rows="3" maxlength="5000"></textarea></label>
+        <label class="span-two">Strongest disconfirming evidence<textarea name="disconfirmingEvidence" rows="3" maxlength="5000"></textarea></label>
+        <label>Observable invalidation<textarea name="invalidation" rows="3" maxlength="5000"></textarea></label>
+        <label>Liquidity and access evidence<textarea name="liquidity" rows="3" maxlength="5000"></textarea></label>
+        <label>Major risks (one per line)<textarea name="risks" rows="3" maxlength="12000"></textarea></label>
+        <label>Unresolved unknowns (one per line)<textarea name="unknowns" rows="3" maxlength="12000"></textarea></label>
+      </div>
+      <fieldset><legend>Independent review record (self-reported)</legend><p class="small-copy">Record a review only after it has occurred. A researcher cannot serve as their own independent reviewer.</p>
+        <div class="form-grid">
+          <label>Disposition<select name="reviewStatus"><option value="pending">Pending</option><option value="deliver">Deliver</option><option value="deliver_with_warning">Deliver with warning</option><option value="repair">Repair</option><option value="withhold">Withhold</option></select></label>
+          <label>Reviewer alias<input name="reviewer" maxlength="100" autocomplete="off"></label>
+          <label>Reviewed at (ISO, with offset)<input name="reviewedAt" autocomplete="off" placeholder="2026-08-28T09:15:00Z"></label>
+          <label>Reviewed source IDs (comma separated)<input name="sourceIds" autocomplete="off"></label>
+          <label class="span-two">Review notes<textarea name="reviewNotes" rows="3" maxlength="5000"></textarea></label>
+        </div>
+        <div id="review-assertions"></div>
+      </fieldset>
+      <div class="editor-footer"><button class="button primary" type="submit">Save details</button><span class="small-copy">For scenarios, sources, and method fields, use Edit full packet.</span></div>
+    </form>
+    <div id="json-editor-panel" hidden>
+      <label for="packet-json">Packet JSON (schema version 1)</label>
+      <textarea id="packet-json" class="json-editor" rows="24" spellcheck="false" autocomplete="off" autocapitalize="off" aria-describedby="editor-help"></textarea>
+      <div class="editor-footer"><button id="apply-json" class="button primary" type="button">Validate and apply</button><span class="small-copy">Malformed packets are rejected without replacing the open packet.</span></div>
+    </div>
+  </dialog>
+</body>
+</html>
