@@ -161,22 +161,34 @@ test('source and built servers enforce methods, host checks, allowlists, and sec
   }
 });
 
+function loadedNavigationDocument(paths, documentId = 'first') {
+  return { origin: 'http://127.0.0.1:4173', path: '/', readyState: 'complete', documentId,
+    nativeEvents: ['domcontentloaded', 'load'], symbol: 'DEMO', hasChart: true, assertionCount: 5,
+    modulePath: paths.find(path => path.startsWith('/app.')),
+    stylesheets: [{ path: paths.find(path => path.startsWith('/styles.')), rules: 100 }] };
+}
+
 test('Firefox navigation recovery requires the exact completed and successful startup signature', () => {
   const hash = '0'.repeat(64);
+  const paths = ['/', ...['app', 'packet', 'example'].map(name => '/' + name + '.' + hash + '.js'),
+    '/styles.' + hash + '.css', '/favicon.' + hash + '.svg'];
   const baseline = {
     browserName: 'firefox', errorName: 'TimeoutError', reload: false,
-    documentState: { origin: 'http://127.0.0.1:4173', path: '/', readyState: 'complete', symbol: 'DEMO', stylesheets: 1 },
-    events: ['domcontentloaded', 'load'], failures: [], pending: [], runtimeErrors: [],
-    responses: ['/', ...['app', 'packet', 'example'].map(name => '/' + name + '.' + hash + '.js'),
-      '/styles.' + hash + '.css', '/favicon.' + hash + '.svg'].map(path => ({ path, status: 200 })),
+    documentState: loadedNavigationDocument(paths), events: [], failures: [], pending: [], runtimeErrors: [],
+    responses: paths.map(path => ({ path, status: 200 })),
   };
-  assert.equal(isFirefoxStartupRace(baseline), true);
+  assert.equal(isFirefoxStartupRace(baseline), true, 'native events suffice when the driver drops events');
   const rejected = [
     { browserName: 'chromium' }, { errorName: 'AssertionError' }, { reload: true },
     { documentState: { ...baseline.documentState, readyState: 'interactive' } },
     { documentState: { ...baseline.documentState, origin: 'https://example.com' } },
     { documentState: { ...baseline.documentState, symbol: 'UNKNOWN' } },
-    { documentState: { unavailable: true } }, { events: ['domcontentloaded'] },
+    { documentState: { ...baseline.documentState, nativeEvents: ['domcontentloaded'] } },
+    { documentState: { ...baseline.documentState, hasChart: false } },
+    { documentState: { ...baseline.documentState, assertionCount: 0 } },
+    { documentState: { ...baseline.documentState, stylesheets: [] } },
+    { documentState: { ...baseline.documentState, documentId: '' } },
+    { documentState: { unavailable: true } },
     { failures: [{ path: '/app.js', error: 'failed' }] }, { pending: ['/app.js'] },
     { runtimeErrors: ['Application failed'] }, { responses: baseline.responses.slice(1) },
     { responses: baseline.responses.map((response, i) => i === 1 ? { ...response, status: 404 } : response) },
@@ -185,32 +197,36 @@ test('Firefox navigation recovery requires the exact completed and successful st
   for (const change of rejected) assert.equal(isFirefoxStartupRace({ ...baseline, ...change }), false, JSON.stringify(change));
 });
 
-test('Firefox startup recovery makes one attempt and preserves subsequent failures', async t => {
+test('Firefox startup recovery verifies cached pages and preserves subsequent failures', async t => {
   t.mock.method(console, 'warn', () => {});
   const manifest = await build(await fixture(t));
   const paths = ['/', ...manifest.files.filter(name => HASHED_ASSET.test(name)).map(name => '/' + name)];
-  for (const secondFailure of [null, 'timeout', 'asset', 'missing', 'document']) {
+  for (const outcome of ['success', 'cached', 'timeout', 'asset', 'missing', 'document', 'stale']) {
     const page = new EventEmitter(); let calls = 0;
+    page.addInitScript = async () => {};
     page.context = () => ({ browser: () => ({ browserType: () => ({ name: () => 'firefox' }) }) });
-    page.evaluate = async () => ({ origin: 'http://127.0.0.1:4173', path: '/', readyState: 'complete',
-      symbol: calls === 2 && secondFailure === 'document' ? 'UNKNOWN' : 'DEMO', stylesheets: 1 });
+    page.evaluate = async () => {
+      const state = loadedNavigationDocument(paths, calls === 1 || outcome === 'stale' ? 'first' : 'second');
+      if (calls === 2 && outcome === 'document') state.hasChart = false;
+      if (calls === 2 && outcome === 'missing') state.stylesheets = [];
+      return state;
+    };
     page.goto = async () => {
       calls++;
       for (const path of paths) {
-        if (calls === 2 && secondFailure === 'missing' && path.startsWith('/styles.')) continue;
+        if (calls === 2 && outcome === 'cached' && path !== '/') continue;
         const request = { url: () => 'http://127.0.0.1:4173' + path };
         page.emit('request', request);
-        page.emit('response', { url: request.url, status: () => calls === 2 && secondFailure === 'asset' && path.startsWith('/styles.') ? 404 : 200 });
+        page.emit('response', { url: request.url, status: () => calls === 2 && outcome === 'asset' && path.startsWith('/styles.') ? 404 : 200 });
         page.emit('requestfinished', request);
       }
-      page.emit('domcontentloaded'); page.emit('load');
-      if (calls === 1 || secondFailure === 'timeout') {
+      if (calls === 1 || outcome === 'timeout') {
         const error = new Error('Navigation still failed'); error.name = 'TimeoutError'; throw error;
       }
       return { status: () => 200 };
     };
-    if (secondFailure) await assert.rejects(navigate(page), /Navigation still failed|recovered navigation/);
-    else await navigate(page);
+    if (['success', 'cached'].includes(outcome)) await navigate(page);
+    else await assert.rejects(navigate(page), /Navigation still failed|recovered navigation/);
     assert.equal(calls, 2, 'only one recovery attempt');
     assert.equal(page.eventNames().length, 0, 'temporary listeners are removed');
   }
