@@ -46,4 +46,4 @@ There is no server accepting research packets, so server authentication, RLS, CS
 
 Keep JSON backups before clearing storage, replacing a draft, changing origins, or adopting a new packet schema. Corrupt data is retained without automatic overwrite. Failed saves pause automatic saving; changes from another tab lock saving and clearing until reload.
 
-Deploy only the built `dist/` directory. Do not publish local research files, browser data, working files, scan reports, environment files, or test artifacts. See the [packet guide](docs/WORKBENCH.md) and [deployment runbook](docs/DEPLOYMENT.md) for recovery, release verification, and rollback.
+Serve only the verified `dist/` output. Vercel may create it from reviewed source during deployment; no file outside that verified output should become public. Do not publish local research files, browser data, working files, scan reports, environment files, or test artifacts. See the [packet guide](docs/WORKBENCH.md) and [deployment runbook](docs/DEPLOYMENT.md) for recovery, release verification, and rollback.

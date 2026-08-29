@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Aligned release, deployment, and security guidance with authorized Vercel Git builds and automatic production promotion.
+
 ## 1.6.6, 29-08-2026
 
 - Rejected negative zero before JSON serialization can erase its sign from scenario records.
