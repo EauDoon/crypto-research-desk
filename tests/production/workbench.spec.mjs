@@ -71,6 +71,13 @@ test('production serves the reviewed artifact and complete local-only workflow',
   page.once('dialog', dialog => dialog.accept());
   await page.locator('#clear-saved').click();
   expect(await page.evaluate(key => localStorage.getItem(key), 'crypto-research-desk.packet.v1')).toBeNull();
+  await page.locator('#edit-details').click();
+  await expect(page.locator('textarea[name="method-description"]')).toHaveValue(packet.method.description);
+  await expect(page.locator('#source-editor-list > fieldset')).toHaveCount(packet.sources.length);
+  await page.locator('textarea[name="method-description"]').fill('Production acceptance edit with fictional data.');
+  await page.getByRole('button', { name: 'Save details', exact: true }).click();
+  await expect(page.locator('#notice')).toContainText('previous review was reset');
+  await expect(page.locator('#chart-area svg')).toHaveCount(0);
   await page.setViewportSize({ width: 320, height: 568 });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
   await page.emulateMedia({ media: 'print' });

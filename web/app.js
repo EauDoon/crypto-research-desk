@@ -24,6 +24,12 @@ const reviewLabels = { pending: 'Pending review', deliver: 'Deliver, as recorded
 const methodLabels = { basis: 'Probability basis', description: 'Method', sourceWindow: 'Source window',
   observationFrequency: 'Observation frequency', sampleSize: 'Sample size', transformations: 'Transformations',
   regimeAdjustment: 'Regime adjustment', eventAssumptions: 'Event assumptions', limitations: 'Calibration and limits' };
+const sourceFields = [
+  ['id', 'Source ID', 'input', 40], ['title', 'Title', 'input', 200], ['url', 'Public HTTPS URL', 'input', 2048],
+  ['type', 'Source type', 'select'], ['publishedAt', 'Published at (ISO, with offset)', 'input', 35],
+  ['capturedAt', 'Captured at (ISO, with offset)', 'input', 35], ['claim', 'Supported claim', 'textarea', 5000],
+  ['excerpt', 'Supplied excerpt', 'textarea', 5000],
+];
 
 function element(tag, text, className) {
   const node = document.createElement(tag);
@@ -419,6 +425,11 @@ function editableFieldForPath(path) {
     'riskReview.reviewedAt': 'reviewedAt', 'riskReview.sourceIds': 'sourceIds', 'riskReview.notes': 'reviewNotes',
   };
   if (fields[path]) return field(fields[path]);
+  const method = /^method\.(\w+)$/.exec(path);
+  if (method) return field('method-' + method[1]);
+  const source = /^sources(?:\[(\d+)\])?(?:\.(\w+))?$/.exec(path);
+  if (source) return source[1] === undefined ? $('add-source')
+    : field('source-' + source[1] + '-' + (source[2] ?? 'id'));
   if (/^risks(?:\[|$)/.test(path)) return field('risks');
   if (/^unknowns(?:\[|$)/.test(path)) return field('unknowns');
   if (path === 'asset') return field('symbol');
@@ -446,6 +457,38 @@ function markInvalid(target) {
   describedBy.add('editor-error');
   target.setAttribute('aria-describedby', [...describedBy].join(' '));
 }
+function sourceEditorValues() {
+  return [...$('source-editor-list').children].map((_, index) => Object.fromEntries(
+    sourceFields.map(([key]) => [key, String(field('source-' + index + '-' + key).value)]),
+  ));
+}
+function renderSourceEditor(sources) {
+  $('source-editor-empty').hidden = sources.length > 0;
+  $('source-editor-list').replaceChildren(...sources.map((source, index) => {
+    const group = element('fieldset', undefined, 'source-editor');
+    group.append(element('legend', 'Source ' + (index + 1)));
+    const remove = element('button', 'Remove source', 'button small subtle');
+    remove.type = 'button'; remove.dataset.removeSource = String(index);
+    remove.setAttribute('aria-label', 'Remove source ' + (index + 1));
+    const grid = element('div', undefined, 'form-grid');
+    for (const [key, label, tag, limit] of sourceFields) {
+      const wrapper = element('label', label);
+      if (key === 'claim' || key === 'excerpt') wrapper.className = 'span-two';
+      const input = element(tag);
+      input.name = 'source-' + index + '-' + key;
+      if (key === 'type') for (const option of ['primary', 'secondary']) input.append(element('option', option));
+      else {
+        if (key === 'url') input.type = 'url';
+        input.maxLength = limit;
+        if (tag === 'textarea') input.rows = 2;
+      }
+      input.value = source[key] ?? '';
+      wrapper.append(input); grid.append(wrapper);
+    }
+    group.append(remove, grid); return group;
+  }));
+  $('add-source').disabled = sources.length >= 32;
+}
 function populateForm() {
   const values = { ...packet.asset, ...packet.reference, preparedBy: packet.preparedBy,
     thesis: packet.thesis, disconfirmingEvidence: packet.disconfirmingEvidence, invalidation: packet.invalidation,
@@ -453,6 +496,8 @@ function populateForm() {
     reviewStatus: packet.riskReview.status, reviewer: packet.riskReview.reviewer,
     reviewedAt: packet.riskReview.reviewedAt, sourceIds: packet.riskReview.sourceIds.join(', '), reviewNotes: packet.riskReview.notes };
   for (const [name, value] of Object.entries(values)) if (field(name)) field(name).value = value ?? '';
+  for (const [key, value] of Object.entries(packet.method)) field('method-' + key).value = value ?? '';
+  renderSourceEditor(packet.sources);
   $('review-assertions').replaceChildren();
   REVIEW_ASSERTIONS.forEach((definition, index) => {
     const assertion = packet.riskReview.assertions.find(item => item.id === definition.id)
@@ -577,6 +622,21 @@ $('packet-file').addEventListener('change', async event => {
 });
 $('edit-details').addEventListener('click', () => openEditor('details'));
 $('edit-json').addEventListener('click', () => openEditor('json'));
+$('add-source').addEventListener('click', () => {
+  const sources = sourceEditorValues();
+  if (sources.length >= 32) return;
+  sources.push({ id: '', title: '', url: '', type: 'primary', publishedAt: '', capturedAt: '', claim: '', excerpt: '' });
+  clearEditorError(); renderSourceEditor(sources);
+  field('source-' + (sources.length - 1) + '-id').focus();
+});
+$('source-editor-list').addEventListener('click', event => {
+  const remove = event.target.closest('button[data-remove-source]');
+  if (!remove) return;
+  const sources = sourceEditorValues();
+  sources.splice(Number(remove.dataset.removeSource), 1);
+  clearEditorError(); renderSourceEditor(sources);
+  (sources.length ? field('source-' + Math.min(Number(remove.dataset.removeSource), sources.length - 1) + '-id') : $('add-source')).focus();
+});
 $('close-editor').addEventListener('click', closeEditor);
 editor.addEventListener('cancel', closeEditor);
 editor.addEventListener('close', () => { if (editorOpener?.isConnected) editorOpener.focus({ preventScroll: true }); });
@@ -588,17 +648,20 @@ form.addEventListener('submit', event => {
   try {
     const candidate = structuredClone(packet);
     const value = name => String(field(name).value);
+    const number = (name, path) => {
+      if (value(name) === '') return null;
+      try { return parsePacket('{"value":' + value(name) + '}').value; }
+      catch (error) { error.issuePaths = [path]; throw error; }
+    };
     for (const name of ['symbol', 'name', 'quoteCurrency', 'venue']) candidate.asset[name] = value(name);
-    let price = null;
-    if (value('price') !== '') {
-      try { price = parsePacket('{"price":' + value('price') + '}').price; }
-      catch (error) { error.issuePaths = ['reference.price']; throw error; }
-    }
-    candidate.reference = { price, capturedAt: value('capturedAt'), timezone: value('timezone') };
+    candidate.reference = { price: number('price', 'reference.price'), capturedAt: value('capturedAt'), timezone: value('timezone') };
     if (candidate.reference.capturedAt !== packet.reference.capturedAt) {
       candidate.horizons.forEach((horizon, index) => { horizon.endAt = endAt(candidate.reference.capturedAt, HORIZONS[index].hours); });
     }
     for (const name of ['preparedBy', 'thesis', 'disconfirmingEvidence', 'invalidation', 'liquidity']) candidate[name] = value(name);
+    candidate.method = Object.fromEntries(Object.keys(methodLabels).map(key => [key, value('method-' + key)]));
+    candidate.method.sampleSize = number('method-sampleSize', 'method.sampleSize');
+    candidate.sources = sourceEditorValues();
     for (const name of ['risks', 'unknowns']) {
       if (value(name) !== packet[name].join('\n')) {
         if (packet[name].some(item => /[\r\n]/.test(item))) {

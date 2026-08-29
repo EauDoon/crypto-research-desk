@@ -213,6 +213,9 @@ dialog .notice { margin: 14px 28px; }
 fieldset { border: 1px solid #d7e3d8; padding: 20px; border-radius: 6px; margin: 24px 0 0; min-width: 0; }
 legend { font-size: 13px; font-weight: 600; padding: 0 6px; }
 fieldset > p { margin-bottom: 18px; }
+.source-editor { margin-top: 18px; padding: 16px; }
+.source-editor > .button { margin-bottom: 18px; }
+#add-source { margin-top: 18px; }
 .editor-footer { flex: 0 0 auto; padding: 14px 28px; border-top: 1px solid var(--line); background: #fff; box-shadow: 0 -8px 22px #142d3410; }
 .editor-action-set { display: flex; gap: 15px; align-items: center; flex-wrap: wrap; }
 .json-editor { font-family: Consolas, "Liberation Mono", monospace; line-height: 1.6; font-size: 12px; tab-size: 2; resize: vertical; }

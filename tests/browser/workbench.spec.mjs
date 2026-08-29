@@ -71,7 +71,8 @@ test('the default view is explicitly synthetic, local, and accessible', async ({
 test('startup fails closed when JavaScript is unavailable', async ({ browser, baseURL }) => {
   const context = await browser.newContext({ javaScriptEnabled: false, baseURL });
   const noScriptPage = await context.newPage();
-  await noScriptPage.goto('/');
+  const response = await noScriptPage.goto('/', { waitUntil: 'commit' });
+  expect(response?.status()).toBe(200);
   await expect(noScriptPage.locator('html')).toHaveClass(/app-unavailable/);
   await expect(noScriptPage.locator('#startup-status')).toContainText('Research workbench unavailable');
   await expect(noScriptPage.locator('.requires-app:visible')).toHaveCount(0);
@@ -205,6 +206,39 @@ test('editing research inputs clears the old review and withholds the chart', as
   await expect(page.locator('#review-status')).toHaveText('Pending review');
   await expect(page.locator('#chart-area svg')).toHaveCount(0);
   await expect(page.locator('#notice')).toContainText('previous review was reset');
+});
+
+test('method and dated sources can be edited without manipulating packet JSON', async ({ page }) => {
+  await page.locator('#edit-details').click();
+  await a11y(page);
+  await page.locator('select[name="method-basis"]').selectOption('empirical');
+  await page.locator('input[name="method-sampleSize"]').fill('12');
+  await page.locator('textarea[name="method-description"]').fill('Twelve fictional observations reviewed manually.');
+  await page.getByRole('button', { name: 'Remove source 2' }).click();
+  await page.locator('#add-source').click();
+  const source = {
+    id: 'official-record', title: 'Official public record', url: 'http://www.iana.org/domains/reserved', type: 'primary',
+    publishedAt: '2026-08-20T06:00:00Z', capturedAt: '2026-08-20T08:00:00Z',
+    claim: 'A fictional method input was recorded.', excerpt: 'Fictional excerpt for browser-form verification.',
+  };
+  for (const [key, value] of Object.entries(source)) {
+    const control = page.locator('[name="source-1-' + key + '"]');
+    if (key === 'type') await control.selectOption(value); else await control.fill(value);
+  }
+  await page.getByRole('button', { name: 'Save details', exact: true }).click();
+  const url = page.locator('input[name="source-1-url"]');
+  await expect(page.locator('#editor-error')).toContainText('public HTTPS');
+  await expect(url).toBeFocused();
+  await expect(url).toHaveAttribute('aria-invalid', 'true');
+  await url.fill('https://www.iana.org/domains/reserved');
+  await page.getByRole('button', { name: 'Save details', exact: true }).click();
+
+  const json = JSON.parse((await exported(page, '#export-json')).text);
+  expect(json.method).toMatchObject({ basis: 'empirical', sampleSize: 12, description: 'Twelve fictional observations reviewed manually.' });
+  expect(json.sources.map(item => item.id)).toEqual(['example-upgrade', 'official-record']);
+  expect(json.sources[1].url).toBe('https://www.iana.org/domains/reserved');
+  expect(json.riskReview).toEqual(blankPacket().riskReview);
+  await expect(page.locator('#chart-area svg')).toHaveCount(0);
 });
 
 test('changing input and review records together preserves the editor and rejects the update', async ({ page }) => {
