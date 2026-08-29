@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Locked saving and clearing after cross-tab draft changes so one tab cannot overwrite another tab's newer browser value.
 - Locked browser saving when an unreadable draft is detected and added a raw-download recovery action before confirmed deletion.
 - Added structured four-horizon scenario editing with derived contiguous intervals, so routine packet creation no longer requires raw JSON.
 - Added structured method and dated-source editing so routine packet preparation no longer requires manipulating those fields as raw JSON.

@@ -88,7 +88,7 @@ The details form preserves valid multiline risk and unknown entries on a no-op s
 
 Local saving is off by default. **Remember this packet** stores one unencrypted draft under `crypto-research-desk.packet.v1` in the current browser origin. It is not account storage, synchronization, or a backup. Different deployment URLs have separate browser storage.
 
-**Clear saved draft** removes only this app's storage key and leaves the open packet in memory. The open copy is then treated as unsaved, so closing or navigating away receives the browser's unsaved-change protection. Replacing an edited draft requires confirmation. If another tab changes storage, automatic saving pauses rather than overwriting the open packet.
+**Clear saved draft** removes only this app's storage key and leaves the open packet in memory. The open copy is then treated as unsaved, so closing or navigating away receives the browser's unsaved-change protection. Replacing an edited draft requires confirmation. If another tab changes storage, saving and clearing lock until reload so neither tab can overwrite the other's draft. Export the open packet before reloading.
 
 Corrupt saved data is retained without being overwritten, and automatic saving is locked so the synthetic fallback cannot replace it. Use **Download unreadable draft** to preserve the exact raw value as untrusted text before clearing it. Storage access failures disable automatic saving and display a warning. Export the open packet, retain any recoverable original JSON, and clear the app's saved data only when ready. Browsers and device administrators can remove local storage independently.
 

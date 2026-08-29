@@ -518,14 +518,18 @@ test('quota failures remain visible after edits and do not replace a previous sa
   expect(await page.evaluate(key => JSON.parse(localStorage.getItem(key)).thesis, STORAGE_KEY)).toBe(examplePacket().thesis);
 });
 
-test('another tab changing storage pauses saving without replacing the open packet', async ({ page, context }) => {
+test('another tab changing storage locks destructive controls without replacing either draft', async ({ page, context }) => {
   await page.locator('#remember-packet').check();
   const other = await context.newPage();
   await navigate(other);
-  await other.evaluate(key => localStorage.removeItem(key), STORAGE_KEY);
-  await expect(page.locator('#remember-packet')).not.toBeChecked();
-  await expect(page.locator('#storage-status')).toContainText('another tab');
+  const otherPacket = research(); otherPacket.thesis = 'Newer draft from another tab.';
+  await other.evaluate(([key, value]) => localStorage.setItem(key, value), [STORAGE_KEY, JSON.stringify(otherPacket)]);
+  await expect(page.locator('#remember-packet')).toBeDisabled();
+  await expect(page.locator('#clear-saved')).toBeDisabled();
+  await expect(page.locator('#storage-status')).toContainText('locked until reload');
   await expect(page.locator('#asset-symbol')).toHaveText('DEMO');
+  expect(await page.evaluate(key => JSON.parse(localStorage.getItem(key)).thesis, STORAGE_KEY)).toBe(otherPacket.thesis);
+  await a11y(page);
   expect(await page.evaluate(() => {
     const event = new Event('beforeunload', { cancelable: true });
     window.dispatchEvent(event); return event.defaultPrevented;

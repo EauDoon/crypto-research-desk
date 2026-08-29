@@ -103,6 +103,8 @@ test('production serves the reviewed artifact and complete local-only workflow',
   recoveryPage.once('dialog', dialog => dialog.accept());
   await recoveryPage.locator('#clear-saved').click();
   await recoveryPage.close();
+  await expect(page.locator('#remember-packet')).toBeDisabled();
+  await expect(page.locator('#clear-saved')).toBeDisabled();
 
   expect(errors).toEqual([]);
   expect([...origins]).toEqual([origin]);

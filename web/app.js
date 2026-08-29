@@ -878,8 +878,10 @@ window.addEventListener('storage', event => {
   if (event.key !== STORAGE_KEY && event.key !== null) return;
   dirty = true;
   $('remember-packet').checked = false;
-  setText('storage-status', 'Browser storage changed in another tab. Automatic saving is paused.');
-  announce('Another tab changed the saved draft. Your open packet is unchanged. Export it before re-enabling local saving.');
+  $('remember-packet').disabled = true;
+  $('clear-saved').disabled = true;
+  setText('storage-status', 'Browser storage changed in another tab. Saving and clearing are locked until reload.');
+  announce('Another tab changed the saved draft. Your open packet is unchanged. Export it, then reload before saving or clearing.');
 });
 window.addEventListener('beforeunload', event => {
   if ((dirty && !$('remember-packet').checked) || (editor.open && editorSnapshot() !== editorInitial)) {
