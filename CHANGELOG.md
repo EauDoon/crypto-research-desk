@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+## 1.7.0, 30-08-2026
+
+- Added a local raw-JSON copy action while retaining the portable JSON download.
 - Aligned release, deployment, and security guidance with authorized Vercel Git builds and automatic production promotion.
 
 ## 1.6.6, 29-08-2026

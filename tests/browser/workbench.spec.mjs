@@ -266,6 +266,19 @@ test('JSON and Markdown downloads preserve packet content and evidence', async (
   }
 });
 
+test('raw packet JSON can be copied locally without changing the open record', async ({ page }) => {
+  await page.evaluate(() => {
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText: async text => { window.copiedPacket = text; } },
+    });
+  });
+  await page.locator('#copy-json').click();
+  expect(JSON.parse(await page.evaluate(() => window.copiedPacket))).toEqual(examplePacket());
+  await expect(page.locator('#notice')).toContainText('Raw JSON copied locally');
+  await expect(page.locator('#asset-symbol')).toHaveText('DEMO');
+});
+
 test('a formatted near-limit JSON export can be imported again', async ({ page }) => {
   const packet = examplePacket();
   packet.sources = Array.from({ length: 32 }, (_, index) => ({

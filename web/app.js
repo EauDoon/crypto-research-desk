@@ -785,6 +785,15 @@ form.addEventListener('submit', event => {
 $('apply-json').addEventListener('click', () => {
   try { completeEdit(parsePacket($('packet-json').value)); } catch (error) { editorError(error, $('packet-json')); }
 });
+$('copy-json').addEventListener('click', async () => {
+  try {
+    if (!navigator.clipboard?.writeText) throw new Error('Clipboard access is unavailable.');
+    await navigator.clipboard.writeText(JSON.stringify(packet, null, 2) + '\n');
+    announce('Raw JSON copied locally. The open packet was not changed or uploaded.');
+  } catch {
+    announce('Clipboard access failed. Use Export JSON to keep the raw packet.', true);
+  }
+});
 $('export-json').addEventListener('click', () => {
   download(JSON.stringify(packet, null, 2) + '\n', 'application/json', 'Research Packet.json');
   announce('JSON export prepared. Keep the downloaded file as your portable research record.');
