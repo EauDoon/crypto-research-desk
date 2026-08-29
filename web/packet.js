@@ -182,7 +182,7 @@ export function timestamp(value) {
 
 export function safeSourceUrl(value) {
   if (typeof value !== 'string' || !wellFormed(value) || value.length > 2048
-    || /[\u0000-\u0020\u007f-\u009f]|\p{Cf}/u.test(value)) return null;
+    || /[\u0000-\u0020\u007f-\u009f]|\p{Cf}|\p{Default_Ignorable_Code_Point}/u.test(value)) return null;
   try {
     const url = new URL(value);
     const host = url.hostname.toLowerCase();
@@ -298,11 +298,16 @@ export function validatePacket(packet, now = Date.now()) {
   }
   function text(value, path, required = true, limit = 5000) {
     if (typeof value !== 'string' || !wellFormed(value) || value.length > limit
-      || /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f-\u009f]|\p{Cf}/u.test(value ?? '')) {
+      || /[\u0000-\u0008\u000b-\u001f\u007f-\u009f]|\p{Cf}|\p{Default_Ignorable_Code_Point}/u.test(value ?? '')) {
       error(path, 'Use bounded visible plain text without hidden formatting controls.'); return false;
     }
     if (required && !value.trim()) gap(path, 'Information is UNKNOWN.');
     return true;
+  }
+  function line(value, path, required = true, limit = 5000) {
+    const valid = text(value, path, required, limit);
+    if (valid && /[\r\n]/.test(value)) { error(path, 'Use one line of plain text.'); return false; }
+    return valid;
   }
   function list(value, path, maximum = 32) {
     if (!Array.isArray(value) || value.length > maximum) { error(path, 'Expected a bounded list.'); return false; }
@@ -324,9 +329,9 @@ export function validatePacket(packet, now = Date.now()) {
   if (!object(packet, 'packet', rootKeys)) return finish();
   if (packet.schemaVersion !== 1) error('schemaVersion', 'Only packet schema version 1 is supported.');
   if (!['research', 'synthetic'].includes(packet.kind)) error('kind', 'Choose research or synthetic.');
-  text(packet.preparedBy, 'preparedBy', true, 100);
+  line(packet.preparedBy, 'preparedBy', true, 100);
   if (object(packet.asset, 'asset', ['symbol', 'name', 'quoteCurrency', 'venue'])) {
-    for (const key of ['symbol', 'name', 'quoteCurrency', 'venue']) text(packet.asset[key], 'asset.' + key, true, 120);
+    for (const key of ['symbol', 'name', 'quoteCurrency', 'venue']) line(packet.asset[key], 'asset.' + key, true, 120);
     if (present(packet.asset.symbol) && !/^[A-Z0-9][A-Z0-9.-]{0,19}$/.test(packet.asset.symbol)) error('asset.symbol', 'Use 1 to 20 uppercase letters, numbers, periods, or hyphens.');
     if (present(packet.asset.quoteCurrency) && !/^[A-Z0-9]{2,12}$/.test(packet.asset.quoteCurrency)) error('asset.quoteCurrency', 'Use an uppercase currency symbol.');
   }
@@ -335,7 +340,7 @@ export function validatePacket(packet, now = Date.now()) {
     if (packet.reference.price === null) gap('reference.price', 'Reference price is UNKNOWN.');
     else if (!finitePrice(packet.reference.price) || packet.reference.price === 0) error('reference.price', 'Use a finite positive price no greater than 1 trillion.');
     cutoff = date(packet.reference.capturedAt, 'reference.capturedAt');
-    if (text(packet.reference.timezone, 'reference.timezone', true, 100)) {
+    if (line(packet.reference.timezone, 'reference.timezone', true, 100)) {
       try { new Intl.DateTimeFormat('en-US', { timeZone: packet.reference.timezone }).format(); }
       catch { error('reference.timezone', 'Use an IANA timezone such as UTC or Asia/Singapore.'); }
     }
@@ -360,11 +365,12 @@ export function validatePacket(packet, now = Date.now()) {
     packet.sources.forEach((source, index) => {
       const path = 'sources[' + index + ']';
       if (!object(source, path, ['id', 'title', 'url', 'type', 'publishedAt', 'capturedAt', 'claim', 'excerpt'])) return;
-      text(source.id, path + '.id', true, 40);
+      line(source.id, path + '.id', true, 40);
       if (typeof source.id === 'string' && !/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,39}$/.test(source.id)) error(path + '.id', 'Use a simple source identifier.');
       if (sourceIds.has(source.id)) error(path + '.id', 'Source identifiers must be unique.');
       sourceIds.add(source.id);
-      for (const key of ['title', 'claim', 'excerpt']) text(source[key], path + '.' + key, true, key === 'title' ? 200 : 5000);
+      line(source.title, path + '.title', true, 200);
+      for (const key of ['claim', 'excerpt']) text(source[key], path + '.' + key);
       if (!safeSourceUrl(source.url)) error(path + '.url', 'Use a public HTTPS source URL without credentials or a custom port.');
       else if (packet.kind === 'research' && /(?:^|\.)example\.(com|org|net)$/.test(new URL(source.url).hostname)) gap(path + '.url', 'Example domains do not support real research.');
       if (!['primary', 'secondary'].includes(source.type)) error(path + '.type', 'Choose primary or secondary.');
@@ -428,7 +434,7 @@ export function validatePacket(packet, now = Date.now()) {
   if (object(review, 'riskReview', ['status', 'reviewer', 'reviewedAt', 'notes', 'sourceIds', 'assertions'])) {
     if (!['pending', 'deliver', 'deliver_with_warning', 'repair', 'withhold'].includes(review.status)) error('riskReview.status', 'Unsupported research review disposition.');
     const final = review.status !== 'pending';
-    text(review.reviewer, 'riskReview.reviewer', final, 100);
+    line(review.reviewer, 'riskReview.reviewer', final, 100);
     text(review.notes, 'riskReview.notes', final);
     const reviewed = date(review.reviewedAt, 'riskReview.reviewedAt', final);
     if (final && present(review.reviewer) && present(packet.preparedBy)

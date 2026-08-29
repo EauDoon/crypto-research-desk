@@ -5,8 +5,13 @@ import { examplePacket } from '../../web/example.js';
 import { HASHED_ASSET, SECURITY_HEADERS } from '../../tools/web-config.mjs';
 
 const origin = new URL(process.env.PRODUCTION_URL).origin;
-const localManifest = JSON.parse(await readFile(new URL('../../dist/build-info.json', import.meta.url), 'utf8'));
+const localManifestBytes = await readFile(new URL('../../dist/build-info.json', import.meta.url));
+const localManifest = JSON.parse(localManifestBytes);
 const STORAGE_KEY = 'crypto-research-desk.packet.v1';
+const CONTENT_TYPES = {
+  html: 'text/html; charset=utf-8', js: 'application/javascript; charset=utf-8',
+  css: 'text/css; charset=utf-8', svg: 'image/svg+xml', txt: 'text/plain; charset=utf-8',
+};
 const deployedSecurityHeaders = Object.fromEntries(Object.entries(SECURITY_HEADERS)
   .map(([key, value]) => [key.toLowerCase(), value]));
 const expectedHeaders = (contentType, cacheControl = 'public, max-age=0, must-revalidate') => ({
@@ -31,18 +36,15 @@ test('production serves the reviewed artifact and complete local-only workflow',
   const manifestResponse = await request.get('/build-info.json');
   expect(manifestResponse.status()).toBe(200);
   expect(manifestResponse.headers()).toMatchObject(expectedHeaders('application/json; charset=utf-8'));
-  expect(await manifestResponse.json()).toEqual(localManifest);
+  expect(await manifestResponse.body()).toEqual(localManifestBytes);
   for (const name of localManifest.files) {
     const deployed = await request.get('/' + name);
     expect(deployed.status(), name).toBe(200);
+    expect(deployed.headers(), name).toMatchObject(expectedHeaders(
+      CONTENT_TYPES[name.split('.').at(-1)], HASHED_ASSET.test(name)
+        ? 'public, max-age=31536000, immutable' : 'public, max-age=0, must-revalidate'));
     expect(await deployed.body(), name).toEqual(await readFile(new URL('../../dist/' + name, import.meta.url)));
   }
-  const asset = localManifest.files.find(name => name.startsWith('app.'));
-  expect(HASHED_ASSET.test(asset)).toBe(true);
-  const assetResponse = await request.get('/' + asset);
-  expect(assetResponse.status()).toBe(200);
-  expect(assetResponse.headers()).toMatchObject(expectedHeaders(
-    'application/javascript; charset=utf-8', 'public, max-age=31536000, immutable'));
   const missing = await request.get('/package.json');
   expect(missing.status()).toBe(404);
   expect(missing.headers()).toMatchObject(expectedHeaders('text/html; charset=utf-8'));

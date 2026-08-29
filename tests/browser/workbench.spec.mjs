@@ -179,6 +179,41 @@ test('the newest file import wins when reads complete out of order', async ({ pa
   await expect(page.locator('#asset-symbol')).toHaveText('FAST');
 });
 
+test('opening an editor cancels a pending file read before either draft can overwrite the other', async ({ page }) => {
+  await page.evaluate(() => {
+    const read = File.prototype.arrayBuffer;
+    File.prototype.arrayBuffer = async function () {
+      await new Promise(resolve => setTimeout(resolve, 300));
+      return read.call(this);
+    };
+  });
+  const incoming = research(); incoming.asset.symbol = 'IMPORTED';
+  await page.locator('#packet-file').setInputFiles({
+    name: 'delayed.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(incoming)),
+  });
+  await page.locator('#edit-details').click();
+  await page.locator('textarea[name="thesis"]').fill('The editor draft remains authoritative.');
+  await expect(page.locator('#packet-file')).toHaveValue('');
+  await expect(page.locator('#asset-symbol')).toHaveText('DEMO');
+  await expect(page.locator('input[name="symbol"]')).toHaveValue('DEMO');
+  await page.getByRole('button', { name: 'Save details', exact: true }).click();
+  await expect(page.locator('#asset-symbol')).toHaveText('DEMO');
+});
+
+test('one-line packet fields reject line breaks instead of flattening them in the details editor', async ({ page }) => {
+  const packet = research(); packet.asset.name = 'Bitcoin\nCash';
+  await importText(page, JSON.stringify(packet));
+  await expect(page.locator('#app-error')).toContainText('asset.name: Use one line');
+  await expect(page.locator('#asset-symbol')).toHaveText('DEMO');
+});
+
+test('textarea packet fields reject carriage returns instead of normalizing evidence records', async ({ page }) => {
+  const packet = research(); packet.sources[0].excerpt = 'First line\r\nSecond line';
+  await importText(page, JSON.stringify(packet));
+  await expect(page.locator('#app-error')).toContainText('sources[0].excerpt');
+  await expect(page.locator('#asset-symbol')).toHaveText('DEMO');
+});
+
 test('unsafe links and incorrect probabilities are rejected without a network request', async ({ page }) => {
   const unsafe = research(); unsafe.sources[0].url = 'javascript:alert(1)';
   await importText(page, JSON.stringify(unsafe));
@@ -253,6 +288,20 @@ test('undated exports use exact portable fallback filenames', async ({ page }) =
   const markdown = await exported(page, '#export-brief');
   expect(json.name).toBe('(Undated)Research Packet.json');
   expect(markdown.name).toBe('(Undated)Research Brief.md');
+});
+
+test('export filenames keep the packet date across positive and negative UTC boundaries', async ({ page }) => {
+  for (const [capturedAt, timezone, date] of [
+    ['2026-08-20T00:30:00+08:00', 'Asia/Singapore', '2026-08-20'],
+    ['2026-08-19T23:30:00-07:00', 'America/Los_Angeles', '2026-08-19'],
+  ]) {
+    const packet = blankPacket();
+    packet.asset.symbol = 'OFFSET'; packet.reference.capturedAt = capturedAt; packet.reference.timezone = timezone;
+    if (capturedAt.endsWith('-07:00')) page.once('dialog', dialog => dialog.accept());
+    await importPacket(page, packet);
+    expect((await exported(page, '#export-json')).name).toBe('(' + date + ')OFFSET Research Packet.json');
+    expect((await exported(page, '#export-brief')).name).toBe('(' + date + ')OFFSET Research Brief.md');
+  }
 });
 
 test('editing research inputs clears the old review and withholds the chart', async ({ page }) => {
@@ -630,6 +679,28 @@ test('expiry refresh marks the horizon elapsed and withholds charts even with a 
   await expect(page.locator('#tab-12h')).toContainText('ELAPSED');
   await expect(page.locator('#expiry-12h')).toBeVisible();
   await expect(page.locator('#tab-12h')).toBeFocused();
+});
+
+test('one render uses one cutoff instant for structure, chart, and horizon labels', async ({ page }) => {
+  const packet = research();
+  const expiry = Date.parse(packet.horizons[0].endAt);
+  await page.evaluate(cutoff => {
+    Date.now = () => /renderChart|refreshHorizonLabels/.test(new Error().stack) ? cutoff : cutoff - 1;
+  }, expiry);
+  await importPacket(page, packet);
+  await expect(page.locator('#structure-status')).toHaveText('Structure complete');
+  await expect(page.locator('#chart-area svg')).toBeVisible();
+  await expect(page.locator('#tab-12h small')).toHaveText('100% within horizon');
+});
+
+test('horizon navigation refreshes expiry before leaving a stale chart visible', async ({ page }) => {
+  await page.clock.setSystemTime(new Date('2026-08-20T20:59:30Z'));
+  await importPacket(page, research());
+  await page.clock.setSystemTime(new Date('2026-08-20T21:00:00Z'));
+  await page.locator('#tab-24h').click();
+  await expect(page.locator('#chart-area svg')).toHaveCount(0);
+  await expect(page.locator('#tab-12h small')).toHaveText('ELAPSED');
+  await expect(page.locator('#tab-24h')).toBeFocused();
 });
 
 test('mobile and desktop layouts contain overflow and keep dialog actions reachable', async ({ page }) => {
