@@ -50,12 +50,12 @@ Use $crypto-fund-research to produce a risk-cleared BTC price probability analys
 
 Requirements: Node 24.x and a current Chromium or Firefox browser.
 
-```powershell
+```sh
 npm ci --ignore-scripts
 npm run dev
 ```
 
-Open [the local workbench](http://127.0.0.1:4173). Start with a blank packet or inspect the clearly labeled fictional DEMO example. Import or edit JSON, review all four horizons and evidence records, then export JSON, a Markdown brief, or a printable chart.
+Open [the local workbench](http://127.0.0.1:4173). Start with a blank packet or inspect the clearly labeled fictional DEMO example. Edit core research and review fields in the guided form; use the full packet editor for sources, scenarios, and method details. Then export JSON, a Markdown brief, or a printable chart.
 
 Saving is off by default. Optional browser storage keeps one unencrypted local draft; it is not a backup or a verified review system. Invalid input is rejected without replacing the open packet. Material edits reset the recorded review, and missing evidence or elapsed horizons withhold the chart.
 
@@ -69,9 +69,9 @@ Read the [packet guide](docs/WORKBENCH.md), [deployment runbook](docs/DEPLOYMENT
 | Horizons | 12 hours, 24 hours, 3 days, and 7 days |
 | Scenarios | Mutually exclusive price ranges totaling 100% within each horizon |
 | Chart | `Price target range by horizon`, built from the final scenario thresholds |
+| Failure behavior | Return `UNKNOWN` and `INCOMPLETE` when evidence cannot support the output |
 
 The research workflow requires an independent Risk gate before delivery. The browser displays submitted thresholds and labels review dispositions as unauthenticated, including warning dispositions.
-| Failure behavior | Return `UNKNOWN` and `INCOMPLETE` when evidence cannot support the output |
 
 Probabilities are not added across horizons. Unsupported values are never invented.
 
@@ -118,21 +118,22 @@ These are software and workflow checks. They do not establish forecast accuracy,
 
 Use Python 3.11 or later for the research-core checks:
 
-```powershell
-py -B tools/verify_release.py
-py -B -m unittest discover -s tests -v
+```sh
+python3 -B tools/verify_release.py
+python3 -B -m unittest discover -s tests -v
 npm run check
 ```
 
+On Windows, use `py` in place of `python3`. The checked-in `.nvmrc` selects Node 24 in compatible version managers.
+
 These checks make no network request once dependencies are installed. For browser tests:
 
-```powershell
-$env:PLAYWRIGHT_BROWSERS_PATH = Join-Path (Get-Location) 'work\playwright-browsers'
+```sh
 npx playwright install chromium firefox
 npm run test:browser
 ```
 
-Browser installation requires a download. The tests use only fictional local packets. To inspect the production artifact, run `npm run build` followed by `npm run preview`. The build has no runtime package dependency.
+Browser installation requires a download. `npm run test:browser` rebuilds and verifies `dist/` before the browser suite; the tests use only fictional local packets. To inspect the production artifact, run `npm run build` followed by `npm run preview`. The build has no runtime package dependency.
 
 ## License
 

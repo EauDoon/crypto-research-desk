@@ -87,6 +87,7 @@ dd { font-size: 13px; font-weight: 550; overflow-wrap: anywhere; }
 .section-heading .eyebrow { margin-bottom: 6px; }
 .section-heading .tag { margin-top: 4px; }
 .chart-reference { font-size: 11px; color: var(--muted); margin-bottom: 12px; }
+.scroll-hint { display: none; color: var(--muted); font-size: 11px; margin: 0 0 8px; }
 .chart-scroll { overflow-x: auto; border-radius: 6px; }
 .range-chart { display: block; width: 100%; min-width: 580px; height: auto; }
 .range-chart text { font-family: "Segoe UI", Arial, sans-serif; fill: #465f63; font-size: 12px; font-variant-numeric: tabular-nums; }
@@ -158,6 +159,7 @@ progress::-moz-progress-bar { background: #568d71; border-radius: 3px; }
 .source-item { padding: 22px 0; border-top: 1px solid var(--line); display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(210px, .8fr); gap: 20px; }
 .source-title { display: flex; gap: 12px; align-items: start; margin-bottom: 10px; }
 .source-title a { font-size: 14px; font-weight: 600; overflow-wrap: anywhere; }
+.source-host { color: var(--muted); font-family: Consolas, "Liberation Mono", monospace; font-size: 10px; overflow-wrap: anywhere; }
 .source-item p { color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
 .source-item details { margin-top: 12px; font-size: 11px; }
 .source-item summary { color: #31594c; }
@@ -188,13 +190,15 @@ blockquote { border-left: 2px solid #b5cbbf; margin: 10px 0 0; padding: 4px 0 4p
 .notice { white-space: pre-line; }
 .assertion-summary { border-top: 1px solid var(--line); padding: 10px 0; font-size: 10px; overflow-wrap: anywhere; }
 .assertion-summary p { margin-top: 5px; color: var(--muted); }
-dialog { border: 1px solid #bfcfc5; border-radius: 12px; padding: 0; width: min(920px, calc(100% - 32px)); max-height: 90dvh; overflow-y: auto; overscroll-behavior: contain; color: var(--ink); background: #fff; box-shadow: 0 25px 100px #061c3040; }
+dialog { border: 1px solid #bfcfc5; border-radius: 12px; padding: 0; width: min(920px, calc(100% - 32px)); max-height: 90dvh; overflow: hidden; color: var(--ink); background: #fff; box-shadow: 0 25px 100px #061c3040; }
+dialog[open] { display: flex; flex-direction: column; }
 dialog::backdrop { background: #0d252d8a; }
-.editor-header { display: flex; justify-content: space-between; gap: 20px; align-items: center; padding: 23px 28px; border-bottom: 1px solid var(--line); background: white; }
+.editor-header { display: flex; flex: 0 0 auto; justify-content: space-between; gap: 20px; align-items: center; padding: 23px 28px; border-bottom: 1px solid var(--line); background: white; }
 .editor-header .eyebrow { margin-bottom: 5px; }
 .editor-help { padding: 15px 28px; font-size: 12px; color: var(--muted); background: #f5f8f3; }
+.editor-scroll { min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
 dialog .notice { margin: 14px 28px; }
-#details-form, #json-editor-panel { padding: 24px 28px 0; }
+#details-form, #json-editor-panel { padding: 24px 28px; }
 .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px 24px; }
 .form-grid label, #json-editor-panel > label { display: block; font-size: 12px; font-weight: 600; }
 .form-grid input, .form-grid textarea, .form-grid select, .json-editor { display: block; width: 100%; border: 1px solid #bbcfc0; border-radius: 5px; padding: 9px 10px; background: white; color: var(--ink); margin-top: 7px; font-size: 13px; min-width: 0; }
@@ -203,7 +207,8 @@ dialog .notice { margin: 14px 28px; }
 fieldset { border: 1px solid #d7e3d8; padding: 20px; border-radius: 6px; margin: 24px 0 0; min-width: 0; }
 legend { font-size: 13px; font-weight: 600; padding: 0 6px; }
 fieldset > p { margin-bottom: 18px; }
-.editor-footer { padding: 20px 0; display: flex; gap: 15px; align-items: center; flex-wrap: wrap; }
+.editor-footer { flex: 0 0 auto; padding: 14px 28px; border-top: 1px solid var(--line); background: #fff; box-shadow: 0 -8px 22px #142d3410; }
+.editor-action-set { display: flex; gap: 15px; align-items: center; flex-wrap: wrap; }
 .json-editor { font-family: Consolas, "Liberation Mono", monospace; line-height: 1.6; font-size: 12px; tab-size: 2; resize: vertical; }
 @media (min-width: 1700px) { .workspace-grid { grid-template-columns: minmax(0, 1fr) 320px; } }
 @media (max-width: 1200px) {
@@ -249,6 +254,8 @@ fieldset > p { margin-bottom: 18px; }
   .source-dates { grid-template-columns: 1fr 1fr; }
   .utility-bar { align-items: flex-start; flex-direction: column; gap: 13px; }
   .page-heading { align-items: flex-start; gap: 12px; }
+  .scroll-hint { display: block; }
+  .chart-scroll, .table-scroll { background: linear-gradient(to right, transparent calc(100% - 18px), #126a561c); }
 }
 @media (max-width: 480px) {
   .sidebar { padding: 16px 18px; grid-template-columns: 1fr; gap: 14px; }
@@ -281,9 +288,22 @@ fieldset > p { margin-bottom: 18px; }
   .span-two { grid-column: auto; }
   .editor-header { padding: 18px; }
   .editor-help { padding: 14px 18px; }
-  #details-form, #json-editor-panel { padding: 20px 18px 0; }
+  dialog { width: calc(100% - 20px); max-height: 96dvh; }
+  dialog .notice { margin: 12px 18px; }
+  #details-form, #json-editor-panel { padding: 20px 18px; }
+  .editor-footer { padding: 12px 18px; }
+  .editor-action-set { align-items: flex-start; flex-direction: column; gap: 8px; }
+  .editor-action-set .button { width: 100%; }
   fieldset { padding: 15px; }
   .source-dates { gap: 12px; }
+}
+@media (max-height: 420px) {
+  dialog { max-height: calc(100dvh - 8px); }
+  .editor-header { padding: 10px 18px; }
+  .editor-header .eyebrow { display: none; }
+  .editor-help { padding: 8px 18px; }
+  .editor-footer { padding: 8px 18px; }
+  .editor-action-set { gap: 6px; }
 }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; scroll-behavior: auto !important; } }
 @media print {
@@ -292,7 +312,7 @@ fieldset > p { margin-bottom: 18px; }
   body { display: block; font-size: 11px; }
   h2, h3, summary { break-after: avoid; }
   p { orphans: 3; widows: 3; }
-  .sidebar, .utility-bar, .packet-toolbar, .storage-panel, .guide-section, .horizon-tabs, dialog, .skip-link, #notice, .boundary-tag { display: none !important; }
+  .sidebar, .utility-bar, .packet-toolbar, .storage-panel, .guide-section, .horizon-tabs, dialog, .skip-link, #notice, .boundary-tag, .scroll-hint { display: none !important; }
   main { padding: 0; max-width: none; }
   .page-heading { margin-bottom: 18px; }
   h1 { font-size: 26px; }

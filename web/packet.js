@@ -19,6 +19,18 @@ const record = value => value !== null && typeof value === 'object' && !Array.is
   && [Object.prototype, null].includes(Object.getPrototypeOf(value));
 const present = value => typeof value === 'string' && value.trim().length > 0;
 const finitePrice = value => typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 1e12;
+function wellFormed(value) {
+  if (typeof value !== 'string') return false;
+  for (let index = 0; index < value.length; index++) {
+    const unit = value.charCodeAt(index);
+    if (unit >= 0xd800 && unit <= 0xdbff) {
+      if (index + 1 >= value.length) return false;
+      const next = value.charCodeAt(++index);
+      if (next < 0xdc00 || next > 0xdfff) return false;
+    } else if (unit >= 0xdc00 && unit <= 0xdfff) return false;
+  }
+  return true;
+}
 function decimalKey(token) {
   const negative = token.startsWith('-');
   const [mantissa, power = '0'] = token.replace(/^-/, '').toLowerCase().split('e');
@@ -32,9 +44,11 @@ function decimalKey(token) {
 
 // A bounded JSON reader rejects duplicate keys before information is lost by JSON.parse.
 export function parsePacket(text) {
-  if (typeof text !== 'string' || new TextEncoder().encode(text).length > MAX_PACKET_BYTES) {
+  if (typeof text !== 'string' || text.length > MAX_PACKET_BYTES
+    || new TextEncoder().encode(text).length > MAX_PACKET_BYTES) {
     throw new Error('Use a UTF-8 JSON packet smaller than 256 KiB.');
   }
+  if (!wellFormed(text)) throw new Error('Use well-formed Unicode without unpaired surrogate code units.');
   let position = 0;
   let nodes = 0;
   const fail = message => { throw new Error(message + ' At character ' + (position + 1) + '.'); };
@@ -45,7 +59,14 @@ export function parsePacket(text) {
       const character = text[position++];
       if (character === '\\') { position++; continue; }
       if (character === '"') {
-        try { return JSON.parse(text.slice(start, position)); } catch { fail('Invalid JSON string.'); }
+        try {
+          const result = JSON.parse(text.slice(start, position));
+          if (!wellFormed(result)) fail('Ill-formed Unicode is not allowed.');
+          return result;
+        } catch (error) {
+          if (error?.message?.includes('Ill-formed Unicode')) throw error;
+          fail('Invalid JSON string.');
+        }
       }
     }
     fail('Unterminated JSON string.');
@@ -121,13 +142,14 @@ export function timestamp(value) {
 }
 
 export function safeSourceUrl(value) {
-  if (typeof value !== 'string' || value.length > 2048 || /[\u0000-\u0020\u007f]|\p{Cf}/u.test(value)) return null;
+  if (typeof value !== 'string' || !wellFormed(value) || value.length > 2048
+    || /[\u0000-\u0020\u007f-\u009f]|\p{Cf}/u.test(value)) return null;
   try {
     const url = new URL(value);
     const host = url.hostname.toLowerCase();
     if (url.protocol !== 'https:' || url.username || url.password || url.port
       || !/^[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?\.[a-z]{2,63}$/.test(host)
-      || /(?:^|\.)(?:localhost|local|internal|test|invalid)$/.test(host)) return null;
+      || /(?:^|\.)(?:localhost|local|internal|test|invalid|example)$/.test(host)) return null;
     if (host.length > 253 || host.split('.').some(label => label.length > 63 || !/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/.test(label))) return null;
     return url.href;
   } catch { return null; }
@@ -202,7 +224,8 @@ export function validatePacket(packet, now = Date.now()) {
     return true;
   }
   function text(value, path, required = true, limit = 5000) {
-    if (typeof value !== 'string' || value.length > limit || /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f-\u009f]|\p{Cf}/u.test(value ?? '')) {
+    if (typeof value !== 'string' || !wellFormed(value) || value.length > limit
+      || /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f-\u009f]|\p{Cf}/u.test(value ?? '')) {
       error(path, 'Use bounded visible plain text without hidden formatting controls.'); return false;
     }
     if (required && !value.trim()) gap(path, 'Information is UNKNOWN.');
@@ -389,13 +412,16 @@ export function chartThresholds(packet, now = Date.now()) {
   const report = validatePacket(packet, now);
   if (!report.chartEligible) return [];
   return packet.horizons.map(horizon => ({
-    id: horizon.id, bear: horizon.scenarios[0].upper, bull: horizon.scenarios[2].lower,
+    id: horizon.id,
+    bearBaseBoundary: horizon.scenarios[0].upper,
+    baseBullBoundary: horizon.scenarios[2].lower,
   }));
 }
 
-const markdownText = value => String(value ?? 'UNKNOWN').replace(/[\r\n]+/g, ' ')
-  .replace(/[\\*_{}\[\]<>#|]/g, character => '\\' + character)
-  .replaceAll(String.fromCharCode(96), '\\' + String.fromCharCode(96));
+// Collapse imported whitespace and escape every CommonMark ASCII punctuation
+// character so packet prose cannot create blocks, links, HTML, or formatting.
+const markdownText = value => String(value ?? 'UNKNOWN').replace(/\s+/gu, ' ').trim()
+  .replace(/[!-/:-@[-`{-~]/g, character => '\\' + character);
 
 export function exportMarkdown(packet, now = Date.now()) {
   const report = validatePacket(packet, now);
@@ -438,8 +464,9 @@ export function exportMarkdown(packet, now = Date.now()) {
   if (thresholds.length) {
     lines.push('This text export gives the thresholds below. Use the browser Print / PDF view for the chart.',
       'The chart follows the submitted review record; this application does not authenticate that record.', '',
-      '| Horizon | Bear threshold | Bull threshold |', '| --- | --- | --- |');
-    for (const threshold of thresholds) lines.push('| ' + threshold.id + ' | ' + formatPrice(threshold.bear) + ' | ' + formatPrice(threshold.bull) + ' |');
+      '| Horizon | Bear ceiling (exclusive) | Bull floor (inclusive) |', '| --- | --- | --- |');
+    for (const threshold of thresholds) lines.push('| ' + threshold.id + ' | '
+      + formatPrice(threshold.bearBaseBoundary) + ' | ' + formatPrice(threshold.baseBullBoundary) + ' |');
     lines.push('', 'Targets are scenario thresholds, not guaranteed closing prices.');
   } else lines.push('WITHHELD. A complete packet and an eligible independent review record are required.');
   lines.push('', '## Dated evidence', '');

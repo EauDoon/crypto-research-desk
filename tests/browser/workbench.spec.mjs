@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import { examplePacket } from '../../web/example.js';
+import { blankPacket } from '../../web/packet.js';
 import { navigate } from './navigation.mjs';
 
 const NOW = new Date('2026-08-20T10:00:00Z');
@@ -36,7 +37,7 @@ async function exported(page, selector) {
   return { name: download.suggestedFilename(), text: Buffer.concat(chunks).toString('utf8') };
 }
 async function a11y(page) {
-  const result = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze();
+  const result = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa']).analyze();
   expect(result.violations.map(item => ({ id: item.id, impact: item.impact, nodes: item.nodes.map(node => node.target) }))).toEqual([]);
 }
 test.beforeEach(async ({ page }) => {
@@ -61,6 +62,9 @@ test('the default view is explicitly synthetic, local, and accessible', async ({
   await expect(page.locator('#remember-packet')).not.toBeChecked();
   expect(await page.evaluate(key => localStorage.getItem(key), STORAGE_KEY)).toBeNull();
   await expect(page.locator('#assertion-record .assertion-summary')).toHaveCount(5);
+  await expect(page.locator('#chart-area svg')).toContainText('Bull floor 106');
+  await expect(page.locator('#chart-area svg')).toContainText('Bear ceiling 94');
+  await expect(page.locator('progress').first()).toHaveAttribute('aria-hidden', 'true');
   await a11y(page);
 });
 
@@ -102,6 +106,11 @@ test('invalid imports preserve the open packet and report exact validation failu
     await expect(page.locator('#asset-symbol')).toHaveText('DEMO');
     await expect(page.locator('#chart-area svg')).toBeVisible();
   }
+  await page.locator('#packet-file').setInputFiles({
+    name: 'invalid-utf8.json', mimeType: 'application/json',
+    buffer: Buffer.from([0x7b, 0x22, 0x78, 0x22, 0x3a, 0x22, 0xc3, 0x28, 0x22, 0x7d]),
+  });
+  await expect(page.locator('#app-error')).toContainText('valid UTF-8');
   expect(await page.evaluate(() => ({}).polluted)).toBeUndefined();
 });
 
@@ -128,6 +137,7 @@ test('imported prose stays inert and submitted reviews remain explicitly unverif
   await expect(page.locator('#chart-badge')).toHaveText('SUBMITTED THRESHOLDS');
   await expect(page.locator('#source-list a').first()).toHaveAttribute('rel', 'noopener noreferrer');
   await expect(page.locator('#source-list a').first()).toHaveAccessibleName(/opens in a new tab/);
+  await expect(page.locator('.source-host').first()).toHaveText('www.iana.org');
   await a11y(page);
 });
 
@@ -164,6 +174,31 @@ test('changing input and review records together preserves the editor and reject
   await expect(page.locator('#packet-editor')).toBeVisible();
 });
 
+test('a pending packet cannot combine new research with a final review', async ({ page }) => {
+  await page.locator('#new-packet').click();
+  await page.locator('textarea[name="thesis"]').fill('New research must be saved before review.');
+  await page.locator('select[name="reviewStatus"]').selectOption('deliver');
+  await page.getByRole('button', { name: 'Save details', exact: true }).click();
+  await expect(page.locator('#editor-error')).toContainText('separately from a new review');
+  await expect(page.locator('#packet-editor')).toBeVisible();
+  await expect(page.locator('#thesis')).toHaveText('UNKNOWN');
+});
+
+test('material edits clear partial pending review data and compare review lists semantically', async ({ page }) => {
+  const packet = research();
+  packet.riskReview.status = 'pending';
+  packet.riskReview.reviewer = 'Draft reviewer';
+  packet.riskReview.assertions.reverse();
+  await importPacket(page, packet);
+  await page.locator('#edit-details').click();
+  await page.locator('textarea[name="thesis"]').fill('Changed after a partial review.');
+  await page.locator('input[name="sourceIds"]').fill([...packet.riskReview.sourceIds].reverse().join(', '));
+  await page.getByRole('button', { name: 'Save details', exact: true }).click();
+  await expect(page.locator('#notice')).toContainText('previous review was reset');
+  const json = await exported(page, '#export-json');
+  expect(JSON.parse(json.text).riskReview).toEqual(blankPacket().riskReview);
+});
+
 test('reordering JSON keys does not invalidate an unchanged review', async ({ page }) => {
   const packet = await fullEditor(page);
   await page.locator('#packet-json').fill(JSON.stringify(Object.fromEntries(Object.entries(packet).reverse())));
@@ -181,6 +216,17 @@ test('a no-op details save preserves multiline lists and the original review', a
   const json = await exported(page, '#export-json');
   expect(JSON.parse(json.text)).toEqual(packet);
   await expect(page.locator('#chart-area svg')).toBeVisible();
+});
+
+test('details editing refuses to flatten an existing multiline list entry', async ({ page }) => {
+  const packet = research(); packet.risks = ['First line\nSecond line'];
+  await importPacket(page, packet);
+  await page.locator('#edit-details').click();
+  await page.locator('textarea[name="risks"]').fill('First line\nSecond line\nThird item');
+  await page.getByRole('button', { name: 'Save details', exact: true }).click();
+  await expect(page.locator('#editor-error')).toContainText('multiline entry');
+  await expect(page.locator('textarea[name="risks"]')).toHaveValue('First line\nSecond line\nThird item');
+  await expect(page.locator('#packet-editor')).toBeVisible();
 });
 
 test('prices that would lose decimal precision are rejected in the details form', async ({ page }) => {
@@ -242,6 +288,21 @@ test('local saving is opt-in, survives reload, and clears only the app key', asy
   expect(await page.evaluate(key => localStorage.getItem(key), STORAGE_KEY)).toBeNull();
   expect(await page.evaluate(() => localStorage.getItem('unrelated-test-key'))).toBe('keep');
   await expect(page.locator('#asset-symbol')).toHaveText('DEMO');
+  expect(await page.evaluate(() => {
+    const event = new Event('beforeunload', { cancelable: true });
+    window.dispatchEvent(event); return event.defaultPrevented;
+  })).toBe(true);
+});
+
+test('clearing when no saved draft exists leaves the default packet clean', async ({ page }) => {
+  page.once('dialog', dialog => dialog.accept());
+  await page.locator('#clear-saved').click();
+  await expect(page.locator('#storage-status')).toContainText('No saved draft was present');
+  expect(await page.evaluate(key => localStorage.getItem(key), STORAGE_KEY)).toBeNull();
+  expect(await page.evaluate(() => {
+    const event = new Event('beforeunload', { cancelable: true });
+    window.dispatchEvent(event); return event.defaultPrevented;
+  })).toBe(false);
 });
 
 test('corrupt storage is retained without replacement and saving stays off', async ({ page }) => {
@@ -250,6 +311,12 @@ test('corrupt storage is retained without replacement and saving stays off', asy
   await expect(page.locator('#app-error')).toContainText('not deleted or overwritten');
   await expect(page.locator('#remember-packet')).not.toBeChecked();
   expect(await page.evaluate(key => localStorage.getItem(key), STORAGE_KEY)).toBe('{"bad":true}');
+  page.once('dialog', dialog => dialog.accept());
+  await page.locator('#clear-saved').click();
+  expect(await page.evaluate(() => {
+    const event = new Event('beforeunload', { cancelable: true });
+    window.dispatchEvent(event); return event.defaultPrevented;
+  })).toBe(false);
 });
 
 test('quota failures remain visible after edits and do not replace a previous saved draft', async ({ page }) => {
@@ -293,12 +360,57 @@ test('mobile and desktop layouts contain overflow and keep dialog actions reacha
   for (const width of [320, 390, 768, 1440]) {
     await page.setViewportSize({ width, height: width === 320 ? 568 : 1000 });
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), 'page overflow at ' + width).toBe(true);
+    expect(await page.locator('#chart-area .scroll-hint').isVisible()).toBe(width <= 720);
     await page.locator('#edit-details').click();
-    await page.getByRole('button', { name: 'Save details', exact: true }).scrollIntoViewIfNeeded();
     await expect(page.getByRole('button', { name: 'Save details', exact: true })).toBeInViewport();
+    await expect(page.locator('#close-editor')).toBeInViewport();
     await page.getByRole('button', { name: 'Save details', exact: true }).click();
     await expect(page.locator('#packet-editor')).toBeHidden();
   }
+});
+
+test('the full packet editor opens at the beginning with actions visible on mobile', async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 568 });
+  await page.locator('#edit-json').click();
+  await expect(page.locator('#close-editor')).toBeInViewport();
+  await expect(page.locator('#apply-json')).toBeInViewport();
+  expect(await page.locator('#packet-json').evaluate(node => ({
+    selectionStart: node.selectionStart, scrollTop: node.scrollTop, scrollLeft: node.scrollLeft,
+  }))).toEqual({ selectionStart: 0, scrollTop: 0, scrollLeft: 0 });
+  expect(await page.locator('#editor-scroll').evaluate(node => node.scrollTop)).toBe(0);
+});
+
+test('short phone and landscape viewports keep the focused editor and complete footer visible', async ({ page }) => {
+  for (const [width, height] of [[320, 320], [568, 320]]) {
+    await page.setViewportSize({ width, height });
+    await page.locator('#edit-json').click();
+    await expect(page.locator('#packet-json')).toBeFocused();
+    await expect(page.locator('#close-editor')).toBeInViewport();
+    await expect(page.locator('#apply-json')).toBeInViewport();
+    const geometry = await page.evaluate(() => {
+      const dialog = document.querySelector('#packet-editor').getBoundingClientRect();
+      const scroll = document.querySelector('#editor-scroll').getBoundingClientRect();
+      const textarea = document.querySelector('#packet-json').getBoundingClientRect();
+      const footer = document.querySelector('.editor-footer').getBoundingClientRect();
+      return {
+        scrollHeight: scroll.height,
+        textareaVisible: Math.min(textarea.bottom, scroll.bottom) - Math.max(textarea.top, scroll.top),
+        footerContained: footer.top >= dialog.top && footer.bottom <= dialog.bottom + 1,
+      };
+    });
+    expect(geometry.scrollHeight).toBeGreaterThan(40);
+    expect(geometry.textareaVisible).toBeGreaterThan(20);
+    expect(geometry.footerContained).toBe(true);
+    await page.locator('#close-editor').click();
+  }
+  await page.setViewportSize({ width: 320, height: 320 });
+  await page.locator('#edit-json').click();
+  await page.setViewportSize({ width: 568, height: 320 });
+  await expect.poll(() => page.evaluate(() => {
+    const scroll = document.querySelector('#editor-scroll').getBoundingClientRect();
+    const textarea = document.querySelector('#packet-json').getBoundingClientRect();
+    return Math.min(textarea.bottom, scroll.bottom) - Math.max(textarea.top, scroll.top);
+  })).toBeGreaterThan(20);
 });
 
 test('long prose and large exact price labels do not overflow the page or SVG', async ({ page }) => {

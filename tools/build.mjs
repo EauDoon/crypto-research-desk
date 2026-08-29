@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { spawnSync } from 'node:child_process';
 import { lstat, mkdir, readFile, readdir, unlink, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -9,10 +10,62 @@ const hash = value => createHash('sha256').update(value).digest('hex');
 const asciiOrder = (left, right) => left < right ? -1 : left > right ? 1 : 0;
 const artifactHash = files => hash([...files.entries()].sort(([left], [right]) => asciiOrder(left, right))
   .map(([name, contents]) => name + '\n' + hash(contents) + '\n').join(''));
+const moduleRequestScript = `
+const { readFileSync } = require('node:fs');
+const { SourceTextModule } = require('node:vm');
+const compiled = new SourceTextModule(readFileSync(0, 'utf8'));
+const requests = Array.isArray(compiled.moduleRequests)
+  ? compiled.moduleRequests.map(request => request.specifier)
+  : compiled.dependencySpecifiers;
+if (!Array.isArray(requests)) throw new Error('Module dependency metadata is unavailable.');
+process.stdout.write(JSON.stringify(requests));
+`;
+const dynamicImport = /\bimport\s*(?:(?:\/\*[\s\S]*?\*\/|\/\/[^\r\n]*(?:\r?\n|$))\s*)*\(/;
 async function regular(path, directory = false) {
   const entry = await lstat(path);
   if (entry.isSymbolicLink() || (directory ? !entry.isDirectory() : !entry.isFile())) {
     throw new Error('Build inputs and outputs must be regular files and directories.');
+  }
+}
+function validateArtifact(files) {
+  function emittedReference(reference) {
+    if (!reference || reference.startsWith('#') || reference.startsWith('//')
+      || /^[a-z][a-z0-9+.-]*:/i.test(reference)) return null;
+    const clean = reference.split(/[?#]/, 1)[0];
+    if (!clean || clean === '/') return null;
+    const parts = (clean.startsWith('/') ? clean.slice(1) : clean).split('/');
+    if (parts.includes('..')) throw new Error('Built content references an asset outside the output root: ' + reference);
+    return parts.filter(part => part && part !== '.').join('/');
+  }
+  function requireEmitted(reference, context) {
+    const emitted = emittedReference(reference);
+    if (emitted && !files.has(emitted)) throw new Error('Built ' + context + ' references a missing local asset: ' + emitted);
+  }
+  for (const [name, contents] of files) {
+    if (name.endsWith('.js')) {
+      const checked = spawnSync(process.execPath, ['--experimental-vm-modules', '--no-warnings', '-e', moduleRequestScript], {
+        input: contents, encoding: 'utf8', maxBuffer: 1024 * 1024,
+      });
+      if (checked.status !== 0) throw new Error('Built JavaScript syntax check failed: ' + name);
+      if (dynamicImport.test(contents)) throw new Error('Built JavaScript uses an unsupported dynamic import: ' + name);
+      for (const specifier of JSON.parse(checked.stdout)) {
+        if (!specifier.startsWith('./')) throw new Error('Built JavaScript uses an unsupported module specifier: ' + specifier);
+        const referenced = specifier.slice(2);
+        if (!files.has(referenced)) throw new Error('Built JavaScript references a missing local asset: ' + referenced);
+      }
+    }
+    if (name.endsWith('.html')) {
+      const assetReference = /\b(?:src|href)\s*=\s*(?:"([^"<>]*)"|'([^'<>]*)'|([^\s"'=<>`]+))/gi;
+      for (const match of contents.matchAll(assetReference)) {
+        requireEmitted(match[1] ?? match[2] ?? match[3], 'HTML');
+      }
+    }
+    if (name.endsWith('.css')) {
+      const assetReference = /\burl\(\s*(?:"([^"]*)"|'([^']*)'|([^\s"')]+))\s*\)/gi;
+      for (const match of contents.matchAll(assetReference)) {
+        requireEmitted(match[1] ?? match[2] ?? match[3], 'CSS');
+      }
+    }
   }
 }
 export async function build(root = projectRoot) {
@@ -46,6 +99,7 @@ export async function build(root = projectRoot) {
     for (const [original, replacement] of Object.entries(names)) contents = contents.replaceAll('/' + original, '/' + replacement);
     files.set(name, contents);
   }
+  validateArtifact(files);
   const manifest = {
     formatVersion: 1, researchCoreVersion: version,
     files: [...files.keys()].sort(),

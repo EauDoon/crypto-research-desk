@@ -9,7 +9,7 @@ The existing [research workflow](../AGENTS.md) remains authoritative. A complete
 1. Open the app through a local HTTP server or an approved deployment. Opening `index.html` directly as a file is not supported.
 2. Choose **New packet** for empty research fields, or **Load demo** to inspect a fictional DEMO packet.
 3. Use **Edit details** for the asset, reference cutoff, thesis, risks, and manual review record. Use **Edit full packet** for source records, method details, and scenarios.
-4. Import an existing JSON packet with **Import JSON**. Parsing and validation happen in the browser. Invalid input leaves the open packet unchanged.
+4. Import an existing UTF-8 JSON packet with **Import JSON**. Strict decoding, parsing, and validation happen in the browser. Invalid input leaves the open packet unchanged.
 5. Export JSON for a portable, editable record. Export a Markdown brief for text and tables. Use **Print / PDF** for the chart and all four horizon tables.
 
 The example's asset, price, probabilities, sources, and people are fictional. It is not a forecast or a record of a completed independent review. New packets use empty text and `null` for unknown values; they do not inherit the example's forecasts.
@@ -38,7 +38,7 @@ All listed fields are required, including empty fields. Unknown keys and unsuppo
 
 - Packets must fit within 256 KiB of UTF-8 JSON. Individual prose fields accept at most 5,000 characters, with tighter limits for identifiers, names, and URLs.
 - Risks, unknowns, and sources each accept at most 32 entries. The parser also limits nesting, total nodes, and array lengths.
-- Duplicate keys, reserved prototype keys, sparse lists, nonfinite numbers, precision-losing numbers, and hidden Unicode formatting controls are rejected.
+- Duplicate keys, reserved prototype keys, sparse lists, nonfinite numbers, precision-losing numbers, malformed UTF-8, ill-formed Unicode, and hidden Unicode formatting controls are rejected.
 - Prices are numbers from zero to 1 trillion, with a strictly positive reference price. Use `null` for an unknown reference price and the unbounded upper tail.
 - Timestamps require seconds and an explicit offset, such as `2026-08-20T09:00:00Z`. Calendar dates are checked. The display timezone is an IANA name such as `UTC` or `Asia/Singapore`.
 - Evidence must be published before or at capture, and captured before or at the common reference cutoff. Review time cannot predate that evidence or cutoff. A five-minute tolerance accommodates clock skew; it does not establish freshness.
@@ -46,7 +46,7 @@ All listed fields are required, including empty fields. Unknown keys and unsuppo
 
 ### Evidence and method
 
-Source URLs must be public HTTPS URLs without embedded credentials or a custom port. At least one primary source record is required for structural completeness. Example domains cannot support a packet labeled `research`.
+Source URLs must be public HTTPS URLs without embedded credentials, a custom port, or a special-use `.example` hostname. At least one primary source record is required for structural completeness. Reserved example domains cannot support a packet labeled `research`. The workbench displays the canonical hostname beside each operator-supplied source title.
 
 The app validates URL form and recorded chronology. It does not open sources, inspect DNS destinations, prove primary-source status, verify excerpts, resolve contradictions, or determine whether evidence is stale for a particular claim. The operator must do that work.
 
@@ -70,7 +70,7 @@ An incomplete horizon must have a nonempty `gapReason` and an empty `scenarios` 
 
 Confidence is `low`, `medium`, or `high`. It is supplied by the researcher, not calculated by the app. Implied returns are approximate displays rounded to two decimal places. Numerical overflow displays **UNKNOWN**, never an infinite return. Original price values remain available in JSON, tables, and exact chart endpoint labels; chart axis ticks are abbreviated.
 
-The chart uses the Bear upper threshold and Bull lower threshold from each complete horizon. Those boundaries are not confidence intervals. The chart appears only when structural checks and the supplied review record are complete.
+The chart uses the exclusive Bear ceiling and inclusive Bull floor from each complete horizon. Those scenario boundaries are not confidence intervals or guaranteed closing prices. The chart appears only when structural checks and the supplied review record are complete.
 
 ### Manual review record
 
@@ -80,13 +80,15 @@ A final review must account for every source and all five assertions. Warnings r
 
 The preparer and reviewer aliases cannot match after basic normalization. This is only a consistency check. Different aliases, even a structurally complete record, do not prove that two independent people reviewed the work.
 
-Material local input edits reset an existing final review to pending. Save the changed inputs first, then record the actual new review. Attempts to change inputs and a final review together are rejected without clearing the editor. Reordering JSON keys or saving unchanged details does not reset the review. Imported records remain self-reported and unverified.
+Every material local input edit resets final or partial review data to a blank pending record. Save the changed inputs first, then record the actual new review. Attempts to change inputs and review data together are rejected without clearing the editor. Reordering JSON keys, review assertions, or reviewed source IDs does not count as a review change. Saving unchanged details does not reset the review. Imported records remain self-reported and unverified.
+
+The details form preserves valid multiline risk and unknown entries on a no-op save. If one of those lists already contains a multiline entry, edit it in the full packet editor; the compact one-item-per-line control refuses a lossy rewrite.
 
 ## Saving, privacy, and recovery
 
 Local saving is off by default. **Remember this packet** stores one unencrypted draft under `crypto-research-desk.packet.v1` in the current browser origin. It is not account storage, synchronization, or a backup. Different deployment URLs have separate browser storage.
 
-**Clear saved draft** removes only this app's storage key and leaves the open packet in memory. Replacing an edited draft requires confirmation. If another tab changes storage, automatic saving pauses rather than overwriting the open packet.
+**Clear saved draft** removes only this app's storage key and leaves the open packet in memory. The open copy is then treated as unsaved, so closing or navigating away receives the browser's unsaved-change protection. Replacing an edited draft requires confirmation. If another tab changes storage, automatic saving pauses rather than overwriting the open packet.
 
 Corrupt saved data is retained without being overwritten. Storage failures disable automatic saving and display a warning. Export the open packet, retain any recoverable original JSON, and clear the app's saved data only when ready. Browsers and device administrators can remove local storage independently.
 

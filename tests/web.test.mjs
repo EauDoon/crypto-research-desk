@@ -49,6 +49,30 @@ async function serverFor(t, directory, built) {
   return server;
 }
 
+test('Vercel production settings match the verified build and security configuration', async () => {
+  const config = JSON.parse(await readFile(join(root, 'vercel.json'), 'utf8'));
+  assert.equal(config.framework, null);
+  assert.equal(config.buildCommand, 'npm run build');
+  assert.equal(config.installCommand, 'npm ci --ignore-scripts --omit=dev');
+  assert.equal(config.outputDirectory, 'dist');
+  assert.equal(config.headers.length, 2);
+  const headers = (entry, count) => {
+    const keys = entry.headers.map(item => item.key);
+    assert.equal(keys.length, count);
+    assert.equal(new Set(keys).size, keys.length, 'Vercel header keys must be unique');
+    return Object.fromEntries(entry.headers.map(item => [item.key, item.value]));
+  };
+  assert.deepEqual(headers(config.headers[0], Object.keys(SECURITY_HEADERS).length + 1), {
+    ...SECURITY_HEADERS,
+    'Cache-Control': 'public, max-age=0, must-revalidate',
+  });
+  assert.equal(config.headers[0].source, '/(.*)');
+  assert.equal(config.headers[1].source, '/:file([a-z]+\\.[a-f0-9]{64}\\.[a-z]+)');
+  assert.deepEqual(headers(config.headers[1], 1), {
+    'Cache-Control': 'public, max-age=31536000, immutable',
+  });
+});
+
 test('the build is deterministic and publishes only the reviewed static allowlist', async t => {
   const directory = await fixture(t);
   await writeFile(join(directory, 'web', 'private-notes.md'), 'Not part of the public build.');
@@ -67,6 +91,49 @@ test('the build is deterministic and publishes only the reviewed static allowlis
     assert.equal(name.split('.')[1], sha(contents), name);
     if (name.endsWith('.js')) assert.doesNotMatch(contents, /from '\.\/(?:packet|example)\.js'/);
   }
+});
+
+test('the build rejects malformed modules and unresolved local imports before publishing', async t => {
+  const malformed = await fixture(t);
+  await writeFile(join(malformed, 'web', 'app.js'), 'import {');
+  await assert.rejects(build(malformed), /syntax check failed/);
+  await assert.rejects(lstat(join(malformed, 'dist')), { code: 'ENOENT' });
+
+  const unresolved = await fixture(t);
+  const app = await readFile(join(unresolved, 'web', 'app.js'), 'utf8');
+  await writeFile(join(unresolved, 'web', 'app.js'), app + "\nimport './missing.js';\n");
+  await assert.rejects(build(unresolved), /missing local asset/);
+  await assert.rejects(lstat(join(unresolved, 'dist')), { code: 'ENOENT' });
+
+  const commented = await fixture(t);
+  const commentedApp = await readFile(join(commented, 'web', 'app.js'), 'utf8');
+  await writeFile(join(commented, 'web', 'app.js'), commentedApp + "\nimport /* build guard */ './missing.js';\n");
+  await assert.rejects(build(commented), /missing local asset/);
+  await assert.rejects(lstat(join(commented, 'dist')), { code: 'ENOENT' });
+
+  const dynamic = await fixture(t);
+  const dynamicApp = await readFile(join(dynamic, 'web', 'app.js'), 'utf8');
+  await writeFile(join(dynamic, 'web', 'app.js'), dynamicApp + "\nimport /* build guard */ ('./missing.js');\n");
+  await assert.rejects(build(dynamic), /unsupported dynamic import/);
+  await assert.rejects(lstat(join(dynamic, 'dist')), { code: 'ENOENT' });
+
+  const singleQuoted = await fixture(t);
+  const html = await readFile(join(singleQuoted, 'web', 'index.html'), 'utf8');
+  await writeFile(join(singleQuoted, 'web', 'index.html'), html.replace('</body>', "<script src='/missing.js'></script></body>"));
+  await assert.rejects(build(singleQuoted), /missing local asset/);
+  await assert.rejects(lstat(join(singleQuoted, 'dist')), { code: 'ENOENT' });
+
+  const relativeHtml = await fixture(t);
+  const relativeSource = await readFile(join(relativeHtml, 'web', 'index.html'), 'utf8');
+  await writeFile(join(relativeHtml, 'web', 'index.html'), relativeSource.replace('</body>', '<script src="./missing.js"></script></body>'));
+  await assert.rejects(build(relativeHtml), /missing local asset/);
+  await assert.rejects(lstat(join(relativeHtml, 'dist')), { code: 'ENOENT' });
+
+  const relativeCss = await fixture(t);
+  const css = await readFile(join(relativeCss, 'web', 'styles.css'), 'utf8');
+  await writeFile(join(relativeCss, 'web', 'styles.css'), css + "\n.missing { background-image: url('./missing.svg'); }\n");
+  await assert.rejects(build(relativeCss), /missing local asset/);
+  await assert.rejects(lstat(join(relativeCss, 'dist')), { code: 'ENOENT' });
 });
 
 test('changed source creates new hashes and removes only previous generated assets', async t => {

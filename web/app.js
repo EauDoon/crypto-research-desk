@@ -65,7 +65,7 @@ function renderChart(report) {
     container.append(empty);
     return;
   }
-  const values = [packet.reference.price, ...thresholds.flatMap(item => [item.bear, item.bull])];
+  const values = [packet.reference.price, ...thresholds.flatMap(item => [item.bearBaseBoundary, item.baseBullBoundary])];
   const minimum = Math.min(...values), maximum = Math.max(...values);
   const span = maximum - minimum || maximum || 1;
   const low = Math.max(0, minimum - span * .28), high = maximum + span * .28;
@@ -73,7 +73,8 @@ function renderChart(report) {
   const svg = svgNode('svg', { viewBox: '0 0 820 390', class: 'range-chart', role: 'img', 'aria-labelledby': 'plot-title plot-description' });
   svg.append(svgNode('title', { id: 'plot-title' }, 'Price target range by horizon'),
     svgNode('desc', { id: 'plot-description' }, (synthetic ? 'Fictional example. ' : 'Submitted review, not authenticated. ')
-      + thresholds.map(item => item.id + ': bear ' + formatPrice(item.bear) + ', bull ' + formatPrice(item.bull)).join('; ')
+      + thresholds.map(item => item.id + ': bear ceiling ' + formatPrice(item.bearBaseBoundary)
+        + ', bull floor ' + formatPrice(item.baseBullBoundary)).join('; ')
       + '. Reference ' + formatPrice(packet.reference.price) + ' ' + packet.asset.quoteCurrency + '.'));
   for (let index = 0; index <= 4; index++) {
     const value = low + ((high - low) * index / 4);
@@ -91,10 +92,13 @@ function renderChart(report) {
     svgNode('text', referenceAttributes, referenceLabel));
   thresholds.forEach((item, index) => {
     const x = 135 + index * 150;
-    svg.append(svgNode('line', { x1: x, x2: x, y1: y(item.bear), y2: y(item.bull), class: 'range-line' }),
-      svgNode('circle', { cx: x, cy: y(item.bull), r: 6.5, class: 'bull-marker' }),
-      svgNode('circle', { cx: x, cy: y(item.bear), r: 6.5, class: 'bear-marker' }));
-    for (const [label, value, offset, className] of [['Bull', item.bull, -17, 'bull-label'], ['Bear', item.bear, 25, 'bear-label']]) {
+    svg.append(svgNode('line', { x1: x, x2: x, y1: y(item.bearBaseBoundary), y2: y(item.baseBullBoundary), class: 'range-line' }),
+      svgNode('circle', { cx: x, cy: y(item.baseBullBoundary), r: 6.5, class: 'bull-marker' }),
+      svgNode('circle', { cx: x, cy: y(item.bearBaseBoundary), r: 6.5, class: 'bear-marker' }));
+    for (const [label, value, offset, className] of [
+      ['Bull floor', item.baseBullBoundary, -17, 'bull-label'],
+      ['Bear ceiling', item.bearBaseBoundary, 25, 'bear-label'],
+    ]) {
       const text = label + ' ' + formatPrice(value);
       const attributes = { x, y: y(value) + offset, 'text-anchor': 'middle', class: className };
       if (text.length > 18) { attributes.textLength = 140; attributes.lengthAdjust = 'spacingAndGlyphs'; }
@@ -109,7 +113,7 @@ function renderChart(report) {
   scroll.setAttribute('role', 'region');
   scroll.setAttribute('aria-label', 'Forecast range chart. Scroll horizontally on narrow screens.');
   scroll.append(svg);
-  container.append(scroll, element('p', synthetic
+  container.append(element('p', 'Scroll horizontally to inspect all four horizons.', 'scroll-hint'), scroll, element('p', synthetic
     ? 'Synthetic illustration. No real price, probability, source, or independent review is represented.'
     : 'The chart follows the submitted review record. This application does not authenticate that record.', 'small-copy'));
 }
@@ -153,7 +157,7 @@ function renderScenarios() {
         const row = element('tr'), name = element('th', scenario.label, 'scenario-name'); name.scope = 'row';
         const probability = element('td'), meter = element('progress');
         meter.max = 100; meter.value = scenario.probability;
-        meter.setAttribute('aria-label', scenario.label + ' probability');
+        meter.setAttribute('aria-hidden', 'true');
         const probabilityValue = element('div', undefined, 'probability-cell');
         probabilityValue.append(element('span', scenario.probability + '%'), meter); probability.append(probabilityValue);
         row.append(name, element('td', intervalLabel(scenario)), probability,
@@ -163,7 +167,8 @@ function renderScenarios() {
       table.append(body);
       const scroll = element('div', undefined, 'table-scroll'); scroll.tabIndex = 0;
       scroll.setAttribute('role', 'region'); scroll.setAttribute('aria-label', HORIZONS[index].label + ' scenario table');
-      scroll.append(table); panel.append(scroll);
+      scroll.append(table);
+      panel.append(element('p', 'Scroll horizontally to inspect every scenario field.', 'scroll-hint'), scroll);
       const details = element('details', undefined, 'scenario-notes');
       details.append(element('summary', 'Drivers, triggers, and invalidation'));
       const grid = element('div', undefined, 'driver-grid');
@@ -194,10 +199,12 @@ function renderSources() {
   for (const source of packet.sources) {
     const article = element('article', undefined, 'source-item'), content = element('div');
     const heading = element('div', undefined, 'source-title');
+    const sourceUrl = safeSourceUrl(source.url);
     const link = element('a', source.title + ' ↗');
-    link.href = safeSourceUrl(source.url); link.target = '_blank'; link.rel = 'noopener noreferrer';
+    link.href = sourceUrl; link.target = '_blank'; link.rel = 'noopener noreferrer';
     link.append(element('span', ' (opens in a new tab)', 'visually-hidden'));
-    heading.append(link, element('span', source.type.toUpperCase(), 'tag'));
+    heading.append(link, element('span', source.type.toUpperCase(), 'tag'),
+      element('span', new URL(sourceUrl).hostname, 'source-host'));
     const details = element('details'); details.append(element('summary', 'Supplied excerpt (' + source.id + ')'), element('blockquote', source.excerpt));
     content.append(heading, element('p', source.claim), details);
     const dates = element('dl', undefined, 'source-dates');
@@ -282,18 +289,30 @@ function canonical(value) {
   }
   return value;
 }
+function reviewSignature(value) {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) return JSON.stringify(canonical(value));
+  const normalized = {
+    ...value,
+    sourceIds: Array.isArray(value.sourceIds) ? [...value.sourceIds].sort() : value.sourceIds,
+    assertions: Array.isArray(value.assertions)
+      ? [...value.assertions].sort((left, right) => String(left?.id).localeCompare(String(right?.id)))
+      : value.assertions,
+  };
+  return JSON.stringify(canonical(normalized));
+}
 function researchChanged(candidate) {
   const withoutReview = value => JSON.stringify(canonical(Object.fromEntries(Object.entries(value).filter(([key]) => key !== 'riskReview'))));
   return withoutReview(candidate) !== withoutReview(packet);
 }
 function applyPacket(candidate, label, localEdit = false) {
   let reviewReset = false;
-  if (localEdit && researchChanged(candidate) && packet.riskReview.status !== 'pending') {
-    if (JSON.stringify(canonical(candidate.riskReview)) !== JSON.stringify(canonical(packet.riskReview))) {
+  if (localEdit && researchChanged(candidate)) {
+    if (reviewSignature(candidate.riskReview) !== reviewSignature(packet.riskReview)) {
       throw new Error('Save research input changes separately from a new review. The current packet is unchanged; your editor contents are preserved.');
     }
-    candidate.riskReview = blankPacket().riskReview;
-    reviewReset = true;
+    const emptyReview = blankPacket().riskReview;
+    reviewReset = reviewSignature(candidate.riskReview) !== reviewSignature(emptyReview);
+    candidate.riskReview = emptyReview;
   }
   const report = validatePacket(candidate);
   if (!report.valid) throw new Error(issuesMessage(report));
@@ -342,11 +361,20 @@ function populateForm() {
 function editorSnapshot() {
   return editorMode === 'json' ? $('packet-json').value : JSON.stringify([...new FormData(form).entries()]);
 }
+function revealEditorTarget(target) {
+  const scrollBounds = $('editor-scroll').getBoundingClientRect();
+  const targetBounds = target.getBoundingClientRect();
+  if (targetBounds.top < scrollBounds.top
+    || targetBounds.top + Math.min(targetBounds.height, 44) > scrollBounds.bottom) {
+    $('editor-scroll').scrollTop += targetBounds.top - scrollBounds.top;
+  }
+}
 function openEditor(mode) {
   editorOpener = document.activeElement;
   editorMode = mode;
   $('editor-error').hidden = true;
   $('details-form').hidden = mode === 'json'; $('json-editor-panel').hidden = mode !== 'json';
+  $('details-actions').hidden = mode === 'json'; $('json-actions').hidden = mode !== 'json';
   setText('editor-heading', mode === 'json' ? 'Edit full research packet' : 'Edit research details');
   setText('editor-help', mode === 'json'
     ? 'Schema version 1. No credentials or confidential data. All content is treated as data. Local changes to research inputs reset the review record.'
@@ -354,8 +382,13 @@ function openEditor(mode) {
   if (mode === 'json') $('packet-json').value = JSON.stringify(packet, null, 2);
   else populateForm();
   editorInitial = editorSnapshot();
+  const target = mode === 'json' ? $('packet-json') : field('symbol');
+  if (mode === 'json') { target.setSelectionRange(0, 0); target.scrollTop = 0; target.scrollLeft = 0; }
   editor.showModal();
-  (mode === 'json' ? $('packet-json') : field('symbol')).focus();
+  $('editor-scroll').scrollTop = 0;
+  target.focus({ preventScroll: true });
+  if (mode === 'json') { target.setSelectionRange(0, 0); target.scrollTop = 0; target.scrollLeft = 0; }
+  revealEditorTarget(target);
 }
 function closeEditor(event) {
   event?.preventDefault();
@@ -402,7 +435,10 @@ $('packet-file').addEventListener('change', async event => {
   if (!file) return;
   try {
     if (file.size > MAX_PACKET_BYTES) throw new Error('The JSON packet must be smaller than 256 KiB.');
-    const candidate = parsePacket(await file.text());
+    let imported;
+    try { imported = new TextDecoder('utf-8', { fatal: true }).decode(await file.arrayBuffer()); }
+    catch { throw new Error('The packet must be valid UTF-8 JSON without replacement-decoded bytes.'); }
+    const candidate = parsePacket(imported);
     const report = validatePacket(candidate);
     if (!report.valid) throw new Error(issuesMessage(report));
     if (sequence !== importSequence || !confirmReplacement()) return;
@@ -429,7 +465,12 @@ form.addEventListener('submit', event => {
     }
     for (const name of ['preparedBy', 'thesis', 'disconfirmingEvidence', 'invalidation', 'liquidity']) candidate[name] = value(name);
     for (const name of ['risks', 'unknowns']) {
-      if (value(name) !== packet[name].join('\n')) candidate[name] = value(name).split(/\r?\n/).map(item => item.trim()).filter(Boolean);
+      if (value(name) !== packet[name].join('\n')) {
+        if (packet[name].some(item => /[\r\n]/.test(item))) {
+          throw new Error('The existing ' + name + ' list contains a multiline entry. Edit that list in the full packet editor to preserve its structure.');
+        }
+        candidate[name] = value(name).split(/\r?\n/).map(item => item.trim()).filter(Boolean);
+      }
     }
     candidate.riskReview = {
       status: value('reviewStatus'), reviewer: value('reviewer'), reviewedAt: value('reviewedAt'),
@@ -470,20 +511,38 @@ $('remember-packet').addEventListener('change', () => {
   if ($('remember-packet').checked) saveLocally();
   else {
     try {
+      const hadSavedDraft = localStorage.getItem(STORAGE_KEY) !== null;
       localStorage.removeItem(STORAGE_KEY);
-      setText('storage-status', 'Saved draft removed. The open packet is still in memory; export it before closing.');
+      if (hadSavedDraft) dirty = true;
+      setText('storage-status', hadSavedDraft
+        ? 'Saved draft removed. The open packet is still in memory; export it before closing.'
+        : 'No saved draft was present. The open packet is unchanged.');
     } catch { announce('Saved draft removal failed. Storage is unavailable; a previous draft may remain.', true); }
   }
 });
 $('clear-saved').addEventListener('click', () => {
   if (!window.confirm('Remove this app’s saved browser draft? The open packet will stay in memory.')) return;
   try {
+    const openPacketWasRemembered = $('remember-packet').checked;
+    const hadSavedDraft = localStorage.getItem(STORAGE_KEY) !== null;
     localStorage.removeItem(STORAGE_KEY);
+    if (openPacketWasRemembered) dirty = true;
     $('remember-packet').checked = false;
     $('app-error').hidden = true;
-    setText('storage-status', 'Saved draft removed. The open packet remains in memory. Other browser storage was not changed.');
-    announce('This app’s saved draft was removed. Export the open packet if you need a backup.');
+    setText('storage-status', hadSavedDraft
+      ? 'Saved draft removed. The open packet remains in memory. Other browser storage was not changed.'
+      : 'No saved draft was present. The open packet and other browser storage were not changed.');
+    announce(hadSavedDraft
+      ? 'This app’s saved draft was removed. Export the open packet if you need a backup.'
+      : 'There was no saved draft to remove. The open packet is unchanged.');
   } catch { announce('Saved draft removal failed. A previous draft may remain; check browser storage settings.', true); }
+});
+window.addEventListener('resize', () => {
+  if (!editor.open) return;
+  requestAnimationFrame(() => {
+    const target = editorMode === 'json' ? $('packet-json') : document.activeElement;
+    if (target instanceof HTMLElement && $('editor-scroll').contains(target)) revealEditorTarget(target);
+  });
 });
 function selectHorizon(id, focus = false) {
   activeHorizon = id; renderScenarios(); refreshHorizonLabels();

@@ -75,7 +75,7 @@
             <div class="section-heading"><div><p class="eyebrow">THE SCENARIO MAP</p><h2 id="chart-heading">Price target range by horizon</h2></div><span id="chart-badge" class="tag"></span></div>
             <p id="chart-reference" class="chart-reference"></p>
             <div id="chart-area"></div>
-            <p class="chart-caption">Targets are scenario thresholds, not guaranteed closing prices. Probabilities are not additive across horizons.</p>
+            <p class="chart-caption">Bear ceilings and bull floors are scenario boundaries, not guaranteed closing prices. Probabilities are not additive across horizons.</p>
           </section>
           <section class="panel thesis-panel" aria-labelledby="thesis-heading">
             <div class="section-heading"><div><p class="eyebrow">THE RESEARCH CASE</p><h2 id="thesis-heading">A thesis needs a countercase.</h2></div></div>
@@ -138,41 +138,45 @@
   </div>
   <dialog id="packet-editor" aria-labelledby="editor-heading">
     <div class="editor-header"><div><p class="eyebrow">LOCAL DRAFT</p><h2 id="editor-heading">Edit research details</h2></div><button id="close-editor" class="button small" type="button">Close</button></div>
-    <p id="editor-help" class="editor-help">Fields may remain unknown. Editing research inputs resets the review. Save the inputs before recording a new independent review.</p>
-    <div id="editor-error" class="notice error-notice" role="alert" hidden></div>
-    <form id="details-form">
-      <div class="form-grid">
-        <label>Asset symbol<input name="symbol" maxlength="20" autocomplete="off" placeholder="BTC"></label>
-        <label>Asset name<input name="name" maxlength="120" autocomplete="off"></label>
-        <label>Quote currency<input name="quoteCurrency" maxlength="12" autocomplete="off"></label>
-        <label>Venue or composite<input name="venue" maxlength="120" autocomplete="off"></label>
-        <label>Reference price<input name="price" type="number" step="any" min="0" max="1000000000000"></label>
-        <label>Captured at (ISO, with offset)<input name="capturedAt" autocomplete="off" placeholder="2026-08-28T09:00:00Z"></label>
-        <label>Display timezone<input name="timezone" maxlength="100" autocomplete="off" placeholder="UTC"></label>
-        <label>Researcher alias<input name="preparedBy" maxlength="100" autocomplete="off"></label>
-        <label class="span-two">Thesis<textarea name="thesis" rows="3" maxlength="5000"></textarea></label>
-        <label class="span-two">Strongest disconfirming evidence<textarea name="disconfirmingEvidence" rows="3" maxlength="5000"></textarea></label>
-        <label>Observable invalidation<textarea name="invalidation" rows="3" maxlength="5000"></textarea></label>
-        <label>Liquidity and access evidence<textarea name="liquidity" rows="3" maxlength="5000"></textarea></label>
-        <label>Major risks (one per line)<textarea name="risks" rows="3" maxlength="12000"></textarea></label>
-        <label>Unresolved unknowns (one per line)<textarea name="unknowns" rows="3" maxlength="12000"></textarea></label>
-      </div>
-      <fieldset><legend>Independent review record (self-reported)</legend><p class="small-copy">Record a review only after it has occurred. A researcher cannot serve as their own independent reviewer.</p>
+    <div id="editor-scroll" class="editor-scroll">
+      <p id="editor-help" class="editor-help">Fields may remain unknown. Editing research inputs resets the review. Save the inputs before recording a new independent review.</p>
+      <div id="editor-error" class="notice error-notice" role="alert" hidden></div>
+      <form id="details-form">
         <div class="form-grid">
-          <label>Disposition<select name="reviewStatus"><option value="pending">Pending</option><option value="deliver">Deliver</option><option value="deliver_with_warning">Deliver with warning</option><option value="repair">Repair</option><option value="withhold">Withhold</option></select></label>
-          <label>Reviewer alias<input name="reviewer" maxlength="100" autocomplete="off"></label>
-          <label>Reviewed at (ISO, with offset)<input name="reviewedAt" autocomplete="off" placeholder="2026-08-28T09:15:00Z"></label>
-          <label>Reviewed source IDs (comma separated)<input name="sourceIds" autocomplete="off"></label>
-          <label class="span-two">Review notes<textarea name="reviewNotes" rows="3" maxlength="5000"></textarea></label>
+          <label>Asset symbol<input name="symbol" maxlength="20" autocomplete="off" placeholder="BTC"></label>
+          <label>Asset name<input name="name" maxlength="120" autocomplete="off"></label>
+          <label>Quote currency<input name="quoteCurrency" maxlength="12" autocomplete="off"></label>
+          <label>Venue or composite<input name="venue" maxlength="120" autocomplete="off"></label>
+          <label>Reference price<input name="price" type="number" step="any" min="0" max="1000000000000"></label>
+          <label>Captured at (ISO, with offset)<input name="capturedAt" autocomplete="off" placeholder="2026-08-28T09:00:00Z"></label>
+          <label>Display timezone<input name="timezone" maxlength="100" autocomplete="off" placeholder="UTC"></label>
+          <label>Researcher alias<input name="preparedBy" maxlength="100" autocomplete="off"></label>
+          <label class="span-two">Thesis<textarea name="thesis" rows="3" maxlength="5000"></textarea></label>
+          <label class="span-two">Strongest disconfirming evidence<textarea name="disconfirmingEvidence" rows="3" maxlength="5000"></textarea></label>
+          <label>Observable invalidation<textarea name="invalidation" rows="3" maxlength="5000"></textarea></label>
+          <label>Liquidity and access evidence<textarea name="liquidity" rows="3" maxlength="5000"></textarea></label>
+          <label>Major risks (one per line)<textarea name="risks" rows="3" maxlength="12000"></textarea></label>
+          <label>Unresolved unknowns (one per line)<textarea name="unknowns" rows="3" maxlength="12000"></textarea></label>
         </div>
-        <div id="review-assertions"></div>
-      </fieldset>
-      <div class="editor-footer"><button class="button primary" type="submit">Save details</button><span class="small-copy">For scenarios, sources, and method fields, use Edit full packet.</span></div>
-    </form>
-    <div id="json-editor-panel" hidden>
-      <label for="packet-json">Packet JSON (schema version 1)</label>
-      <textarea id="packet-json" class="json-editor" rows="24" spellcheck="false" autocomplete="off" autocapitalize="off" aria-describedby="editor-help"></textarea>
-      <div class="editor-footer"><button id="apply-json" class="button primary" type="button">Validate and apply</button><span class="small-copy">Malformed packets are rejected without replacing the open packet.</span></div>
+        <fieldset><legend>Independent review record (self-reported)</legend><p class="small-copy">Record a review only after it has occurred. A researcher cannot serve as their own independent reviewer.</p>
+          <div class="form-grid">
+            <label>Disposition<select name="reviewStatus"><option value="pending">Pending</option><option value="deliver">Deliver</option><option value="deliver_with_warning">Deliver with warning</option><option value="repair">Repair</option><option value="withhold">Withhold</option></select></label>
+            <label>Reviewer alias<input name="reviewer" maxlength="100" autocomplete="off"></label>
+            <label>Reviewed at (ISO, with offset)<input name="reviewedAt" autocomplete="off" placeholder="2026-08-28T09:15:00Z"></label>
+            <label>Reviewed source IDs (comma separated)<input name="sourceIds" autocomplete="off"></label>
+            <label class="span-two">Review notes<textarea name="reviewNotes" rows="3" maxlength="5000"></textarea></label>
+          </div>
+          <div id="review-assertions"></div>
+        </fieldset>
+      </form>
+      <div id="json-editor-panel" hidden>
+        <label for="packet-json">Packet JSON (schema version 1)</label>
+        <textarea id="packet-json" class="json-editor" rows="24" spellcheck="false" autocomplete="off" autocapitalize="off" aria-describedby="editor-help"></textarea>
+      </div>
+    </div>
+    <div class="editor-footer">
+      <div id="details-actions" class="editor-action-set"><button class="button primary" type="submit" form="details-form">Save details</button><span class="small-copy">For scenarios, sources, and method fields, use Edit full packet.</span></div>
+      <div id="json-actions" class="editor-action-set" hidden><button id="apply-json" class="button primary" type="button">Validate and apply</button><span class="small-copy">Malformed packets are rejected without replacing the open packet.</span></div>
     </div>
   </dialog>
 </body>

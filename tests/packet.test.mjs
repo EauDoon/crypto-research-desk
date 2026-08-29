@@ -48,7 +48,8 @@ test('JSON round trips preserve values and reject duplicate or reserved keys', (
 test('malformed, overlarge, deep, and lossy numeric inputs are rejected', () => {
   for (const text of ['[]', 'null', 'true', '{} false', '{"x":01}', '{"x":1,}', '{"x":[1,]}',
     '{"x":"\\u0000}', '{"x":NaN}', '{"x":Infinity}', '{"x":1e999}',
-    '{"x":9007199254740993}', '{"x":1e-999}', '{"x":0.1234567890123456789}']) {
+    '{"x":9007199254740993}', '{"x":1e-999}', '{"x":0.1234567890123456789}',
+    '{"x":"\\uD800"}', '{"x":"\\uDC00"}', '{"x":"' + '\ud800' + '"}']) {
     assert.throws(() => parsePacket(text), undefined, text);
   }
   assert.throws(() => parsePacket('{"x":"' + 'a'.repeat(MAX_PACKET_BYTES) + '"}'), /256 KiB/);
@@ -91,11 +92,15 @@ test('source links exclude active schemes, credentials, private literals, and cu
   for (const value of ['javascript:alert(1)', 'data:text/html,x', 'http://example.com',
     'https://user:password@example.com', 'https://127.0.0.1', 'https://[::1]',
     'https://2130706433', 'https://host.internal', 'https://host.local',
+    'https://source.example', 'https://evidence.source.example',
     'https://example.com:8443', 'https://example.com/\npath', '//example.com']) {
     assert.equal(safeSourceUrl(value), null, value);
   }
+  assert.equal(safeSourceUrl('https://www.iana.org/' + '\ud800'), null);
+  assert.equal(safeSourceUrl('https://www.iana.org/' + '\u0085'), null);
   assert.equal(safeSourceUrl('https://www.iana.org/domains/reserved#example'),
     'https://www.iana.org/domains/reserved#example');
+  assert.equal(safeSourceUrl('https://例え.com/café'), 'https://xn--r8jz45g.com/caf%C3%A9');
 });
 
 test('look-ahead evidence, duplicate sources, invalid zones, and future reviews fail', () => {
@@ -198,8 +203,10 @@ test('reviewer aliases, source coverage, assertion IDs, and method samples are c
 
 test('the chart helper validates actual inputs, never a caller-supplied verdict', () => {
   assert.deepEqual(chartThresholds(examplePacket(), NOW), [
-    { id: '12h', bear: 94, bull: 106 }, { id: '24h', bear: 90, bull: 112 },
-    { id: '3d', bear: 84, bull: 121 }, { id: '7d', bear: 74, bull: 138 },
+    { id: '12h', bearBaseBoundary: 94, baseBullBoundary: 106 },
+    { id: '24h', bearBaseBoundary: 90, baseBullBoundary: 112 },
+    { id: '3d', bearBaseBoundary: 84, baseBullBoundary: 121 },
+    { id: '7d', bearBaseBoundary: 74, baseBullBoundary: 138 },
   ]);
   assert.deepEqual(chartThresholds(blankPacket(), { chartEligible: true }), []);
   assert.equal(validatePacket(examplePacket(), NaN).valid, false);
@@ -216,11 +223,12 @@ test('price display preserves tiny and large prices; returns disclose rounding',
 
 test('Markdown includes evidence and gaps while escaping imported markup', () => {
   const packet = research();
-  packet.thesis = '<img src=x onerror=alert(1)> [click](javascript:alert(1)) | # Heading';
+  packet.thesis = '\t~~~\n- item\n---\n1. numbered\n<img src=x onerror=alert(1)> [click](javascript:alert(1)) | # Heading';
   const markdown = exportMarkdown(packet, NOW);
-  for (const text of ['Evidence and review identity are unverified', '\\<img', '\\[click\\]',
+  for (const text of ['Evidence and review identity are unverified', '\\~\\~\\~ \\- item \\-\\-\\- 1\\. numbered', '\\<img', '\\[click\\]',
     'Captured:', '## 12 hours', '## 7 days', 'authority']) assert.ok(markdown.includes(text), text);
   assert.doesNotMatch(markdown, /(^|[^\\])<img/);
+  assert.doesNotMatch(markdown, /\n(?:~~~|---|- item| {4})/);
   const incomplete = exportMarkdown(blankPacket(), NOW);
   assert.ok(incomplete.includes('INCOMPLETE'));
   assert.ok(incomplete.includes('UNKNOWN'));
@@ -258,6 +266,12 @@ test('hidden formatting and normalized self-review aliases are rejected', () => 
   assert.equal(validate(packet).valid, false);
   packet.riskReview.reviewer = 'Independent reviewer';
   packet.sources[0].title = 'Official \u202Esource\u202C';
+  assert.equal(validate(packet).valid, false);
+  packet.sources[0].title = 'Official source';
+  packet.thesis = '\ud800';
+  assert.equal(validate(packet).valid, false);
+  packet.thesis = 'Well-formed thesis';
+  packet.sources[0].url = 'https://www.iana.org/' + '\ud800';
   assert.equal(validate(packet).valid, false);
   assert.equal(safeSourceUrl('https://foo..bar.com/x'), null);
   assert.equal(safeSourceUrl('https://foo.-bar.com/x'), null);
