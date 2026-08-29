@@ -668,20 +668,7 @@ function download(contents, type, suffix, filename = null) {
   setTimeout(() => URL.revokeObjectURL(url), 10000);
 }
 
-$('load-demo').addEventListener('click', () => {
-  if (!confirmReplacement()) return;
-  applyPacket(examplePacket(), 'Synthetic example');
-  announce('Synthetic example loaded. Every price, probability, source, and review is fictional.');
-});
-$('new-packet').addEventListener('click', () => {
-  if (!confirmReplacement()) return;
-  applyPacket(blankPacket(), 'Local draft');
-  announce('Blank research packet created. Unsupported forecasts remain incomplete.');
-  openEditor('details');
-});
-$('import-packet').addEventListener('click', () => $('packet-file').click());
-$('packet-file').addEventListener('change', async event => {
-  const file = event.target.files?.[0];
+async function importFile(file) {
   const sequence = ++importSequence;
   if (!file) return;
   try {
@@ -696,7 +683,36 @@ $('packet-file').addEventListener('change', async event => {
     const applied = applyPacket(candidate, 'Imported packet');
     announce('Packet imported locally. No research data was sent to a server. ' + (applied.report.complete ? 'Structure is complete.' : 'Review the listed data gaps.'));
   } catch (error) { if (sequence === importSequence) announce(error.message, true); }
-  finally { event.target.value = ''; }
+  finally { $('packet-file').value = ''; }
+}
+
+$('load-demo').addEventListener('click', () => {
+  if (!confirmReplacement()) return;
+  applyPacket(examplePacket(), 'Synthetic example');
+  announce('Synthetic example loaded. Every price, probability, source, and review is fictional.');
+});
+$('new-packet').addEventListener('click', () => {
+  if (!confirmReplacement()) return;
+  applyPacket(blankPacket(), 'Local draft');
+  announce('Blank research packet created. Unsupported forecasts remain incomplete.');
+  openEditor('details');
+});
+$('import-packet').addEventListener('click', () => $('packet-file').click());
+$('packet-file').addEventListener('change', event => { void importFile(event.target.files?.[0]); });
+$('import-zone').addEventListener('dragover', event => {
+  if (!Array.from(event.dataTransfer?.types ?? []).includes('Files')) return;
+  event.preventDefault();
+  event.dataTransfer.dropEffect = 'copy';
+});
+$('import-zone').addEventListener('drop', event => {
+  if (!Array.from(event.dataTransfer?.types ?? []).includes('Files')) return;
+  event.preventDefault();
+  if (event.dataTransfer.files.length !== 1) {
+    importSequence++;
+    announce('Drop one JSON file at a time.', true);
+    return;
+  }
+  void importFile(event.dataTransfer.files[0]);
 });
 $('edit-details').addEventListener('click', () => openEditor('details'));
 $('edit-json').addEventListener('click', () => openEditor('json'));

@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 1.8.0, 30-08-2026
+
+- Added drag-and-drop JSON import through the existing strict local packet-validation path.
+
 ## 1.7.0, 30-08-2026
 
 - Added a local raw-JSON copy action while retaining the portable JSON download.

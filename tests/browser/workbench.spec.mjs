@@ -161,6 +161,26 @@ test('invalid imports preserve the open packet and report exact validation failu
   expect(await page.evaluate(() => ({}).polluted)).toBeUndefined();
 });
 
+test('dropped JSON uses the same strict local import path', async ({ page }) => {
+  const packet = research(); packet.asset.symbol = 'DROP';
+  await page.evaluate(packet => {
+    const transfer = new DataTransfer();
+    transfer.items.add(new File([JSON.stringify(packet)], 'packet.json', { type: 'application/json' }));
+    document.querySelector('#import-zone').dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: transfer }));
+  }, packet);
+  await expect(page.locator('#asset-symbol')).toHaveText('DROP');
+  await expect(page.locator('#notice')).toContainText('Packet imported locally');
+  await expect(page.locator('#import-packet')).toHaveAccessibleDescription('or drop JSON here');
+  await page.evaluate(() => {
+    const transfer = new DataTransfer();
+    transfer.items.add(new File(['{}'], 'first.json', { type: 'application/json' }));
+    transfer.items.add(new File(['{}'], 'second.json', { type: 'application/json' }));
+    document.querySelector('#import-zone').dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: transfer }));
+  });
+  await expect(page.locator('#app-error')).toContainText('Drop one JSON file at a time');
+  await expect(page.locator('#asset-symbol')).toHaveText('DROP');
+});
+
 test('the newest file import wins when reads complete out of order', async ({ page }) => {
   await page.evaluate(() => {
     const read = File.prototype.arrayBuffer;
