@@ -57,7 +57,7 @@ npm ci --ignore-scripts
 npm run dev
 ```
 
-Open [the local workbench](http://127.0.0.1:4173). Start with a blank packet or inspect the clearly labeled fictional DEMO example. Edit routine research, source, scenario, method, and review fields in the guided form; use the full packet editor for exact JSON. Then export JSON, a Markdown brief, or a printable chart.
+Open [the local workbench](http://127.0.0.1:4173). Start with a blank packet or inspect the clearly labeled fictional DEMO example. Edit routine research, source, scenario, method, and review fields in the guided form; use the full packet editor for exact JSON. Then copy or export JSON, export a Markdown brief, or print the chart.
 
 Saving is off by default. Optional browser storage keeps one unencrypted local draft; it is not a backup or a verified review system. Invalid input is rejected without replacing the open packet. Material edits reset the recorded review, and missing evidence or elapsed horizons withhold the chart.
 
