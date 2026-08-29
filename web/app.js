@@ -1,5 +1,5 @@
 import {
-  MAX_PACKET_BYTES, HORIZONS, REVIEW_ASSERTIONS, parsePacket, validatePacket, blankPacket,
+  MAX_PACKET_BYTES, HORIZONS, SCENARIOS, REVIEW_ASSERTIONS, parsePacket, validatePacket, blankPacket,
   timestamp, endAt, formatDate, formatPrice, safeSourceUrl, intervalLabel, returnLabel, chartThresholds, exportMarkdown,
 } from './packet.js';
 import { examplePacket } from './example.js';
@@ -29,6 +29,10 @@ const sourceFields = [
   ['type', 'Source type', 'select'], ['publishedAt', 'Published at (ISO, with offset)', 'input', 35],
   ['capturedAt', 'Captured at (ISO, with offset)', 'input', 35], ['claim', 'Supported claim', 'textarea', 5000],
   ['excerpt', 'Supplied excerpt', 'textarea', 5000],
+];
+const scenarioFields = [
+  ['probability', 'Probability (%)'], ['confidence', 'Confidence'], ['driver', 'Driver'],
+  ['trigger', 'Observable trigger'], ['invalidation', 'Scenario invalidation'],
 ];
 
 function element(tag, text, className) {
@@ -430,6 +434,18 @@ function editableFieldForPath(path) {
   const source = /^sources(?:\[(\d+)\])?(?:\.(\w+))?$/.exec(path);
   if (source) return source[1] === undefined ? $('add-source')
     : field('source-' + source[1] + '-' + (source[2] ?? 'id'));
+  const horizon = /^horizons(?:\[(\d+)\])?(?:\.(status|gapReason|endAt))?$/.exec(path);
+  if (horizon) return horizon[2] === 'endAt' ? field('capturedAt')
+    : field('horizon-' + (horizon[1] ?? '0') + '-' + (horizon[2] ?? 'status'));
+  const scenario = /^horizons\[(\d+)\]\.scenarios(?:\[(\d+)\])?(?:\.(\w+))?$/.exec(path);
+  if (scenario) {
+    const [horizonIndex, scenarioIndex = '0', key = 'probability'] = scenario.slice(1);
+    if (key === 'lower' || key === 'upper') {
+      const threshold = scenarioIndex === '0' || (scenarioIndex === '1' && key === 'lower') ? 'bearCeiling' : 'bullFloor';
+      return field('horizon-' + horizonIndex + '-' + threshold);
+    }
+    return field('horizon-' + horizonIndex + '-scenario-' + scenarioIndex + '-' + key);
+  }
   if (/^risks(?:\[|$)/.test(path)) return field('risks');
   if (/^unknowns(?:\[|$)/.test(path)) return field('unknowns');
   if (path === 'asset') return field('symbol');
@@ -489,6 +505,63 @@ function renderSourceEditor(sources) {
   }));
   $('add-source').disabled = sources.length >= 32;
 }
+function showHorizonMode(details, complete) {
+  details.querySelector('.horizon-gap').hidden = complete;
+  details.querySelector('.horizon-scenarios').hidden = !complete;
+  for (const control of details.querySelectorAll('.horizon-gap input, .horizon-gap textarea, .horizon-gap select')) control.disabled = complete;
+  for (const control of details.querySelectorAll('.horizon-scenarios input, .horizon-scenarios textarea, .horizon-scenarios select')) control.disabled = !complete;
+  details.querySelector('summary').textContent = details.dataset.label + ' · ' + (complete ? 'Complete' : 'Incomplete');
+}
+function renderHorizonEditor(horizons) {
+  $('horizon-editor-list').replaceChildren(...HORIZONS.map((definition, horizonIndex) => {
+    const horizon = horizons[horizonIndex];
+    const details = element('details', undefined, 'horizon-editor');
+    details.dataset.label = definition.label; details.open = horizonIndex === 0;
+    details.append(element('summary'));
+    const body = element('div', undefined, 'horizon-editor-body');
+    const statusLabel = element('label', 'Forecast status');
+    const status = element('select'); status.name = 'horizon-' + horizonIndex + '-status';
+    for (const option of ['incomplete', 'complete']) status.append(element('option', option));
+    status.value = horizon.status; statusLabel.append(status);
+    const statusGrid = element('div', undefined, 'form-grid'); statusGrid.append(statusLabel);
+    body.append(statusGrid);
+
+    const gap = element('div', undefined, 'horizon-gap form-grid');
+    const gapLabel = element('label', 'Evidence gap reason', 'span-two');
+    const gapInput = element('textarea'); gapInput.name = 'horizon-' + horizonIndex + '-gapReason';
+    gapInput.rows = 2; gapInput.maxLength = 5000; gapInput.value = horizon.gapReason;
+    gapLabel.append(gapInput); gap.append(gapLabel); body.append(gap);
+
+    const complete = element('div', undefined, 'horizon-scenarios');
+    const thresholds = element('div', undefined, 'form-grid');
+    for (const [key, label, value] of [
+      ['bearCeiling', 'Bear ceiling / Base floor', horizon.scenarios[0]?.upper],
+      ['bullFloor', 'Base ceiling / Bull floor', horizon.scenarios[1]?.upper],
+    ]) {
+      const wrapper = element('label', label); const input = element('input');
+      input.name = 'horizon-' + horizonIndex + '-' + key; input.type = 'number'; input.step = 'any'; input.min = '0'; input.max = '1000000000000';
+      input.value = value ?? ''; wrapper.append(input); thresholds.append(wrapper);
+    }
+    complete.append(element('p', 'Intervals are derived as [0, Bear ceiling), [Bear ceiling, Bull floor), and [Bull floor, unbounded).', 'small-copy'), thresholds);
+    SCENARIOS.forEach((label, scenarioIndex) => {
+      const scenario = horizon.scenarios[scenarioIndex] ?? { probability: '', confidence: 'low', driver: '', trigger: '', invalidation: '' };
+      const group = element('fieldset', undefined, 'scenario-editor'); group.append(element('legend', label));
+      const grid = element('div', undefined, 'form-grid');
+      for (const [key, fieldLabel] of scenarioFields) {
+        const wrapper = element('label', fieldLabel); const input = element(key === 'confidence' ? 'select' : key === 'probability' ? 'input' : 'textarea');
+        input.name = 'horizon-' + horizonIndex + '-scenario-' + scenarioIndex + '-' + key;
+        if (key === 'confidence') for (const option of ['low', 'medium', 'high']) input.append(element('option', option));
+        else if (key === 'probability') { input.type = 'number'; input.min = '0'; input.max = '100'; input.step = '0.01'; }
+        else { input.rows = 2; input.maxLength = 5000; wrapper.className = 'span-two'; }
+        input.value = scenario[key] ?? ''; wrapper.append(input); grid.append(wrapper);
+      }
+      group.append(grid); complete.append(group);
+    });
+    body.append(complete); details.append(body);
+    showHorizonMode(details, horizon.status === 'complete');
+    return details;
+  }));
+}
 function populateForm() {
   const values = { ...packet.asset, ...packet.reference, preparedBy: packet.preparedBy,
     thesis: packet.thesis, disconfirmingEvidence: packet.disconfirmingEvidence, invalidation: packet.invalidation,
@@ -498,6 +571,7 @@ function populateForm() {
   for (const [name, value] of Object.entries(values)) if (field(name)) field(name).value = value ?? '';
   for (const [key, value] of Object.entries(packet.method)) field('method-' + key).value = value ?? '';
   renderSourceEditor(packet.sources);
+  renderHorizonEditor(packet.horizons);
   $('review-assertions').replaceChildren();
   REVIEW_ASSERTIONS.forEach((definition, index) => {
     const assertion = packet.riskReview.assertions.find(item => item.id === definition.id)
@@ -523,6 +597,7 @@ function editorSnapshot() {
   return editorMode === 'json' ? $('packet-json').value : JSON.stringify([...new FormData(form).entries()]);
 }
 function revealEditorTarget(target) {
+  target.closest('details')?.setAttribute('open', '');
   const scrollBounds = $('editor-scroll').getBoundingClientRect();
   const targetBounds = target.getBoundingClientRect();
   const errorHeight = $('editor-error').hidden ? 0 : $('editor-error').getBoundingClientRect().height + 8;
@@ -637,6 +712,11 @@ $('source-editor-list').addEventListener('click', event => {
   clearEditorError(); renderSourceEditor(sources);
   (sources.length ? field('source-' + Math.min(Number(remove.dataset.removeSource), sources.length - 1) + '-id') : $('add-source')).focus();
 });
+$('horizon-editor-list').addEventListener('change', event => {
+  if (!event.target.name?.endsWith('-status')) return;
+  clearEditorError();
+  showHorizonMode(event.target.closest('details'), event.target.value === 'complete');
+});
 $('close-editor').addEventListener('click', closeEditor);
 editor.addEventListener('cancel', closeEditor);
 editor.addEventListener('close', () => { if (editorOpener?.isConnected) editorOpener.focus({ preventScroll: true }); });
@@ -655,13 +735,30 @@ form.addEventListener('submit', event => {
     };
     for (const name of ['symbol', 'name', 'quoteCurrency', 'venue']) candidate.asset[name] = value(name);
     candidate.reference = { price: number('price', 'reference.price'), capturedAt: value('capturedAt'), timezone: value('timezone') };
-    if (candidate.reference.capturedAt !== packet.reference.capturedAt) {
-      candidate.horizons.forEach((horizon, index) => { horizon.endAt = endAt(candidate.reference.capturedAt, HORIZONS[index].hours); });
-    }
     for (const name of ['preparedBy', 'thesis', 'disconfirmingEvidence', 'invalidation', 'liquidity']) candidate[name] = value(name);
     candidate.method = Object.fromEntries(Object.keys(methodLabels).map(key => [key, value('method-' + key)]));
     candidate.method.sampleSize = number('method-sampleSize', 'method.sampleSize');
     candidate.sources = sourceEditorValues();
+    candidate.horizons = HORIZONS.map((definition, horizonIndex) => {
+      const status = value('horizon-' + horizonIndex + '-status');
+      const horizon = { id: definition.id, endAt: candidate.reference.capturedAt === packet.reference.capturedAt
+        ? packet.horizons[horizonIndex].endAt : endAt(candidate.reference.capturedAt, definition.hours), status,
+        gapReason: status === 'incomplete' ? value('horizon-' + horizonIndex + '-gapReason') : '', scenarios: [] };
+      if (status === 'complete') {
+        const bearCeiling = number('horizon-' + horizonIndex + '-bearCeiling', 'horizons[' + horizonIndex + '].scenarios[0].upper');
+        const bullFloor = number('horizon-' + horizonIndex + '-bullFloor', 'horizons[' + horizonIndex + '].scenarios[1].upper');
+        horizon.scenarios = SCENARIOS.map((label, scenarioIndex) => ({
+          label, lower: [0, bearCeiling, bullFloor][scenarioIndex], upper: [bearCeiling, bullFloor, null][scenarioIndex],
+          probability: number('horizon-' + horizonIndex + '-scenario-' + scenarioIndex + '-probability',
+            'horizons[' + horizonIndex + '].scenarios[' + scenarioIndex + '].probability'),
+          driver: value('horizon-' + horizonIndex + '-scenario-' + scenarioIndex + '-driver'),
+          trigger: value('horizon-' + horizonIndex + '-scenario-' + scenarioIndex + '-trigger'),
+          invalidation: value('horizon-' + horizonIndex + '-scenario-' + scenarioIndex + '-invalidation'),
+          confidence: value('horizon-' + horizonIndex + '-scenario-' + scenarioIndex + '-confidence'),
+        }));
+      }
+      return horizon;
+    });
     for (const name of ['risks', 'unknowns']) {
       if (value(name) !== packet[name].join('\n')) {
         if (packet[name].some(item => /[\r\n]/.test(item))) {

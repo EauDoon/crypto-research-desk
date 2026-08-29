@@ -74,7 +74,9 @@ test('production serves the reviewed artifact and complete local-only workflow',
   await page.locator('#edit-details').click();
   await expect(page.locator('textarea[name="method-description"]')).toHaveValue(packet.method.description);
   await expect(page.locator('#source-editor-list > fieldset')).toHaveCount(packet.sources.length);
+  await expect(page.locator('#horizon-editor-list > details')).toHaveCount(4);
   await page.locator('textarea[name="method-description"]').fill('Production acceptance edit with fictional data.');
+  await page.locator('input[name="horizon-0-bearCeiling"]').fill('93');
   await page.getByRole('button', { name: 'Save details', exact: true }).click();
   await expect(page.locator('#notice')).toContainText('previous review was reset');
   await expect(page.locator('#chart-area svg')).toHaveCount(0);

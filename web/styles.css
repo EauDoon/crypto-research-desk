@@ -216,6 +216,11 @@ fieldset > p { margin-bottom: 18px; }
 .source-editor { margin-top: 18px; padding: 16px; }
 .source-editor > .button { margin-bottom: 18px; }
 #add-source { margin-top: 18px; }
+.horizon-editor { border: 1px solid #d7e3d8; border-radius: 6px; margin-top: 14px; }
+.horizon-editor > summary { cursor: pointer; font-size: 13px; font-weight: 600; padding: 14px 16px; }
+.horizon-editor[open] > summary { border-bottom: 1px solid #d7e3d8; }
+.horizon-editor-body { padding: 0 16px 16px; }
+.horizon-scenarios > .small-copy { margin: 18px 0 0; }
 .editor-footer { flex: 0 0 auto; padding: 14px 28px; border-top: 1px solid var(--line); background: #fff; box-shadow: 0 -8px 22px #142d3410; }
 .editor-action-set { display: flex; gap: 15px; align-items: center; flex-wrap: wrap; }
 .json-editor { font-family: Consolas, "Liberation Mono", monospace; line-height: 1.6; font-size: 12px; tab-size: 2; resize: vertical; }

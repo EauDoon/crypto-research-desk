@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Added structured four-horizon scenario editing with derived contiguous intervals, so routine packet creation no longer requires raw JSON.
 - Added structured method and dated-source editing so routine packet preparation no longer requires manipulating those fields as raw JSON.
 - Added a separate Chromium/Firefox production smoke that compares the live canonical manifest with the reviewed build and verifies deployment headers, public-file boundaries, accessibility, and the local-only packet workflow.
 

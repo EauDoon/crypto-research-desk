@@ -105,7 +105,7 @@ test('the build is deterministic and publishes only the reviewed static allowlis
   const second = await build(directory);
   assert.deepEqual(second, first);
   assert.equal(first.formatVersion, 2);
-  assert.equal(first.workbenchVersion, '1.3.0');
+  assert.equal(first.workbenchVersion, '1.4.0');
   assert.equal(first.researchCoreVersion, '1.1.0');
   assert.equal(first.files.length, PUBLIC_FILES.length);
   assert.equal(first.files.filter(name => HASHED_ASSET.test(name)).length, 5);
@@ -125,7 +125,7 @@ test('package and lockfile workbench versions must remain identical', async t =>
   const directory = await fixture(t);
   const lockPath = join(directory, 'package-lock.json');
   const lock = JSON.parse(await readFile(lockPath, 'utf8'));
-  lock.packages[''].version = '1.3.1';
+  lock.packages[''].version = '1.4.1';
   await writeFile(lockPath, JSON.stringify(lock, null, 2) + '\n');
   await assert.rejects(build(directory), /Package and lockfile workbench versions differ/);
   await assert.rejects(lstat(join(directory, 'dist')), { code: 'ENOENT' });

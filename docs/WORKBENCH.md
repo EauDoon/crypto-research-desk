@@ -8,7 +8,7 @@ The existing [research workflow](../AGENTS.md) remains authoritative. A complete
 
 1. Open the app through a local HTTP server or an approved deployment. Opening `index.html` directly as a file is not supported.
 2. Choose **New packet** for empty research fields, or **Load demo** to inspect a fictional DEMO packet.
-3. Use **Edit details** for the asset, reference cutoff, thesis, risks, method, dated sources, and manual review record. Use **Edit full packet** for the four horizon scenarios or exact JSON inspection.
+3. Use **Edit details** for the asset, reference cutoff, thesis, risks, method, dated sources, four horizon scenarios, and manual review record. Use **Edit full packet** only for exact JSON inspection.
 4. Import an existing UTF-8 JSON packet with **Import JSON**. Strict decoding, parsing, and validation happen in the browser. Invalid input leaves the open packet unchanged.
 5. Export JSON for a portable, editable record. Export a Markdown brief for text and tables. Use **Print / PDF** for the chart and all four horizon tables.
 

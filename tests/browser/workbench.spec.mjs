@@ -241,6 +241,45 @@ test('method and dated sources can be edited without manipulating packet JSON', 
   await expect(page.locator('#chart-area svg')).toHaveCount(0);
 });
 
+test('horizon scenarios can be edited with derived contiguous bounds', async ({ page }) => {
+  await page.locator('#edit-details').click();
+  await expect(page.locator('#horizon-editor-list > details')).toHaveCount(4);
+  const bearCeiling = page.locator('input[name="horizon-0-bearCeiling"]');
+  await bearCeiling.fill('110');
+  await page.getByRole('button', { name: 'Save details', exact: true }).click();
+  const bullFloor = page.locator('input[name="horizon-0-bullFloor"]');
+  await expect(page.locator('#editor-error')).toContainText('upper bound greater');
+  await expect(bullFloor).toBeFocused();
+  await expect(page.locator('#horizon-editor-list > details').first()).toHaveAttribute('open', '');
+  await bearCeiling.fill('93');
+  await page.locator('textarea[name="horizon-0-scenario-0-driver"]').fill('Changed fictional downside driver.');
+  await page.getByRole('button', { name: 'Save details', exact: true }).click();
+
+  const json = JSON.parse((await exported(page, '#export-json')).text);
+  const [bear, base, bull] = json.horizons[0].scenarios;
+  expect([bear.lower, bear.upper, base.lower, base.upper, bull.lower, bull.upper]).toEqual([0, 93, 93, 106, 106, null]);
+  expect(bear.driver).toBe('Changed fictional downside driver.');
+  expect(json.riskReview).toEqual(blankPacket().riskReview);
+  await expect(page.locator('#chart-area svg')).toHaveCount(0);
+});
+
+test('marking a horizon incomplete removes probability guesses and requires a reason', async ({ page }) => {
+  await page.locator('#edit-details').click();
+  await page.locator('select[name="horizon-0-status"]').selectOption('incomplete');
+  await page.getByRole('button', { name: 'Save details', exact: true }).click();
+  const reason = page.locator('textarea[name="horizon-0-gapReason"]');
+  await expect(page.locator('#editor-error')).toContainText('Explain the missing evidence');
+  await expect(reason).toBeFocused();
+  await page.locator('select[name="horizon-0-status"]').selectOption('complete');
+  await expect(page.locator('#editor-error')).toBeHidden();
+  await page.locator('select[name="horizon-0-status"]').selectOption('incomplete');
+  await reason.fill('No evidence-backed 12-hour forecast is available.');
+  await page.getByRole('button', { name: 'Save details', exact: true }).click();
+  const json = JSON.parse((await exported(page, '#export-json')).text);
+  expect(json.horizons[0]).toMatchObject({ status: 'incomplete', gapReason: 'No evidence-backed 12-hour forecast is available.', scenarios: [] });
+  expect(json.riskReview).toEqual(blankPacket().riskReview);
+});
+
 test('changing input and review records together preserves the editor and rejects the update', async ({ page }) => {
   const packet = await fullEditor(page);
   packet.thesis = 'Changed thesis';
@@ -336,6 +375,23 @@ test('a no-op details save preserves multiline lists and the original review', a
   await page.getByRole('button', { name: 'Save details', exact: true }).click();
   const json = await exported(page, '#export-json');
   expect(JSON.parse(json.text)).toEqual(packet);
+  await expect(page.locator('#chart-area svg')).toBeVisible();
+});
+
+test('review-only form edits preserve equivalent horizon timestamp spellings', async ({ page }) => {
+  const packet = research();
+  packet.reference.capturedAt = '2026-08-20T17:00:00+08:00';
+  packet.horizons.forEach((horizon, index) => {
+    horizon.endAt = ['2026-08-21T05:00:00+08:00', '2026-08-21T17:00:00+08:00',
+      '2026-08-23T17:00:00+08:00', '2026-08-27T17:00:00+08:00'][index];
+  });
+  await importPacket(page, packet);
+  await page.locator('#edit-details').click();
+  await page.locator('textarea[name="reviewNotes"]').fill('Updated review note without changing research inputs.');
+  await page.getByRole('button', { name: 'Save details', exact: true }).click();
+  const json = JSON.parse((await exported(page, '#export-json')).text);
+  expect(json.horizons.map(horizon => horizon.endAt)).toEqual(packet.horizons.map(horizon => horizon.endAt));
+  expect(json.riskReview.notes).toBe('Updated review note without changing research inputs.');
   await expect(page.locator('#chart-area svg')).toBeVisible();
 });
 

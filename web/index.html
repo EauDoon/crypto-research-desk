@@ -177,6 +177,9 @@
           <div id="source-editor-list"></div>
           <button id="add-source" class="button small" type="button">Add source</button>
         </fieldset>
+        <fieldset><legend>Forecast horizons</legend><p class="small-copy">All four horizons share the reference cutoff. Keep a horizon incomplete when its scenario evidence is unsupported.</p>
+          <div id="horizon-editor-list"></div>
+        </fieldset>
         <fieldset><legend>Independent review record (self-reported)</legend><p class="small-copy">Record a review only after it has occurred. A researcher cannot serve as their own independent reviewer.</p>
           <div class="form-grid">
             <label>Disposition<select name="reviewStatus"><option value="pending">Pending</option><option value="deliver">Deliver</option><option value="deliver_with_warning">Deliver with warning</option><option value="repair">Repair</option><option value="withhold">Withhold</option></select></label>
@@ -194,7 +197,7 @@
       </div>
     </div>
     <div class="editor-footer">
-      <div id="details-actions" class="editor-action-set"><button class="button primary" type="submit" form="details-form">Save details</button><span class="small-copy">For the four horizon scenarios, use Edit full packet.</span></div>
+      <div id="details-actions" class="editor-action-set"><button class="button primary" type="submit" form="details-form">Save details</button><span class="small-copy">Use Edit full packet only for exact JSON inspection.</span></div>
       <div id="json-actions" class="editor-action-set" hidden><button id="apply-json" class="button primary" type="button">Validate and apply</button><span class="small-copy">Malformed packets are rejected without replacing the open packet.</span></div>
     </div>
   </dialog>
