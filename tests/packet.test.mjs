@@ -361,10 +361,12 @@ test('sparse arrays, nonnumeric clocks, and oversized object packets fail closed
 });
 
 test('hidden formatting and normalized self-review aliases are rejected', () => {
-  for (const value of ['A\u200Blice', 'Alice\u202E', 'Alice\u00AD']) {
+  for (const value of ['A\u200Blice', 'Alice\u202E', 'Alice\u00AD', 'Alice\u0600', 'Alice\u034F', 'Alice\uFE0F']) {
     const packet = research(); packet.riskReview.reviewer = value;
     assert.equal(validate(packet).valid, false);
   }
+  const hiddenOnly = research(); hiddenOnly.thesis = '\u034F';
+  assert.equal(validate(hiddenOnly).valid, false);
   const packet = research(); packet.preparedBy = 'Alice'; packet.riskReview.reviewer = 'Ａｌｉｃｅ';
   assert.equal(validate(packet).valid, false);
   for (const reviewer of ['Alice  Smith', 'Alice\tSmith', 'Alice\nSmith', 'Alice\u00a0\u202fSmith']) {
@@ -382,6 +384,21 @@ test('hidden formatting and normalized self-review aliases are rejected', () => 
   assert.equal(validate(packet).valid, false);
   assert.equal(safeSourceUrl('https://foo..bar.com/x'), null);
   assert.equal(safeSourceUrl('https://foo.-bar.com/x'), null);
+});
+
+test('editor-bound text rejects line endings its controls cannot preserve', () => {
+  for (const mutate of [
+    packet => { packet.asset.name = 'Bitcoin\nCash'; },
+    packet => { packet.asset.venue = 'Venue\rComposite'; },
+    packet => { packet.preparedBy = 'Researcher\nAlias'; },
+    packet => { packet.sources[0].title = 'Source\nTitle'; },
+    packet => { packet.riskReview.reviewer = 'Review\nAlias'; },
+  ]) {
+    const packet = research(); mutate(packet);
+    assert.equal(validate(packet).valid, false);
+  }
+  const packet = research(); packet.sources[0].excerpt = 'First line\r\nSecond line';
+  assert.equal(validate(packet).valid, false);
 });
 
 test('overflowing derived returns stay explicitly unknown instead of showing infinity', () => {

@@ -108,12 +108,12 @@ function monitorHorizontalOverflow(scroll, hint) {
     observer?.disconnect();
   };
 }
-function renderChart(report) {
+function renderChart(now) {
   const container = $('chart-area');
   chartOverflowCleanup();
   chartOverflowCleanup = () => {};
   container.replaceChildren();
-  const thresholds = chartThresholds(packet);
+  const thresholds = chartThresholds(packet, now);
   const synthetic = packet.kind === 'synthetic';
   setText('chart-badge', thresholds.length === 4 ? (synthetic ? 'SAMPLE THRESHOLDS' : 'SUBMITTED THRESHOLDS') : 'WITHHELD');
   $('chart-badge').className = 'tag ' + (synthetic || thresholds.length !== 4 ? 'amber' : 'teal');
@@ -253,10 +253,10 @@ function renderScenarios() {
     $('horizon-panels').append(panel);
   });
 }
-function refreshHorizonLabels() {
+function refreshHorizonLabels(now = Date.now()) {
   for (const horizon of packet.horizons) {
     const ending = timestamp(horizon.endAt);
-    const expired = packet.kind === 'research' && ending !== null && ending <= Date.now();
+    const expired = packet.kind === 'research' && ending !== null && ending <= now;
     $('tab-' + horizon.id).querySelector('small').textContent = expired ? 'ELAPSED' : horizon.status === 'complete' ? '100% within horizon' : 'INCOMPLETE';
     $('expiry-' + horizon.id).hidden = !expired;
   }
@@ -289,8 +289,8 @@ function renderSources() {
     article.append(content, dates); $('source-list').append(article);
   }
 }
-function render(updateContent = true) {
-  const report = validatePacket(packet);
+function render(updateContent = true, now = Date.now()) {
+  const report = validatePacket(packet, now);
   lastValidation = validationSignature(report);
   const synthetic = packet.kind === 'synthetic';
   setText('provenance-tag', synthetic ? 'SYNTHETIC EXAMPLE' : 'UNVERIFIED RESEARCH');
@@ -352,9 +352,9 @@ function render(updateContent = true) {
   $('method-list').replaceChildren(...Object.entries(methodLabels).map(([key, label]) => {
     const div = element('div'); div.append(element('dt', label), element('dd', display(packet.method[key]))); return div;
   }));
-  renderChart(report);
+  renderChart(now);
   if (updateContent) { renderScenarios(); renderSources(); }
-  refreshHorizonLabels();
+  refreshHorizonLabels(now);
 }
 function saveLocally() {
   if (!$('remember-packet').checked) return;
@@ -609,6 +609,7 @@ function revealEditorTarget(target) {
   }
 }
 function openEditor(mode) {
+  importSequence++;
   editorOpener = document.activeElement;
   editorMode = mode;
   clearEditorError();
@@ -857,7 +858,9 @@ window.addEventListener('resize', () => {
   });
 });
 function selectHorizon(id, focus = false) {
-  activeHorizon = id; renderScenarios(); refreshHorizonLabels();
+  activeHorizon = id;
+  const now = refreshExpiry();
+  renderScenarios(); refreshHorizonLabels(now);
   if (focus) $('tab-' + id).focus();
 }
 $('horizon-tabs').addEventListener('click', event => {
@@ -914,14 +917,16 @@ document.documentElement.classList.toggle('page-margin-identity', supportsPageMa
 $('startup-status').hidden = true;
 document.documentElement.classList.remove('app-unavailable');
 function refreshExpiry() {
-  if (document.visibilityState !== 'visible') return;
-  const report = validatePacket(packet);
-  if (lastValidation === validationSignature(report)) return;
+  const now = Date.now();
+  if (document.visibilityState !== 'visible') return now;
+  const report = validatePacket(packet, now);
+  if (lastValidation === validationSignature(report)) return now;
   const activeId = document.activeElement?.id;
   // Keep scenario controls and open editor fields intact when only time has changed.
-  render(false);
+  render(false, now);
   if (activeId && $(activeId)) $(activeId).focus({ preventScroll: true });
   announce('Time-sensitive checks changed. Review the current gaps before using or exporting this packet.');
+  return now;
 }
 setInterval(refreshExpiry, 60000);
 document.addEventListener('visibilitychange', refreshExpiry);
