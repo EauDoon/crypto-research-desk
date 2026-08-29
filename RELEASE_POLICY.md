@@ -2,6 +2,10 @@
 
 This repository uses semantic versioning.
 
+## Version identities
+
+`VERSION` identifies the exact-byte research core. `package.json` identifies the optional browser workbench. A backward-compatible workbench release may advance independently while the protected research core remains unchanged. The generated build manifest records and verifies both values; neither version is trading authority or evidence of forecast quality.
+
 ## Major versions
 
 A major version changes at least one governing contract:

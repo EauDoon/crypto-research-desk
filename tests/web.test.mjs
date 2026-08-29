@@ -8,12 +8,23 @@ import { dirname, join, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { build, verifyBuild } from '../tools/build.mjs';
 import { startServer } from '../tools/serve.mjs';
+import { assertSupportedNode, isSupportedNode } from '../tools/runtime.mjs';
 import { isFirefoxStartupRace, navigate } from './browser/navigation.mjs';
 import { PUBLIC_FILES, HASHED_ASSET, SECURITY_HEADERS } from '../tools/web-config.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const work = join(root, 'work');
 const sha = value => createHash('sha256').update(value).digest('hex');
+async function directorySnapshot(directory) {
+  const snapshot = {};
+  for (const name of (await readdir(directory)).sort()) {
+    snapshot[name] = (await readFile(join(directory, name))).toString('base64');
+  }
+  return snapshot;
+}
+async function recoveryEntries(directory) {
+  return (await readdir(directory)).filter(name => name === '.dist-build.lock' || name.startsWith('.dist-stage-')).sort();
+}
 async function fixture(t) {
   await mkdir(work, { recursive: true });
   const directory = await mkdtemp(join(work, 'web-test-'));
@@ -27,6 +38,7 @@ async function fixture(t) {
   await cp(join(root, 'web'), join(directory, 'web'), { recursive: true });
   await copyFile(join(root, 'VERSION'), join(directory, 'VERSION'));
   await copyFile(join(root, 'package.json'), join(directory, 'package.json'));
+  await copyFile(join(root, 'package-lock.json'), join(directory, 'package-lock.json'));
   return directory;
 }
 function http(server, path = '/', method = 'GET', host) {
@@ -48,6 +60,19 @@ async function serverFor(t, directory, built) {
   }));
   return server;
 }
+
+test('tooling accepts Node 24.x and fails fast for other or malformed versions', () => {
+  for (const version of ['24.0.0', '24.14.0', '24.1.0-nightly']) {
+    assert.equal(isSupportedNode(version), true, version);
+    assert.doesNotThrow(() => assertSupportedNode(version));
+  }
+  for (const version of ['22.22.2', '23.11.0', '25.0.0', '24', '24.1', '']) {
+    assert.equal(isSupportedNode(version), false, String(version));
+    assert.throws(() => assertSupportedNode(version), /requires Node 24\.x/);
+  }
+  assert.equal(isSupportedNode(undefined), false);
+  assert.doesNotThrow(() => assertSupportedNode());
+});
 
 test('Vercel production settings match the verified build and security configuration', async () => {
   const config = JSON.parse(await readFile(join(root, 'vercel.json'), 'utf8'));
@@ -79,6 +104,9 @@ test('the build is deterministic and publishes only the reviewed static allowlis
   const first = await build(directory);
   const second = await build(directory);
   assert.deepEqual(second, first);
+  assert.equal(first.formatVersion, 2);
+  assert.equal(first.workbenchVersion, '1.2.0');
+  assert.equal(first.researchCoreVersion, '1.1.0');
   assert.equal(first.files.length, PUBLIC_FILES.length);
   assert.equal(first.files.filter(name => HASHED_ASSET.test(name)).length, 5);
   assert.equal((await readdir(join(directory, 'dist'))).length, 9);
@@ -91,6 +119,17 @@ test('the build is deterministic and publishes only the reviewed static allowlis
     assert.equal(name.split('.')[1], sha(contents), name);
     if (name.endsWith('.js')) assert.doesNotMatch(contents, /from '\.\/(?:packet|example)\.js'/);
   }
+});
+
+test('package and lockfile workbench versions must remain identical', async t => {
+  const directory = await fixture(t);
+  const lockPath = join(directory, 'package-lock.json');
+  const lock = JSON.parse(await readFile(lockPath, 'utf8'));
+  lock.packages[''].version = '1.2.1';
+  await writeFile(lockPath, JSON.stringify(lock, null, 2) + '\n');
+  await assert.rejects(build(directory), /Package and lockfile workbench versions differ/);
+  await assert.rejects(lstat(join(directory, 'dist')), { code: 'ENOENT' });
+  assert.deepEqual(await recoveryEntries(directory), []);
 });
 
 test('the build rejects malformed modules and unresolved local imports before publishing', async t => {
@@ -136,6 +175,35 @@ test('the build rejects malformed modules and unresolved local imports before pu
   await assert.rejects(lstat(join(relativeCss, 'dist')), { code: 'ENOENT' });
 });
 
+test('malformed UTF-8 source fails closed without replacing the prior artifact', async t => {
+  const directory = await fixture(t);
+  const output = join(directory, 'dist');
+  const manifest = await build(directory);
+  const before = await directorySnapshot(output);
+  const path = join(directory, 'web', 'styles.css');
+  const source = await readFile(path);
+  await writeFile(path, Buffer.concat([source, Buffer.from([10, 47, 42, 32, 255, 32, 42, 47, 10])]));
+  await assert.rejects(build(directory), /not valid UTF-8: .*styles\.css/);
+  assert.deepEqual(await directorySnapshot(output), before);
+  assert.deepEqual(await verifyBuild(output), manifest);
+  assert.deepEqual(await recoveryEntries(directory), []);
+});
+
+test('built artifact verification rejects invalid bytes rather than hashing decoded replacement text', async t => {
+  const directory = await fixture(t);
+  const sourcePath = join(directory, 'web', 'styles.css');
+  await writeFile(sourcePath, (await readFile(sourcePath, 'utf8')) + '\n/* \uFFFD */\n');
+  const manifest = await build(directory);
+  const name = manifest.files.find(value => value.startsWith('styles.'));
+  const path = join(directory, 'dist', name);
+  const contents = await readFile(path);
+  const replacement = Buffer.from([239, 191, 189]);
+  const offset = contents.indexOf(replacement);
+  assert.notEqual(offset, -1);
+  await writeFile(path, Buffer.concat([contents.subarray(0, offset), Buffer.from([255]), contents.subarray(offset + replacement.length)]));
+  await assert.rejects(verifyBuild(join(directory, 'dist')), /not valid UTF-8/);
+});
+
 test('changed source creates new hashes and removes only previous generated assets', async t => {
   const directory = await fixture(t);
   const first = await build(directory);
@@ -145,6 +213,62 @@ test('changed source creates new hashes and removes only previous generated asse
   assert.notEqual(second.artifactHash, first.artifactHash);
   assert.notEqual(second.files.find(name => name.startsWith('styles.')), first.files.find(name => name.startsWith('styles.')));
   assert.deepEqual((await readdir(join(directory, 'dist'))).sort(), [...second.files, 'build-info.json'].sort());
+});
+
+test('a failed staged publication restores the prior artifact and removes temporary directories', async t => {
+  const directory = await fixture(t);
+  const first = await build(directory);
+  const output = join(directory, 'dist');
+  const before = await directorySnapshot(output);
+  const styles = await readFile(join(directory, 'web', 'styles.css'), 'utf8');
+  await writeFile(join(directory, 'web', 'styles.css'), styles + '\n/* Staged publication failure. */\n');
+  await assert.rejects(build(directory, { beforePublish() {
+    throw new Error('Simulated publication failure.');
+  } }), /Simulated publication failure/);
+  assert.deepEqual(await directorySnapshot(output), before, 'the previous artifact remains byte-identical');
+  assert.deepEqual(await verifyBuild(output), first);
+  assert.deepEqual(await recoveryEntries(directory), []);
+});
+
+test('stale build recovery data and locks are preserved and fail closed', async t => {
+  const staged = await fixture(t);
+  const recovery = join(staged, '.dist-stage-interrupted-previous');
+  await mkdir(recovery);
+  await writeFile(join(recovery, 'operator-note.txt'), 'Preserve this recovery evidence.');
+  await assert.rejects(build(staged), /recovery data is present: \.dist-stage-interrupted-previous/);
+  assert.equal(await readFile(join(recovery, 'operator-note.txt'), 'utf8'), 'Preserve this recovery evidence.');
+  assert.deepEqual(await recoveryEntries(staged), ['.dist-stage-interrupted-previous']);
+
+  const locked = await fixture(t);
+  const lock = join(locked, '.dist-build.lock');
+  await mkdir(lock);
+  await writeFile(join(lock, 'owner.txt'), 'Unknown prior owner.');
+  await assert.rejects(build(locked), /unfinished or concurrent build state.*\.dist-build\.lock/);
+  assert.equal(await readFile(join(lock, 'owner.txt'), 'utf8'), 'Unknown prior owner.');
+});
+
+test('the exclusive build lock rejects a concurrent publisher without disturbing either artifact', async t => {
+  const directory = await fixture(t);
+  await build(directory);
+  const sourcePath = join(directory, 'web', 'styles.css');
+  await writeFile(sourcePath, (await readFile(sourcePath, 'utf8')) + '\n/* Concurrent publication candidate. */\n');
+  let enterPublish;
+  let releasePublish;
+  const entered = new Promise(resolveEntered => { enterPublish = resolveEntered; });
+  const hold = new Promise(resolveHold => { releasePublish = resolveHold; });
+  const first = build(directory, { async beforePublish() {
+    enterPublish();
+    await hold;
+  } });
+  await entered;
+  try {
+    await assert.rejects(build(directory), /unfinished or concurrent build state.*\.dist-build\.lock/);
+  } finally {
+    releasePublish();
+  }
+  const manifest = await first;
+  assert.deepEqual(await verifyBuild(join(directory, 'dist')), manifest);
+  assert.deepEqual(await recoveryEntries(directory), []);
 });
 
 test('unmanaged output prevents a build without deleting or overwriting it', async t => {
@@ -179,12 +303,38 @@ test('manifest version and required asset membership are checked', async t => {
   const directory = await fixture(t);
   const manifest = await build(directory);
   const manifestPath = join(directory, 'dist', 'build-info.json');
-  await writeFile(manifestPath, JSON.stringify({ ...manifest, researchCoreVersion: '0.0.0' }));
+  const writeManifest = value => writeFile(manifestPath, JSON.stringify(value, null, 2) + '\n');
+  await writeManifest({ ...manifest, workbenchVersion: '0.0.0' });
+  await assert.rejects(verifyBuild(join(directory, 'dist')), /workbench version mismatch/);
+  await writeManifest({ ...manifest, researchCoreVersion: '0.0.0' });
   await assert.rejects(verifyBuild(join(directory, 'dist')), /version mismatch/);
   const wrongFiles = manifest.files.map(name => name.startsWith('app.') ? 'app.' + '0'.repeat(64) + '.js' : name);
   wrongFiles[wrongFiles.findIndex(name => name.startsWith('packet.'))] = 'app.' + '1'.repeat(64) + '.js';
-  await writeFile(manifestPath, JSON.stringify({ ...manifest, files: wrongFiles }));
-  await assert.rejects(verifyBuild(join(directory, 'dist')), /Missing or duplicate/);
+  await writeManifest({ ...manifest, files: wrongFiles });
+  await assert.rejects(verifyBuild(join(directory, 'dist')), /Invalid build manifest|Missing or duplicate/);
+});
+
+test('manifest JSON has an exact canonical schema', async t => {
+  const directory = await fixture(t);
+  const manifest = await build(directory);
+  const manifestPath = join(directory, 'dist', 'build-info.json');
+  const writeManifest = value => writeFile(manifestPath, JSON.stringify(value, null, 2) + '\n');
+
+  await writeManifest({ ...manifest, unexpectedPublicMetadata: 'must not be served' });
+  await assert.rejects(verifyBuild(join(directory, 'dist')), /Invalid build manifest/);
+  await writeManifest({ ...manifest, artifactHash: 'A'.repeat(64) });
+  await assert.rejects(verifyBuild(join(directory, 'dist')), /Invalid build manifest/);
+  await writeManifest({ ...manifest, files: [...manifest.files].reverse() });
+  await assert.rejects(verifyBuild(join(directory, 'dist')), /Invalid build manifest/);
+  await writeManifest({ ...manifest, workbenchVersion: '01.2.0' });
+  await assert.rejects(verifyBuild(join(directory, 'dist')), /Invalid build manifest/);
+  await writeFile(manifestPath, JSON.stringify(manifest));
+  await assert.rejects(verifyBuild(join(directory, 'dist')), /not canonical/);
+  const canonical = JSON.stringify(manifest, null, 2) + '\n';
+  await writeFile(manifestPath, canonical.replace('"formatVersion": 2,', '"formatVersion": 2,\n  "formatVersion": 2,'));
+  await assert.rejects(verifyBuild(join(directory, 'dist')), /not canonical/);
+  await writeFile(manifestPath, Buffer.concat([Buffer.from(canonical), Buffer.from([255])]));
+  await assert.rejects(verifyBuild(join(directory, 'dist')), /not valid UTF-8/);
 });
 
 test('symlinked source and build directories are rejected', async t => {
@@ -226,6 +376,29 @@ test('source and built servers enforce methods, host checks, allowlists, and sec
     assert.equal(home.headers['cache-control'], built ? 'public, max-age=0, must-revalidate' : 'no-store');
     assert.equal((await http(server, '/build-info.json')).status, built ? 200 : 404);
   }
+});
+
+test('built preview serves one immutable verified byte snapshot after mutation and rebuild', async t => {
+  const directory = await fixture(t);
+  const first = await build(directory);
+  const output = join(directory, 'dist');
+  const server = await serverFor(t, output, true);
+  const firstStyle = first.files.find(name => name.startsWith('styles.'));
+  const originalHome = await http(server);
+  const originalStyle = await http(server, '/' + firstStyle);
+  await writeFile(join(output, 'index.html'), 'Post-start tampering must not be served.');
+  assert.equal((await http(server)).body, originalHome.body);
+
+  const sourcePath = join(directory, 'web', 'styles.css');
+  await writeFile(sourcePath, (await readFile(sourcePath, 'utf8')) + '\n/* New build after preview startup. */\n');
+  const second = await build(directory);
+  assert.notEqual(second.files.find(name => name.startsWith('styles.')), firstStyle);
+  assert.equal((await http(server)).body, originalHome.body);
+  const retainedStyle = await http(server, '/' + firstStyle);
+  assert.equal(retainedStyle.status, 200);
+  assert.equal(retainedStyle.body, originalStyle.body);
+  assert.equal(retainedStyle.headers['cache-control'], 'public, max-age=31536000, immutable');
+  assert.equal((await http(server, '/' + second.files.find(name => name.startsWith('styles.')))).status, 404);
 });
 
 function loadedNavigationDocument(paths, documentId = 'first') {

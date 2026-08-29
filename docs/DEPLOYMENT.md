@@ -6,7 +6,7 @@ A successful local build is not a completed production release. GitHub publicati
 
 ## Local verification
 
-Use Node 24.x and Python 3.11 or later. From the repository root:
+Use Node 24.x and Python 3.11 or later. Build and preview commands fail fast on another Node major. From the repository root:
 
 ```powershell
 npm ci --ignore-scripts
@@ -20,7 +20,7 @@ npm run test:browser
 
 On Linux, use the available Python 3 executable and install Playwright browser system dependencies as the CI workflow does. On a restricted Windows host, browser execution may need permission to start and stop its own child processes.
 
-`npm run dev` serves source files on loopback only. `npm run preview` serves a verified production build. Both default to `http://127.0.0.1:4173` and support `-- --port 4174`. Do not expose this development server to a network.
+`npm run dev` serves source files on loopback only. `npm run preview` loads and verifies a production build once, then serves that immutable in-memory byte snapshot even if `dist/` changes. Restart preview to inspect a later build. Both commands default to `http://127.0.0.1:4173` and support `-- --port 4174`. Do not expose this development server to a network.
 
 The [CI workflow](../.github/workflows/ci.yml) runs the exact research-core check, Python regressions, Node tests, build, dependency audit, and Chromium/Firefox browser and accessibility tests. Its actions are pinned to immutable commits, its token is read-only, and it does not deploy. Check the CI result for the exact proposed commit, not a previous revision.
 
@@ -28,11 +28,11 @@ The [CI workflow](../.github/workflows/ci.yml) runs the exact research-core chec
 
 The build copies only the reviewed files named in [web-config.mjs](../tools/web-config.mjs). It never publishes the repository root, research instructions, local packets, dependency folders, test results, or working files.
 
-JavaScript, CSS, and the favicon receive full SHA-256 filenames. Module imports and HTML references are rewritten before publication. `build-info.json` records the research-core version, public file names, and an aggregate content digest.
+JavaScript, CSS, and the favicon receive full SHA-256 filenames. Module imports and HTML references are rewritten before publication. Canonical `build-info.json` records exactly the workbench version, research-core version, ordered public file names, and aggregate content digest. The workbench version comes from `package.json` and must match both lockfile version fields; the independently verified research-core version remains in `VERSION`, so the two values may intentionally differ.
 
-Rebuilding the same inputs produces the same digest. Preview startup checks the manifest, version, asset membership, regular-file boundaries, and content hashes. A digest identifies bytes; it is not a signature, source verification, or independent security certification.
+Rebuilding the same inputs produces the same digest. Text inputs and manifests require valid UTF-8, while artifact verification hashes the emitted bytes without lossy decoding. Preview startup checks the canonical manifest, both versions, asset membership, regular-file boundaries, and content hashes. A digest identifies bytes; it is not a signature, source verification, or independent security certification.
 
-`dist/` is reserved for generated output. The builder refuses symlinked inputs, unmanaged output, and unexpected files rather than deleting them. If this guard trips, inspect the directory and preserve anything valuable. Do not bypass the guard with a blanket cleanup command.
+`dist/` is reserved for generated output. The builder takes an exclusive `.dist-build.lock`, refuses symlinked inputs, unmanaged output, and unexpected files, writes and verifies a sibling staging directory, then performs a guarded replacement. An installation error triggers restoration of the prior artifact. A concurrent build or pre-existing lock, stage, or backup fails closed and preserves that recovery evidence for inspection; nothing pre-existing is deleted automatically. If a guard or recovery step trips, inspect the reported paths and preserve anything valuable. Do not bypass the guard with a blanket cleanup command.
 
 ## Configure the exact Vercel project
 

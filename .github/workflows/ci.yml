@@ -13,6 +13,23 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  production-build:
+    name: Production dependency boundary
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24'
+          cache: npm
+      - name: Install production dependencies exactly as Vercel does
+        run: npm ci --ignore-scripts --omit=dev
+      - name: Build verified production artifact
+        run: npm run build
+
   quality:
     name: Core and workbench
     runs-on: ubuntu-24.04
@@ -44,5 +61,6 @@ jobs:
         run: npm run test:browser
       - name: Check whitespace
         run: |
+          git hash-object -w -t tree /dev/null >/dev/null
+          git diff --check 4b825dc642cb6eb9a060e54bf8d69288fbee4904 HEAD
           git show --format= --check HEAD
-          git diff --check

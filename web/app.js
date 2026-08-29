@@ -16,6 +16,8 @@ let importSequence = 0;
 let lastValidation = '';
 let editorOpener = null;
 let printDetailsState = null;
+let chartOverflowCleanup = () => {};
+let scenarioOverflowCleanups = [];
 const editor = $('packet-editor');
 const form = $('details-form');
 const reviewLabels = { pending: 'Pending review', deliver: 'Deliver, as recorded', deliver_with_warning: 'Deliver with warning, as recorded', repair: 'Repair required', withhold: 'Withhold' };
@@ -38,7 +40,32 @@ function announce(message, error = false) {
   target.hidden = false;
 }
 function issuesMessage(report) {
-  return report.errors.map(issue => issue.path + ': ' + issue.message).join('\n');
+  const errorCount = report.errorCount ?? report.errors.length;
+  const gapCount = report.gapCount ?? report.gaps.length;
+  const omitted = Math.max(0, errorCount - report.errors.length);
+  const lines = [errorCount + ' structural error' + (errorCount === 1 ? '' : 's')
+    + ' and ' + gapCount + ' evidence gap' + (gapCount === 1 ? '' : 's') + '.'];
+  lines.push(...report.errors.map(issue => issue.path + ': ' + issue.message));
+  if (omitted) lines.push(omitted + ' additional issue' + (omitted === 1 ? '' : 's') + ' omitted.');
+  return lines.join('\n');
+}
+function validationError(report) {
+  const error = new Error(issuesMessage(report));
+  error.issuePaths = report.errors.map(issue => issue.path);
+  return error;
+}
+function validationSignature(report) {
+  return JSON.stringify([
+    report.valid, report.complete, report.chartEligible,
+    report.errorCount, report.gapCount, report.warningCount,
+    report.omittedIssueCounts, report.errors, report.gaps, report.warnings,
+  ]);
+}
+function supportsPageMarginIdentity() {
+  try {
+    return [...document.styleSheets].some(sheet => [...sheet.cssRules]
+      .some(rule => rule.cssText.includes('@top-center') && rule.cssText.includes('attr(data-print-identity)')));
+  } catch { return false; }
 }
 function listInto(id, entries, emptyText) {
   $(id).replaceChildren(...(entries.length ? entries : [emptyText]).map(entry => element('li', entry)));
@@ -49,8 +76,31 @@ function svgNode(tag, attributes = {}, text) {
   if (text !== undefined) node.textContent = text;
   return node;
 }
+function monitorHorizontalOverflow(scroll, hint) {
+  let frame = 0;
+  const update = () => {
+    frame = 0;
+    if (!scroll.isConnected) return;
+    const overflowing = scroll.scrollWidth > scroll.clientWidth + 1;
+    hint.hidden = !overflowing;
+    scroll.classList.toggle('is-overflowing', overflowing);
+  };
+  const schedule = () => {
+    if (!frame) frame = requestAnimationFrame(update);
+  };
+  const observer = typeof ResizeObserver === 'function' ? new ResizeObserver(schedule) : null;
+  observer?.observe(scroll);
+  if (scroll.firstElementChild) observer?.observe(scroll.firstElementChild);
+  schedule();
+  return () => {
+    if (frame) cancelAnimationFrame(frame);
+    observer?.disconnect();
+  };
+}
 function renderChart(report) {
   const container = $('chart-area');
+  chartOverflowCleanup();
+  chartOverflowCleanup = () => {};
   container.replaceChildren();
   const thresholds = chartThresholds(packet);
   const synthetic = packet.kind === 'synthetic';
@@ -113,11 +163,16 @@ function renderChart(report) {
   scroll.setAttribute('role', 'region');
   scroll.setAttribute('aria-label', 'Forecast range chart. Scroll horizontally on narrow screens.');
   scroll.append(svg);
-  container.append(element('p', 'Scroll horizontally to inspect all four horizons.', 'scroll-hint'), scroll, element('p', synthetic
+  const hint = element('p', 'Scroll horizontally to inspect all four horizons.', 'scroll-hint');
+  hint.hidden = true;
+  container.append(hint, scroll, element('p', synthetic
     ? 'Synthetic illustration. No real price, probability, source, or independent review is represented.'
     : 'The chart follows the submitted review record. This application does not authenticate that record.', 'small-copy'));
+  chartOverflowCleanup = monitorHorizontalOverflow(scroll, hint);
 }
 function renderScenarios() {
+  for (const cleanup of scenarioOverflowCleanups) cleanup();
+  scenarioOverflowCleanups = [];
   $('horizon-tabs').replaceChildren();
   $('horizon-panels').replaceChildren();
   packet.horizons.forEach((horizon, index) => {
@@ -168,7 +223,10 @@ function renderScenarios() {
       const scroll = element('div', undefined, 'table-scroll'); scroll.tabIndex = 0;
       scroll.setAttribute('role', 'region'); scroll.setAttribute('aria-label', HORIZONS[index].label + ' scenario table');
       scroll.append(table);
-      panel.append(element('p', 'Scroll horizontally to inspect every scenario field.', 'scroll-hint'), scroll);
+      const hint = element('p', 'Scroll horizontally to inspect every scenario field.', 'scroll-hint');
+      hint.hidden = true;
+      panel.append(hint, scroll);
+      scenarioOverflowCleanups.push(monitorHorizontalOverflow(scroll, hint));
       const details = element('details', undefined, 'scenario-notes');
       details.append(element('summary', 'Drivers, triggers, and invalidation'));
       const grid = element('div', undefined, 'driver-grid');
@@ -196,14 +254,20 @@ function renderSources() {
   $('source-list').replaceChildren();
   setText('source-count', packet.sources.length + ' SOURCE RECORD' + (packet.sources.length === 1 ? '' : 'S'));
   if (!packet.sources.length) $('source-list').append(element('p', 'UNKNOWN. No source records have been supplied.', 'small-copy'));
-  for (const source of packet.sources) {
+  for (const [index, source] of packet.sources.entries()) {
     const article = element('article', undefined, 'source-item'), content = element('div');
     const heading = element('div', undefined, 'source-title');
     const sourceUrl = safeSourceUrl(source.url);
     const link = element('a', source.title + ' ↗');
     link.href = sourceUrl; link.target = '_blank'; link.rel = 'noopener noreferrer';
     link.append(element('span', ' (opens in a new tab)', 'visually-hidden'));
-    heading.append(link, element('span', source.type.toUpperCase(), 'tag'),
+    const title = element('h3');
+    title.id = 'source-heading-' + index;
+    const printUrl = element('span', sourceUrl, 'print-source-url');
+    printUrl.setAttribute('aria-hidden', 'true');
+    title.append(link, printUrl);
+    article.setAttribute('aria-labelledby', title.id);
+    heading.append(title, element('span', source.type.toUpperCase(), 'tag'),
       element('span', new URL(sourceUrl).hostname, 'source-host'));
     const details = element('details'); details.append(element('summary', 'Supplied excerpt (' + source.id + ')'), element('blockquote', source.excerpt));
     content.append(heading, element('p', source.claim), details);
@@ -216,7 +280,7 @@ function renderSources() {
 }
 function render(updateContent = true) {
   const report = validatePacket(packet);
-  lastValidation = JSON.stringify([report.valid, report.gaps, report.errors, report.chartEligible]);
+  lastValidation = validationSignature(report);
   const synthetic = packet.kind === 'synthetic';
   setText('provenance-tag', synthetic ? 'SYNTHETIC EXAMPLE' : 'UNVERIFIED RESEARCH');
   setText('provenance-text', synthetic
@@ -224,6 +288,12 @@ function render(updateContent = true) {
     : origin + '. Supplied evidence and review identity have not been authenticated. This app does not fetch live data.');
   setText('asset-symbol', packet.asset.symbol || 'NEW');
   setText('asset-name', packet.asset.name || 'Untitled research packet');
+  const cutoff = timestamp(packet.reference.capturedAt);
+  const printIdentity = 'RESEARCH ONLY · Provenance: ' + (synthetic ? 'SYNTHETIC EXAMPLE' : 'UNVERIFIED RESEARCH')
+    + ' · Asset: ' + (packet.asset.symbol || 'NEW') + ' — ' + (packet.asset.name || 'Untitled research packet')
+    + ' · Reference cutoff: ' + (cutoff === null ? 'UNKNOWN' : new Date(cutoff).toISOString());
+  setText('print-identity', printIdentity);
+  document.documentElement.dataset.printIdentity = printIdentity;
   setText('venue', packet.asset.venue);
   setText('reference-price', formatPrice(packet.reference.price) + ' ' + packet.asset.quoteCurrency);
   setText('reference-time', formatDate(packet.reference.capturedAt, packet.reference.timezone));
@@ -243,10 +313,17 @@ function render(updateContent = true) {
     icon.setAttribute('aria-hidden', 'true');
     const text = element('div', title); text.append(element('small', detail)); li.append(icon, text); return li;
   }));
-  const gaps = [...report.errors, ...report.gaps];
-  setText('gap-summary', gaps.length ? gaps.length + ' gap' + (gaps.length === 1 ? '' : 's') + ' to resolve' : 'What these checks do not prove');
-  $('gap-details').open = gaps.length > 0;
-  listInto('gap-list', gaps.map(issue => issue.path + ': ' + issue.message),
+  const issues = [...report.errors, ...report.gaps];
+  const issueTotal = report.errorCount + report.gapCount;
+  const omitted = report.omittedIssueCounts.errors + report.omittedIssueCounts.gaps;
+  const issueItems = issues.map(issue => issue.path + ': ' + issue.message);
+  if (omitted) issueItems.push(omitted + ' additional issue' + (omitted === 1 ? '' : 's') + ' omitted. ('
+    + report.omittedIssueCounts.errors + ' structural errors; ' + report.omittedIssueCounts.gaps + ' evidence gaps.)');
+  setText('gap-summary', issueTotal ? issueTotal + ' issue' + (issueTotal === 1 ? '' : 's') + ' to resolve ('
+    + report.errorCount + ' structural error' + (report.errorCount === 1 ? '' : 's') + ', '
+    + report.gapCount + ' evidence gap' + (report.gapCount === 1 ? '' : 's') + ')' : 'What these checks do not prove');
+  $('gap-details').open = issueTotal > 0;
+  listInto('gap-list', issueItems,
     'A complete structure does not establish evidence truth, reliable probabilities, or an authentic independent review.');
   setText('review-status', reviewLabels[packet.riskReview.status]);
   setText('reviewer', packet.riskReview.reviewer);
@@ -308,14 +385,16 @@ function applyPacket(candidate, label, localEdit = false) {
   let reviewReset = false;
   if (localEdit && researchChanged(candidate)) {
     if (reviewSignature(candidate.riskReview) !== reviewSignature(packet.riskReview)) {
-      throw new Error('Save research input changes separately from a new review. The current packet is unchanged; your editor contents are preserved.');
+      const error = new Error('Save research input changes separately from a new review. The current packet is unchanged; your editor contents are preserved.');
+      error.issuePaths = ['riskReview.status'];
+      throw error;
     }
     const emptyReview = blankPacket().riskReview;
     reviewReset = reviewSignature(candidate.riskReview) !== reviewSignature(emptyReview);
     candidate.riskReview = emptyReview;
   }
   const report = validatePacket(candidate);
-  if (!report.valid) throw new Error(issuesMessage(report));
+  if (!report.valid) throw validationError(report);
   importSequence++;
   $('app-error').hidden = true;
   dirty = localEdit ? dirty || JSON.stringify(canonical(candidate)) !== JSON.stringify(canonical(packet)) : false;
@@ -330,6 +409,43 @@ function confirmReplacement() {
   return !meaningful || window.confirm('Replace the open research packet? Export a copy first if you need to keep it.');
 }
 function field(name) { return form.elements.namedItem(name); }
+function editableFieldForPath(path) {
+  const fields = {
+    'asset.symbol': 'symbol', 'asset.name': 'name', 'asset.quoteCurrency': 'quoteCurrency', 'asset.venue': 'venue',
+    'reference.price': 'price', 'reference.capturedAt': 'capturedAt', 'reference.timezone': 'timezone',
+    preparedBy: 'preparedBy', thesis: 'thesis', disconfirmingEvidence: 'disconfirmingEvidence',
+    invalidation: 'invalidation', liquidity: 'liquidity',
+    'riskReview.status': 'reviewStatus', 'riskReview.reviewer': 'reviewer',
+    'riskReview.reviewedAt': 'reviewedAt', 'riskReview.sourceIds': 'sourceIds', 'riskReview.notes': 'reviewNotes',
+  };
+  if (fields[path]) return field(fields[path]);
+  if (/^risks(?:\[|$)/.test(path)) return field('risks');
+  if (/^unknowns(?:\[|$)/.test(path)) return field('unknowns');
+  if (path === 'asset') return field('symbol');
+  if (path === 'reference') return field('price');
+  if (path === 'riskReview') return field('reviewStatus');
+  const assertion = /^riskReview\.assertions(?:\[(\d+)\])?(?:\.(result|evidence|severity|repair))?$/.exec(path);
+  if (assertion) return field('assertion-' + (assertion[1] ?? '0') + '-' + (assertion[2] ?? 'result'));
+  return null;
+}
+function clearInvalidMarker(target) {
+  target.removeAttribute('aria-invalid');
+  const describedBy = (target.getAttribute('aria-describedby') || '').split(/\s+/)
+    .filter(id => id && id !== 'editor-error');
+  if (describedBy.length) target.setAttribute('aria-describedby', describedBy.join(' '));
+  else target.removeAttribute('aria-describedby');
+}
+function clearEditorError() {
+  for (const target of editor.querySelectorAll('[aria-invalid="true"]')) clearInvalidMarker(target);
+  $('editor-error').textContent = '';
+  $('editor-error').hidden = true;
+}
+function markInvalid(target) {
+  target.setAttribute('aria-invalid', 'true');
+  const describedBy = new Set((target.getAttribute('aria-describedby') || '').split(/\s+/).filter(Boolean));
+  describedBy.add('editor-error');
+  target.setAttribute('aria-describedby', [...describedBy].join(' '));
+}
 function populateForm() {
   const values = { ...packet.asset, ...packet.reference, preparedBy: packet.preparedBy,
     thesis: packet.thesis, disconfirmingEvidence: packet.disconfirmingEvidence, invalidation: packet.invalidation,
@@ -364,15 +480,17 @@ function editorSnapshot() {
 function revealEditorTarget(target) {
   const scrollBounds = $('editor-scroll').getBoundingClientRect();
   const targetBounds = target.getBoundingClientRect();
-  if (targetBounds.top < scrollBounds.top
+  const errorHeight = $('editor-error').hidden ? 0 : $('editor-error').getBoundingClientRect().height + 8;
+  const visibleTop = scrollBounds.top + errorHeight;
+  if (targetBounds.top < visibleTop
     || targetBounds.top + Math.min(targetBounds.height, 44) > scrollBounds.bottom) {
-    $('editor-scroll').scrollTop += targetBounds.top - scrollBounds.top;
+    $('editor-scroll').scrollTop += targetBounds.top - visibleTop;
   }
 }
 function openEditor(mode) {
   editorOpener = document.activeElement;
   editorMode = mode;
-  $('editor-error').hidden = true;
+  clearEditorError();
   $('details-form').hidden = mode === 'json'; $('json-editor-panel').hidden = mode !== 'json';
   $('details-actions').hidden = mode === 'json'; $('json-actions').hidden = mode !== 'json';
   setText('editor-heading', mode === 'json' ? 'Edit full research packet' : 'Edit research details');
@@ -395,10 +513,20 @@ function closeEditor(event) {
   if (editorSnapshot() !== editorInitial && !window.confirm('Discard the unapplied editor changes?')) { event?.preventDefault(); return; }
   editor.close();
 }
-function editorError(error) {
+function editorError(error, explicitTarget = null) {
+  clearEditorError();
   $('editor-error').textContent = error.message;
   $('editor-error').hidden = false;
-  $('editor-error').scrollIntoView({ block: 'nearest' });
+  const paths = Array.isArray(error.issuePaths) ? error.issuePaths : error.issuePath ? [error.issuePath] : [];
+  const target = explicitTarget ?? (editorMode === 'json' ? $('packet-json') : paths.map(editableFieldForPath).find(Boolean));
+  if (target) {
+    markInvalid(target);
+    target.focus({ preventScroll: true });
+    revealEditorTarget(target);
+  } else {
+    $('editor-error').focus({ preventScroll: true });
+    $('editor-error').scrollIntoView({ block: 'nearest' });
+  }
 }
 function completeEdit(candidate) {
   const reset = applyPacket(candidate, 'Local draft', true);
@@ -409,10 +537,10 @@ function completeEdit(candidate) {
 function download(contents, type, suffix) {
   const url = URL.createObjectURL(new Blob([contents], { type }));
   const anchor = element('a');
-  const date = formatDate(packet.reference.capturedAt).slice(0, 10);
-  const label = date === 'UNKNOWN' ? 'Undated' : date.replace(/-(\d{2})(\d{2})$/, '-$2');
+  const instant = timestamp(packet.reference.capturedAt);
+  const label = instant === null ? 'Undated' : new Date(instant).toISOString().slice(0, 10);
   anchor.href = url;
-  anchor.download = '(' + label + ')' + (packet.asset.symbol || 'Research') + ' ' + suffix;
+  anchor.download = '(' + label + ')' + (packet.asset.symbol ? packet.asset.symbol + ' ' : '') + suffix;
   anchor.hidden = true; document.body.append(anchor); anchor.click(); anchor.remove();
   setTimeout(() => URL.revokeObjectURL(url), 10000);
 }
@@ -440,7 +568,7 @@ $('packet-file').addEventListener('change', async event => {
     catch { throw new Error('The packet must be valid UTF-8 JSON without replacement-decoded bytes.'); }
     const candidate = parsePacket(imported);
     const report = validatePacket(candidate);
-    if (!report.valid) throw new Error(issuesMessage(report));
+    if (!report.valid) throw validationError(report);
     if (sequence !== importSequence || !confirmReplacement()) return;
     applyPacket(candidate, 'Imported packet');
     announce('Packet imported locally. No research data was sent to a server. ' + (report.complete ? 'Structure is complete.' : 'Review the listed data gaps.'));
@@ -452,6 +580,8 @@ $('edit-json').addEventListener('click', () => openEditor('json'));
 $('close-editor').addEventListener('click', closeEditor);
 editor.addEventListener('cancel', closeEditor);
 editor.addEventListener('close', () => { if (editorOpener?.isConnected) editorOpener.focus({ preventScroll: true }); });
+editor.addEventListener('input', event => { if (event.target.matches?.('[aria-invalid="true"]')) clearEditorError(); });
+editor.addEventListener('change', event => { if (event.target.matches?.('[aria-invalid="true"]')) clearEditorError(); });
 form.addEventListener('submit', event => {
   event.preventDefault();
   if (editorSnapshot() === editorInitial) { editor.close(); announce('No changes were made.'); return; }
@@ -459,7 +589,12 @@ form.addEventListener('submit', event => {
     const candidate = structuredClone(packet);
     const value = name => String(field(name).value);
     for (const name of ['symbol', 'name', 'quoteCurrency', 'venue']) candidate.asset[name] = value(name);
-    candidate.reference = { price: value('price') === '' ? null : parsePacket('{"price":' + value('price') + '}').price, capturedAt: value('capturedAt'), timezone: value('timezone') };
+    let price = null;
+    if (value('price') !== '') {
+      try { price = parsePacket('{"price":' + value('price') + '}').price; }
+      catch (error) { error.issuePaths = ['reference.price']; throw error; }
+    }
+    candidate.reference = { price, capturedAt: value('capturedAt'), timezone: value('timezone') };
     if (candidate.reference.capturedAt !== packet.reference.capturedAt) {
       candidate.horizons.forEach((horizon, index) => { horizon.endAt = endAt(candidate.reference.capturedAt, HORIZONS[index].hours); });
     }
@@ -467,7 +602,9 @@ form.addEventListener('submit', event => {
     for (const name of ['risks', 'unknowns']) {
       if (value(name) !== packet[name].join('\n')) {
         if (packet[name].some(item => /[\r\n]/.test(item))) {
-          throw new Error('The existing ' + name + ' list contains a multiline entry. Edit that list in the full packet editor to preserve its structure.');
+          const error = new Error('The existing ' + name + ' list contains a multiline entry. Edit that list in the full packet editor to preserve its structure.');
+          error.issuePaths = [name];
+          throw error;
         }
         candidate[name] = value(name).split(/\r?\n/).map(item => item.trim()).filter(Boolean);
       }
@@ -483,7 +620,7 @@ form.addEventListener('submit', event => {
   } catch (error) { editorError(error); }
 });
 $('apply-json').addEventListener('click', () => {
-  try { completeEdit(parsePacket($('packet-json').value)); } catch (error) { editorError(error); }
+  try { completeEdit(parsePacket($('packet-json').value)); } catch (error) { editorError(error, $('packet-json')); }
 });
 $('export-json').addEventListener('click', () => {
   download(JSON.stringify(packet, null, 2) + '\n', 'application/json', 'Research Packet.json');
@@ -589,10 +726,13 @@ try {
   announce('The saved draft could not be loaded. It was not deleted or overwritten. A synthetic example is shown; local saving is off.', true);
 }
 render(); updateNavigation();
+document.documentElement.classList.toggle('page-margin-identity', supportsPageMarginIdentity());
+$('startup-status').hidden = true;
+document.documentElement.classList.remove('app-unavailable');
 function refreshExpiry() {
   if (document.visibilityState !== 'visible') return;
   const report = validatePacket(packet);
-  if (lastValidation === JSON.stringify([report.valid, report.gaps, report.errors, report.chartEligible])) return;
+  if (lastValidation === validationSignature(report)) return;
   const activeId = document.activeElement?.id;
   // Keep scenario controls and open editor fields intact when only time has changed.
   render(false);

@@ -18,6 +18,7 @@ const own = (value, key) => Object.prototype.hasOwnProperty.call(value, key);
 const record = value => value !== null && typeof value === 'object' && !Array.isArray(value)
   && [Object.prototype, null].includes(Object.getPrototypeOf(value));
 const present = value => typeof value === 'string' && value.trim().length > 0;
+const aliasKey = value => value.normalize('NFKC').replace(/\p{White_Space}+/gu, ' ').trim().toLocaleLowerCase('en-US');
 const finitePrice = value => typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 1e12;
 function wellFormed(value) {
   if (typeof value !== 'string') return false;
@@ -30,6 +31,42 @@ function wellFormed(value) {
     } else if (unit >= 0xdc00 && unit <= 0xdfff) return false;
   }
   return true;
+}
+function portableJson(value) {
+  const seen = new WeakSet();
+  let nodes = 0;
+  function visit(current, depth) {
+    if (++nodes > 10000 || depth > 16) return false;
+    if (current === null || typeof current === 'boolean') return true;
+    if (typeof current === 'string') return wellFormed(current);
+    if (typeof current === 'number') return Number.isFinite(current);
+    if (typeof current !== 'object' || seen.has(current)) return false;
+    seen.add(current);
+    try {
+      const prototype = Object.getPrototypeOf(current);
+      const keys = Reflect.ownKeys(current);
+      if (Array.isArray(current)) {
+        if (prototype !== Array.prototype) return false;
+        const length = Object.getOwnPropertyDescriptor(current, 'length');
+        if (!length || !own(length, 'value') || !Number.isSafeInteger(length.value)
+          || length.value < 0 || length.value > 128 || keys.length !== length.value + 1) return false;
+        for (let index = 0; index < length.value; index++) {
+          const descriptor = Object.getOwnPropertyDescriptor(current, String(index));
+          if (!descriptor?.enumerable || !own(descriptor, 'value') || !visit(descriptor.value, depth + 1)) return false;
+        }
+        return keys.every(key => key === 'length'
+          || (typeof key === 'string' && /^(?:0|[1-9]\d*)$/.test(key) && Number(key) < length.value));
+      }
+      if (![Object.prototype, null].includes(prototype)) return false;
+      for (const key of keys) {
+        if (typeof key !== 'string' || !wellFormed(key) || forbiddenKeys.has(key)) return false;
+        const descriptor = Object.getOwnPropertyDescriptor(current, key);
+        if (!descriptor?.enumerable || !own(descriptor, 'value') || !visit(descriptor.value, depth + 1)) return false;
+      }
+      return true;
+    } catch { return false; }
+  }
+  return visit(value, 0);
 }
 function decimalKey(token) {
   const negative = token.startsWith('-');
@@ -135,6 +172,7 @@ export function timestamp(value) {
   const y = Number(year), m = Number(month), d = Number(day);
   if (y < 1970 || m < 1 || m > 12 || d < 1 || d > new Date(Date.UTC(y, m, 0)).getUTCDate()
     || Number(hour) > 23 || Number(minute) > 59 || Number(second) > 59) return null;
+  if (offset === '-00:00') return null;
   if (offset !== 'Z' && (Number(offset.slice(1, 3)) > 14 || Number(offset.slice(4)) > 59
     || (Number(offset.slice(1, 3)) === 14 && Number(offset.slice(4)) !== 0))) return null;
   const instant = Date.parse(value);
@@ -149,7 +187,7 @@ export function safeSourceUrl(value) {
     const host = url.hostname.toLowerCase();
     if (url.protocol !== 'https:' || url.username || url.password || url.port
       || !/^[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?\.[a-z]{2,63}$/.test(host)
-      || /(?:^|\.)(?:localhost|local|internal|test|invalid|example)$/.test(host)) return null;
+      || /(?:^|\.)(?:localhost|local|internal|test|invalid|example|onion|alt|home\.arpa)$/.test(host)) return null;
     if (host.length > 253 || host.split('.').some(label => label.length > 63 || !/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/.test(label))) return null;
     return url.href;
   } catch { return null; }
@@ -164,8 +202,18 @@ export function formatDate(value, timezone = 'UTC') {
       hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23',
     }).formatToParts(new Date(instant));
     const item = name => parts.find(part => part.type === name)?.value;
+    const wallClock = Date.UTC(Number(item('year')), Number(item('month')) - 1, Number(item('day')),
+      Number(item('hour')), Number(item('minute')), Number(item('second')));
+    const offsetSeconds = (wallClock - Math.floor(instant / 1000) * 1000) / 1000;
+    if (!Number.isInteger(offsetSeconds) || Math.abs(offsetSeconds) > 24 * 3600) return 'UNKNOWN';
+    const absoluteOffset = Math.abs(offsetSeconds);
+    const offset = (offsetSeconds < 0 ? '-' : '+')
+      + String(Math.floor(absoluteOffset / 3600)).padStart(2, '0') + ':'
+      + String(Math.floor(absoluteOffset % 3600 / 60)).padStart(2, '0')
+      + (absoluteOffset % 60 ? ':' + String(absoluteOffset % 60).padStart(2, '0') : '');
     return item('day') + '-' + item('month') + '-' + item('year') + ' '
-      + item('hour') + ':' + item('minute') + ':' + item('second') + ' ' + timezone;
+      + item('hour') + ':' + item('minute') + ':' + item('second') + ' ' + timezone
+      + ' (UTC' + offset + '; ' + new Date(instant).toISOString() + ')';
   } catch { return 'UNKNOWN'; }
 }
 
@@ -206,13 +254,37 @@ export function blankPacket() {
 
 export function validatePacket(packet, now = Date.now()) {
   const errors = [], gaps = [], warnings = [];
-  const add = (list, path, message) => { if (list.length < 80) list.push({ path, message }); };
-  const error = (path, message) => add(errors, path, message);
-  const gap = (path, message) => add(gaps, path, message);
-  const warning = (path, message) => add(warnings, path, message);
+  const issueCounts = { errors: 0, gaps: 0, warnings: 0 };
+  const add = (list, kind, path, message) => {
+    issueCounts[kind]++;
+    if (list.length < 80) list.push({ path, message });
+  };
+  const error = (path, message) => add(errors, 'errors', path, message);
+  const gap = (path, message) => add(gaps, 'gaps', path, message);
+  const warning = (path, message) => add(warnings, 'warnings', path, message);
+  const finish = (horizonChecks = [], reviewRecorded = false) => {
+    const omittedIssueCounts = {
+      errors: issueCounts.errors - errors.length,
+      gaps: issueCounts.gaps - gaps.length,
+      warnings: issueCounts.warnings - warnings.length,
+    };
+    const valid = issueCounts.errors === 0;
+    const complete = valid && issueCounts.gaps === 0;
+    return {
+      valid, complete, chartEligible: complete && reviewRecorded,
+      errors, gaps, warnings,
+      errorCount: issueCounts.errors, gapCount: issueCounts.gaps, warningCount: issueCounts.warnings,
+      omittedIssueCounts, issuesTruncated: Object.values(omittedIssueCounts).some(count => count > 0),
+      horizonChecks,
+    };
+  };
   if (typeof now !== 'number' || !Number.isFinite(now)) {
     error('validationTime', 'A finite validation time is required.');
-    return { valid: false, complete: false, chartEligible: false, errors, gaps, warnings, horizonChecks: [] };
+    return finish();
+  }
+  if (!portableJson(packet)) {
+    error('packet', 'Use plain JSON data with enumerable data properties; accessors, symbols, hidden fields, shared references, and unsupported values are not allowed.');
+    return finish();
   }
   try {
     if (new TextEncoder().encode(JSON.stringify(packet)).length > MAX_PACKET_BYTES) error('packet', 'The complete packet exceeds 256 KiB.');
@@ -248,7 +320,7 @@ export function validatePacket(packet, now = Date.now()) {
   }
   const rootKeys = ['schemaVersion', 'kind', 'preparedBy', 'asset', 'reference', 'thesis',
     'disconfirmingEvidence', 'invalidation', 'liquidity', 'risks', 'unknowns', 'method', 'sources', 'horizons', 'riskReview'];
-  if (!object(packet, 'packet', rootKeys)) return { valid: false, complete: false, chartEligible: false, errors, gaps, warnings, horizonChecks: [] };
+  if (!object(packet, 'packet', rootKeys)) return finish();
   if (packet.schemaVersion !== 1) error('schemaVersion', 'Only packet schema version 1 is supported.');
   if (!['research', 'synthetic'].includes(packet.kind)) error('kind', 'Choose research or synthetic.');
   text(packet.preparedBy, 'preparedBy', true, 100);
@@ -359,13 +431,14 @@ export function validatePacket(packet, now = Date.now()) {
     text(review.notes, 'riskReview.notes', final);
     const reviewed = date(review.reviewedAt, 'riskReview.reviewedAt', final);
     if (final && present(review.reviewer) && present(packet.preparedBy)
-      && review.reviewer.normalize('NFKC').trim().toLocaleLowerCase('en-US') === packet.preparedBy.normalize('NFKC').trim().toLocaleLowerCase('en-US')) error('riskReview.reviewer', 'The preparer cannot be their own independent reviewer.');
+      && aliasKey(review.reviewer) === aliasKey(packet.preparedBy)) error('riskReview.reviewer', 'The preparer cannot be their own independent reviewer.');
     if (reviewed !== null && latestEvidence !== null && reviewed < latestEvidence) error('riskReview.reviewedAt', 'The review predates the evidence or reference cutoff.');
     if (list(review.sourceIds, 'riskReview.sourceIds')) {
       if (new Set(review.sourceIds).size !== review.sourceIds.length) error('riskReview.sourceIds', 'Review source identifiers must be unique.');
       if (review.sourceIds.some(id => typeof id !== 'string' || !sourceIds.has(id))) error('riskReview.sourceIds', 'Review references an unknown source.');
       if (final && (review.sourceIds.length !== sourceIds.size || sourceIds.size === 0)) gap('riskReview.sourceIds', 'The review must account for every recorded source.');
     }
+    let hasWarningAssertion = false;
     if (list(review.assertions, 'riskReview.assertions', 5)) {
       const assertionIds = new Set();
       for (const [index, assertion] of review.assertions.entries()) {
@@ -374,6 +447,7 @@ export function validatePacket(packet, now = Date.now()) {
         if (!REVIEW_ASSERTIONS.some(item => item.id === assertion.id) || assertionIds.has(assertion.id)) error(path + '.id', 'Use a unique, supported review assertion.');
         assertionIds.add(assertion.id);
         if (!['PASS', 'WARN', 'FAIL', 'UNKNOWN'].includes(assertion.result)) error(path + '.result', 'Use PASS, WARN, FAIL, or UNKNOWN.');
+        if (assertion.result === 'WARN') hasWarningAssertion = true;
         if (!['low', 'medium', 'high'].includes(assertion.severity)) error(path + '.severity', 'Use low, medium, or high.');
         text(assertion.evidence, path + '.evidence', final);
         text(assertion.repair, path + '.repair', final && assertion.result !== 'PASS');
@@ -382,6 +456,10 @@ export function validatePacket(packet, now = Date.now()) {
       }
       if (final && assertionIds.size !== REVIEW_ASSERTIONS.length) gap('riskReview.assertions', 'All five manual review assertions are required.');
     }
+    if (review.status === 'deliver_with_warning' && !hasWarningAssertion
+      && !(Array.isArray(packet.unknowns) && packet.unknowns.length)) {
+      error('riskReview.status', 'A warning disposition requires at least one WARN assertion or an unresolved unknown.');
+    }
     if (review.status === 'pending') gap('riskReview', 'Independent review has not been recorded.');
     if (['repair', 'withhold'].includes(review.status)) gap('riskReview', 'The submitted review blocks delivery.');
     if (review.status === 'deliver' && Array.isArray(packet.unknowns) && packet.unknowns.length) gap('riskReview', 'Unresolved unknowns require a warning disposition or further research.');
@@ -389,9 +467,7 @@ export function validatePacket(packet, now = Date.now()) {
   }
   if (packet.kind === 'synthetic') warning('kind', 'SYNTHETIC EXAMPLE. Prices, probabilities, people, sources, and review are fictional.');
   warning('evidence', 'Source truth, forecast accuracy, and reviewer identity are not authenticated by this application.');
-  const valid = errors.length === 0;
-  const complete = valid && gaps.length === 0;
-  return { valid, complete, chartEligible: complete && reviewRecorded, errors, gaps, warnings, horizonChecks };
+  return finish(horizonChecks, reviewRecorded);
 }
 
 export function intervalLabel(scenario) {
@@ -432,6 +508,7 @@ export function exportMarkdown(packet, now = Date.now()) {
     packet.kind === 'synthetic' ? '**SYNTHETIC EXAMPLE. All research values and review identities are fictional.**' : '**SUBMITTED RESEARCH. Evidence and review identity are unverified.**',
     '', 'Research only. No orders, allocation sizing, account access, or execution authority.',
     '', 'Structure: ' + (report.complete ? 'COMPLETE' : 'INCOMPLETE') + '. This is not a source or forecast certification.',
+    'Asset name: ' + p(packet.asset.name || 'UNKNOWN') + '.',
     'Reference: ' + formatPrice(packet.reference.price) + ' ' + p(packet.asset.quoteCurrency) + '.',
     'Venue or composite: ' + p(packet.asset.venue || 'UNKNOWN') + '.',
     'Captured: ' + p(formatDate(packet.reference.capturedAt, packet.reference.timezone)) + '.',
@@ -478,6 +555,7 @@ export function exportMarkdown(packet, now = Date.now()) {
   }
   lines.push('', '## Independent risk record', '', 'Disposition (self-reported): ' + p(packet.riskReview.status) + '.',
     'Reviewer (self-reported): ' + p(packet.riskReview.reviewer || 'UNKNOWN') + '.',
+    'Reviewed source IDs: ' + (packet.riskReview.sourceIds.length ? packet.riskReview.sourceIds.map(p).join(', ') : 'NONE RECORDED') + '.',
     'Reviewed: ' + p(formatDate(packet.riskReview.reviewedAt)) + '.', p(packet.riskReview.notes || 'UNKNOWN'),
     '', '### Submitted review assertions', '',
     '| Assertion | Result | Evidence | Severity | Repair |', '| --- | --- | --- | --- | --- |',
@@ -486,6 +564,8 @@ export function exportMarkdown(packet, now = Date.now()) {
     ].map(p).join(' | ') + ' |'),
     '', '## Unresolved unknowns and validation gaps', '');
   const unknowns = [...packet.unknowns, ...report.gaps.map(item => item.path + ': ' + item.message)];
+  if (report.omittedIssueCounts.gaps) unknowns.push('validation gaps: ' + report.omittedIssueCounts.gaps
+    + ' additional validation gaps omitted from this bounded list; ' + report.gapCount + ' total.');
   lines.push(...(unknowns.length ? unknowns.map(item => '- ' + p(item)) : ['No unknowns were supplied. This does not establish that none exist.']));
   lines.push('', 'Probabilities are not additive across horizons. The human operator owns all external actions.', '');
   return lines.join('\n');

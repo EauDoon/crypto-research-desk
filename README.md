@@ -97,6 +97,8 @@ Research visibility never grants execution authority. The human operator owns ev
 
 The exact-byte verifier protects the released research core, its five specialist definitions, and the original presentation assets. Additional tests exercise packet parsing, scenario arithmetic, review gates, safe rendering, local persistence, build integrity, and browser workflows.
 
+The protected research core and optional browser workbench have independent versions. Verified build manifests record both, so workbench maintenance does not silently relabel unchanged research instructions.
+
 These are software and workflow checks. They do not establish forecast accuracy, investment performance, authentic reviewer identity, or future reliability. A local pass does not prove a Vercel production release; that requires the separate acceptance checks in the [deployment runbook](docs/DEPLOYMENT.md).
 
 ## Repository map

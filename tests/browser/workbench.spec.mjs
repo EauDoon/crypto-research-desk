@@ -68,6 +68,30 @@ test('the default view is explicitly synthetic, local, and accessible', async ({
   await a11y(page);
 });
 
+test('startup fails closed when JavaScript is unavailable', async ({ browser, baseURL }) => {
+  const context = await browser.newContext({ javaScriptEnabled: false, baseURL });
+  const noScriptPage = await context.newPage();
+  await noScriptPage.goto('/');
+  await expect(noScriptPage.locator('html')).toHaveClass(/app-unavailable/);
+  await expect(noScriptPage.locator('#startup-status')).toContainText('Research workbench unavailable');
+  await expect(noScriptPage.locator('.requires-app:visible')).toHaveCount(0);
+  await expect(noScriptPage.getByRole('button')).toHaveCount(0);
+  await expect(noScriptPage.locator('#guide')).toBeVisible();
+  await expect(noScriptPage.locator('.page-footer')).toContainText('cannot place trades');
+  await context.close();
+});
+
+test('startup remains fail closed when the application module cannot load', async ({ browser, baseURL }) => {
+  const context = await browser.newContext({ baseURL });
+  await context.route(/\/app(?:\.[^/]+)?\.js$/, route => route.abort());
+  const failedPage = await context.newPage();
+  await failedPage.goto('/');
+  await expect(failedPage.locator('html')).toHaveClass(/app-unavailable/);
+  await expect(failedPage.locator('#startup-status')).toBeVisible();
+  await expect(failedPage.locator('.requires-app:visible')).toHaveCount(0);
+  await context.close();
+});
+
 test('horizon tabs support arrows, Home, End, and correct tab panels', async ({ page }) => {
   await page.locator('#tab-12h').focus();
   await page.keyboard.press('ArrowRight');
@@ -141,15 +165,36 @@ test('imported prose stays inert and submitted reviews remain explicitly unverif
   await a11y(page);
 });
 
+test('evidence records are named articles with navigable source headings', async ({ page }) => {
+  const articles = page.locator('#source-list article');
+  await expect(articles).toHaveCount(2);
+  for (const [index, source] of examplePacket().sources.entries()) {
+    const article = articles.nth(index);
+    const heading = article.getByRole('heading', { level: 3, name: new RegExp(source.title) });
+    await expect(heading).toHaveCount(1);
+    await expect(article).toHaveAttribute('aria-labelledby', await heading.getAttribute('id'));
+    await expect(article).toHaveAccessibleName(new RegExp(source.title));
+  }
+});
+
 test('JSON and Markdown downloads preserve packet content and evidence', async ({ page }) => {
   const json = await exported(page, '#export-json');
   expect(JSON.parse(json.text)).toEqual(examplePacket());
-  expect(json.name).toMatch(/Research Packet\.json$/);
+  expect(json.name).toBe('(2026-08-20)DEMO Research Packet.json');
   const markdown = await exported(page, '#export-brief');
-  expect(markdown.name).toMatch(/Research Brief\.md$/);
+  expect(markdown.name).toBe('(2026-08-20)DEMO Research Brief.md');
   for (const text of ['SYNTHETIC EXAMPLE', '## 12 hours', '## 24 hours', '## 3 days', '## 7 days', 'authority', 'Print / PDF']) {
     expect(markdown.text).toContain(text);
   }
+});
+
+test('undated exports use exact portable fallback filenames', async ({ page }) => {
+  await page.locator('#new-packet').click();
+  await page.locator('#close-editor').click();
+  const json = await exported(page, '#export-json');
+  const markdown = await exported(page, '#export-brief');
+  expect(json.name).toBe('(Undated)Research Packet.json');
+  expect(markdown.name).toBe('(Undated)Research Brief.md');
 });
 
 test('editing research inputs clears the old review and withholds the chart', async ({ page }) => {
@@ -169,9 +214,51 @@ test('changing input and review records together preserves the editor and reject
   await page.locator('#packet-json').fill(JSON.stringify(packet));
   await page.locator('#apply-json').click();
   await expect(page.locator('#editor-error')).toContainText('separately from a new review');
+  await expect(page.locator('#packet-json')).toBeFocused();
+  await expect(page.locator('#packet-json')).toHaveAttribute('aria-invalid', 'true');
+  await expect(page.locator('#packet-json')).toHaveAttribute('aria-describedby', /\beditor-error\b/);
   expect(JSON.parse(await page.locator('#packet-json').inputValue()).riskReview.unknownField).toBe(true);
   await expect(page.locator('#thesis')).toHaveText(examplePacket().thesis);
   await expect(page.locator('#packet-editor')).toBeVisible();
+});
+
+test('JSON parse errors mark and focus the JSON editor until it changes', async ({ page }) => {
+  await page.locator('#edit-json').click();
+  await page.locator('#packet-json').fill('{');
+  await page.locator('#apply-json').click();
+  await expect(page.locator('#editor-error')).toBeVisible();
+  await expect(page.locator('#packet-json')).toBeFocused();
+  await expect(page.locator('#packet-json')).toHaveAttribute('aria-invalid', 'true');
+  await expect(page.locator('#packet-json')).toHaveAttribute('aria-describedby', 'editor-help editor-error');
+  await page.locator('#packet-json').fill('{}');
+  await expect(page.locator('#editor-error')).toBeHidden();
+  await expect(page.locator('#packet-json')).not.toHaveAttribute('aria-invalid', 'true');
+  await expect(page.locator('#packet-json')).toHaveAttribute('aria-describedby', 'editor-help');
+});
+
+test('details validation focuses and describes the first editable invalid field', async ({ page }) => {
+  await page.setViewportSize({ width: 900, height: 600 });
+  await page.locator('#edit-details').click();
+  const reviewer = page.locator('input[name="reviewer"]');
+  await reviewer.fill('Example researcher');
+  await page.getByRole('button', { name: 'Save details', exact: true }).click();
+  await expect(page.locator('#editor-error')).toContainText('riskReview.reviewer');
+  await expect(reviewer).toBeFocused();
+  await expect(reviewer).toHaveAttribute('aria-invalid', 'true');
+  await expect(reviewer).toHaveAttribute('aria-describedby', /\beditor-error\b/);
+  const geometry = await page.evaluate(() => {
+    const scroll = document.querySelector('#editor-scroll').getBoundingClientRect();
+    const error = document.querySelector('#editor-error').getBoundingClientRect();
+    const field = document.querySelector('input[name="reviewer"]').getBoundingClientRect();
+    return { errorTop: error.top, scrollTop: scroll.top, fieldTop: field.top, fieldBottom: field.bottom, scrollBottom: scroll.bottom };
+  });
+  expect(geometry.errorTop).toBeGreaterThanOrEqual(geometry.scrollTop - 1);
+  expect(geometry.fieldTop).toBeGreaterThan(geometry.errorTop);
+  expect(geometry.fieldBottom).toBeLessThanOrEqual(geometry.scrollBottom + 1);
+  await reviewer.fill('Independent reviewer');
+  await expect(page.locator('#editor-error')).toBeHidden();
+  await expect(reviewer).not.toHaveAttribute('aria-invalid', 'true');
+  await expect(reviewer).not.toHaveAttribute('aria-describedby', /\beditor-error\b/);
 });
 
 test('a pending packet cannot combine new research with a final review', async ({ page }) => {
@@ -234,6 +321,8 @@ test('prices that would lose decimal precision are rejected in the details form'
   await page.locator('input[name="price"]').fill('0.1234567890123456789');
   await page.getByRole('button', { name: 'Save details', exact: true }).click();
   await expect(page.locator('#editor-error')).toContainText('precision would be lost');
+  await expect(page.locator('input[name="price"]')).toBeFocused();
+  await expect(page.locator('input[name="price"]')).toHaveAttribute('aria-invalid', 'true');
   await expect(page.locator('#reference-price')).toHaveText('100 USD');
 });
 
@@ -360,13 +449,40 @@ test('mobile and desktop layouts contain overflow and keep dialog actions reacha
   for (const width of [320, 390, 768, 1440]) {
     await page.setViewportSize({ width, height: width === 320 ? 568 : 1000 });
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), 'page overflow at ' + width).toBe(true);
-    expect(await page.locator('#chart-area .scroll-hint').isVisible()).toBe(width <= 720);
     await page.locator('#edit-details').click();
     await expect(page.getByRole('button', { name: 'Save details', exact: true })).toBeInViewport();
     await expect(page.locator('#close-editor')).toBeInViewport();
     await page.getByRole('button', { name: 'Save details', exact: true }).click();
     await expect(page.locator('#packet-editor')).toBeHidden();
   }
+});
+
+test('scroll hints follow measured chart and table overflow after resizing', async ({ page }) => {
+  for (const width of [768, 1000]) {
+    await page.setViewportSize({ width, height: 1000 });
+    const chart = page.locator('#chart-scroll');
+    await expect.poll(() => chart.evaluate(node => node.scrollWidth > node.clientWidth + 1)).toBe(true);
+    await expect(page.locator('#chart-area .scroll-hint')).toBeVisible();
+    await expect.poll(() => page.evaluate(() => [...document.querySelectorAll(
+      '#chart-scroll, .horizon-panel:not([hidden]) .table-scroll',
+    )].every(scroll => scroll.previousElementSibling.hidden === !(scroll.scrollWidth > scroll.clientWidth + 1)))).toBe(true);
+  }
+  await page.setViewportSize({ width: 320, height: 568 });
+  const table = page.locator('.horizon-panel:not([hidden]) .table-scroll');
+  await expect.poll(() => table.evaluate(node => node.scrollWidth > node.clientWidth + 1)).toBe(true);
+  await expect(table.locator('xpath=preceding-sibling::*[1]')).toBeVisible();
+});
+
+test('short desktop sidebars scroll the final keyboard action into view', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 320 });
+  const sidebar = page.locator('.sidebar');
+  expect(await sidebar.evaluate(node => node.scrollHeight > node.clientHeight)).toBe(true);
+  await page.locator('.brand').focus();
+  for (let index = 0; index < 6; index++) await page.keyboard.press('Tab');
+  const repository = page.locator('.repository-link');
+  await expect(repository).toBeFocused();
+  await expect(repository).toBeInViewport();
+  expect(await sidebar.evaluate(node => node.scrollTop)).toBeGreaterThan(0);
 });
 
 test('the full packet editor opens at the beginning with actions visible on mobile', async ({ page }) => {
@@ -429,7 +545,7 @@ test('long prose and large exact price labels do not overflow the page or SVG', 
   expect(clipped).toEqual([]);
 });
 
-test('print styling reveals all horizons, and reduced motion keeps the controls usable', async ({ page }) => {
+test('print styling reveals all horizons, and reduced motion keeps the controls usable', async ({ page, browserName }) => {
   const originalOpen = await page.locator('details').evaluateAll(nodes => nodes.map(node => node.open));
   await page.evaluate(() => window.dispatchEvent(new Event('beforeprint')));
   await page.emulateMedia({ media: 'print', reducedMotion: 'reduce' });
@@ -438,6 +554,33 @@ test('print styling reveals all horizons, and reduced motion keeps the controls 
   await expect(page.locator('#assertion-record')).toBeVisible();
   await expect(page.locator('.source-item blockquote').first()).toBeVisible();
   await expect(page.locator('.driver-grid').first()).toBeVisible();
+  await expect(page.locator('html')).toHaveAttribute('data-print-identity', /RESEARCH ONLY · Provenance: SYNTHETIC EXAMPLE · Asset: DEMO — Demonstration asset/);
+  await expect(page.locator('html')).toHaveAttribute('data-print-identity', /2026-08-20T09:00:00\.000Z/);
+  for (const [index, source] of examplePacket().sources.entries()) {
+    await expect(page.locator('.print-source-url').nth(index)).toBeVisible();
+    await expect(page.locator('.print-source-url').nth(index)).toHaveText(new URL(source.url).href);
+  }
+  const printStyles = await page.evaluate(() => ({
+    identityDisplay: getComputedStyle(document.querySelector('#print-identity')).display,
+    identityPosition: getComputedStyle(document.querySelector('#print-identity')).position,
+    marginMode: document.documentElement.classList.contains('page-margin-identity'),
+    pageMarginIdentity: [...document.styleSheets].some(sheet => [...sheet.cssRules]
+      .some(rule => rule.cssText.includes('@top-center') && rule.cssText.includes('attr(data-print-identity)'))),
+    evidenceBreak: getComputedStyle(document.querySelector('#evidence')).breakBefore,
+    sourceBreak: getComputedStyle(document.querySelector('.source-item')).breakInside,
+    bodyFont: parseFloat(getComputedStyle(document.body).fontSize),
+    tableFont: parseFloat(getComputedStyle(document.querySelector('table')).fontSize),
+    sourceUrlFont: parseFloat(getComputedStyle(document.querySelector('.print-source-url')).fontSize),
+  }));
+  expect(printStyles.pageMarginIdentity).toBe(browserName === 'chromium');
+  expect(printStyles.marginMode).toBe(browserName === 'chromium');
+  expect(printStyles.identityDisplay).toBe(browserName === 'chromium' ? 'none' : 'block');
+  if (browserName !== 'chromium') expect(printStyles.identityPosition).toBe('fixed');
+  expect(printStyles.evidenceBreak).toBe('page');
+  expect(['avoid', 'avoid-page']).toContain(printStyles.sourceBreak);
+  expect(printStyles.bodyFont).toBeGreaterThanOrEqual(12);
+  expect(printStyles.tableFont).toBeGreaterThanOrEqual(11);
+  expect(printStyles.sourceUrlFont).toBeGreaterThanOrEqual(11);
   await page.evaluate(() => window.dispatchEvent(new Event('afterprint')));
   expect(await page.locator('details').evaluateAll(nodes => nodes.map(node => node.open))).toEqual(originalOpen);
   await page.emulateMedia({ media: 'screen', reducedMotion: 'reduce' });

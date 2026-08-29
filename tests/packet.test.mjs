@@ -75,17 +75,49 @@ test('missing and mistyped fields fail without throwing or enabling a chart', ()
   for (const value of [null, [], 3, 'text', undefined]) assert.equal(validate(value).valid, false);
 });
 
+test('validation accepts only portable JSON topology without invoking accessors', () => {
+  const hidden = research();
+  Object.defineProperty(hidden.asset, 'symbol', { value: 'DEMO', enumerable: false });
+  assert.equal(validate(hidden).valid, false);
+
+  const symbolic = research();
+  symbolic.asset[Symbol('hidden')] = 'not portable';
+  assert.equal(validate(symbolic).valid, false);
+
+  let reads = 0;
+  const accessor = research();
+  Object.defineProperty(accessor.asset, 'symbol', {
+    enumerable: true,
+    get() { reads++; return reads === 1 ? 'DEMO' : 'CHANGED'; },
+  });
+  const report = validate(accessor);
+  assert.equal(report.valid, false);
+  assert.equal(report.errors[0].path, 'packet');
+  assert.equal(reads, 0);
+  assert.throws(() => exportMarkdown(accessor, NOW), /structural errors/);
+  assert.equal(reads, 0);
+});
+
 test('calendar dates and explicit offsets are checked without normalization', () => {
   for (const value of ['2026-02-29T00:00:00Z', '2026-04-31T00:00:00Z',
     '2026-08-20T24:00:00Z', '2026-08-20T09:00:60Z', '2026-08-20T09:00:00',
-    '2026-08-20', '2026-08-20T09:00:00+14:01', '2026-08-20T09:00:00+08:99']) {
+    '2026-08-20', '2026-08-20T09:00:00-00:00',
+    '2026-08-20T09:00:00+14:01', '2026-08-20T09:00:00+08:99']) {
     assert.equal(timestamp(value), null, value);
   }
   assert.equal(timestamp('2024-02-29T08:00:00+08:00'), Date.parse('2024-02-29T00:00:00Z'));
-  assert.equal(formatDate('2026-08-20T09:00:00Z', 'Asia/Singapore'), '20-08-2026 17:00:00 Asia/Singapore');
+  assert.equal(formatDate('2026-08-20T09:00:00Z', 'Asia/Singapore'),
+    '20-08-2026 17:00:00 Asia/Singapore (UTC+08:00; 2026-08-20T09:00:00.000Z)');
   assert.equal(formatDate('invalid'), 'UNKNOWN');
   assert.equal(formatDate('2026-08-20T09:00:00Z', 'Not/AZone'), 'UNKNOWN');
   assert.equal(endAt('invalid', 12), '');
+});
+
+test('formatted timestamps distinguish repeated wall-clock times across a DST fold', () => {
+  assert.equal(formatDate('2026-10-25T00:30:00Z', 'Europe/London'),
+    '25-10-2026 01:30:00 Europe/London (UTC+01:00; 2026-10-25T00:30:00.000Z)');
+  assert.equal(formatDate('2026-10-25T01:30:00Z', 'Europe/London'),
+    '25-10-2026 01:30:00 Europe/London (UTC+00:00; 2026-10-25T01:30:00.000Z)');
 });
 
 test('source links exclude active schemes, credentials, private literals, and custom ports', () => {
@@ -93,6 +125,7 @@ test('source links exclude active schemes, credentials, private literals, and cu
     'https://user:password@example.com', 'https://127.0.0.1', 'https://[::1]',
     'https://2130706433', 'https://host.internal', 'https://host.local',
     'https://source.example', 'https://evidence.source.example',
+    'https://source.onion', 'https://router.home.arpa', 'https://anything.alt',
     'https://example.com:8443', 'https://example.com/\npath', '//example.com']) {
     assert.equal(safeSourceUrl(value), null, value);
   }
@@ -187,6 +220,22 @@ test('all five review assertions and a consistent disposition are required for c
   assert.equal(validate(passed).valid, false);
 });
 
+test('a warning disposition identifies a warning assertion or unresolved unknown', () => {
+  const packet = research();
+  packet.unknowns = [];
+  packet.riskReview.status = 'deliver_with_warning';
+  packet.riskReview.assertions.forEach(assertion => { assertion.result = 'PASS'; assertion.repair = ''; });
+  assert.equal(validate(packet).valid, false);
+  assert.ok(validate(packet).errors.some(issue => issue.path === 'riskReview.status'));
+
+  packet.unknowns = ['A material input remains unresolved.'];
+  assert.equal(validate(packet).chartEligible, true);
+  packet.unknowns = [];
+  packet.riskReview.assertions[0].result = 'WARN';
+  packet.riskReview.assertions[0].repair = 'Monitor the unresolved warning.';
+  assert.equal(validate(packet).chartEligible, true);
+});
+
 test('reviewer aliases, source coverage, assertion IDs, and method samples are checked', () => {
   rejectMutations([
     p => { p.riskReview.reviewer = ' ' + p.preparedBy.toUpperCase() + ' '; },
@@ -226,7 +275,8 @@ test('Markdown includes evidence and gaps while escaping imported markup', () =>
   packet.thesis = '\t~~~\n- item\n---\n1. numbered\n<img src=x onerror=alert(1)> [click](javascript:alert(1)) | # Heading';
   const markdown = exportMarkdown(packet, NOW);
   for (const text of ['Evidence and review identity are unverified', '\\~\\~\\~ \\- item \\-\\-\\- 1\\. numbered', '\\<img', '\\[click\\]',
-    'Captured:', '## 12 hours', '## 7 days', 'authority']) assert.ok(markdown.includes(text), text);
+    'Asset name: Demonstration asset', 'Captured:', '2026\\-08\\-20T09\\:00\\:00\\.000Z',
+    'Reviewed source IDs: example\\-upgrade, example\\-activity', '## 12 hours', '## 7 days', 'authority']) assert.ok(markdown.includes(text), text);
   assert.doesNotMatch(markdown, /(^|[^\\])<img/);
   assert.doesNotMatch(markdown, /\n(?:~~~|---|- item| {4})/);
   const incomplete = exportMarkdown(blankPacket(), NOW);
@@ -234,6 +284,41 @@ test('Markdown includes evidence and gaps while escaping imported markup', () =>
   assert.ok(incomplete.includes('UNKNOWN'));
   packet.horizons[0].scenarios[0].probability = 99;
   assert.throws(() => exportMarkdown(packet, NOW), /structural errors/);
+});
+
+test('bounded issue samples report exact totals and Markdown discloses omitted gaps', () => {
+  const packet = research();
+  packet.sources = Array.from({ length: 32 }, (_, index) => ({
+    id: 'source-' + index, title: '', url: 'https://www.iana.org/source/' + index,
+    type: 'primary', publishedAt: '', capturedAt: '', claim: '', excerpt: '',
+  }));
+  packet.riskReview = blankPacket().riskReview;
+  const report = validate(packet);
+  assert.equal(report.valid, true);
+  assert.equal(report.gaps.length, 80);
+  assert.equal(report.gapCount, 161);
+  assert.equal(report.omittedIssueCounts.gaps, 81);
+  assert.equal(report.errorCount, 0);
+  assert.equal(report.warningCount, 1);
+  assert.equal(report.issuesTruncated, true);
+  const markdown = exportMarkdown(packet, NOW);
+  assert.ok(markdown.includes('81 additional validation gaps omitted from this bounded list'));
+  assert.ok(markdown.includes('161 total'));
+
+  const broken = research();
+  broken.sources = Array.from({ length: 32 }, (_, index) => ({
+    id: 'invalid id ' + index, title: 1, url: 'http://localhost/' + index,
+    type: 'unsupported', publishedAt: 'invalid', capturedAt: 'invalid', claim: false, excerpt: null,
+  }));
+  broken.riskReview = blankPacket().riskReview;
+  const errors = validate(broken);
+  assert.equal(errors.valid, false);
+  assert.equal(errors.errors.length, 80);
+  assert.equal(errors.errorCount, 256);
+  assert.equal(errors.omittedIssueCounts.errors, 176);
+  assert.equal(errors.gapCount, 2);
+  assert.equal(errors.warningCount, 1);
+  assert.equal(errors.issuesTruncated, true);
 });
 
 test('sparse arrays, nonnumeric clocks, and oversized object packets fail closed', () => {
@@ -264,6 +349,10 @@ test('hidden formatting and normalized self-review aliases are rejected', () => 
   }
   const packet = research(); packet.preparedBy = 'Alice'; packet.riskReview.reviewer = 'Ａｌｉｃｅ';
   assert.equal(validate(packet).valid, false);
+  for (const reviewer of ['Alice  Smith', 'Alice\tSmith', 'Alice\nSmith', 'Alice\u00a0\u202fSmith']) {
+    const spaced = research(); spaced.preparedBy = 'Alice Smith'; spaced.riskReview.reviewer = reviewer;
+    assert.equal(validate(spaced).valid, false, JSON.stringify(reviewer));
+  }
   packet.riskReview.reviewer = 'Independent reviewer';
   packet.sources[0].title = 'Official \u202Esource\u202C';
   assert.equal(validate(packet).valid, false);

@@ -1,6 +1,6 @@
 {
   "name": "crypto-research-desk",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "private": true,
   "type": "module",
   "description": "A browser-only workspace for evidence-led crypto research.",

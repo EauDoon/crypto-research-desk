@@ -40,13 +40,13 @@ All listed fields are required, including empty fields. Unknown keys and unsuppo
 - Risks, unknowns, and sources each accept at most 32 entries. The parser also limits nesting, total nodes, and array lengths.
 - Duplicate keys, reserved prototype keys, sparse lists, nonfinite numbers, precision-losing numbers, malformed UTF-8, ill-formed Unicode, and hidden Unicode formatting controls are rejected.
 - Prices are numbers from zero to 1 trillion, with a strictly positive reference price. Use `null` for an unknown reference price and the unbounded upper tail.
-- Timestamps require seconds and an explicit offset, such as `2026-08-20T09:00:00Z`. Calendar dates are checked. The display timezone is an IANA name such as `UTC` or `Asia/Singapore`.
+- Timestamps require seconds and a known explicit offset, such as `2026-08-20T09:00:00Z`; the RFC 3339 unknown-offset marker `-00:00` is rejected. Calendar dates are checked. The display timezone is an IANA name such as `UTC` or `Asia/Singapore`. Decision-facing timestamps include the local wall time, its numeric UTC offset, and the canonical UTC instant so repeated daylight-saving times remain unambiguous.
 - Evidence must be published before or at capture, and captured before or at the common reference cutoff. Review time cannot predate that evidence or cutoff. A five-minute tolerance accommodates clock skew; it does not establish freshness.
 - An elapsed research horizon withholds the chart and receives an **ELAPSED** label. Checks refresh at least every minute while visible and when the page becomes visible again. Exports and printing recheck the current time. Synthetic examples remain visibly fictional rather than expiring.
 
 ### Evidence and method
 
-Source URLs must be public HTTPS URLs without embedded credentials, a custom port, or a special-use `.example` hostname. At least one primary source record is required for structural completeness. Reserved example domains cannot support a packet labeled `research`. The workbench displays the canonical hostname beside each operator-supplied source title.
+Source URLs must be public HTTPS URLs without embedded credentials, a custom port, or a listed local, test-only, or special-use namespace such as `.example`, `.onion`, `.home.arpa`, or `.alt`. At least one primary source record is required for structural completeness. Reserved example domains cannot support a packet labeled `research`. The workbench displays the canonical hostname beside each operator-supplied source title.
 
 The app validates URL form and recorded chronology. It does not open sources, inspect DNS destinations, prove primary-source status, verify excerpts, resolve contradictions, or determine whether evidence is stale for a particular claim. The operator must do that work.
 
@@ -78,7 +78,7 @@ The five assertion IDs are `authority`, `evidence`, `scenarios`, `liquidity`, an
 
 A final review must account for every source and all five assertions. Warnings require a warning disposition; failed or unknown assertions block the chart. `repair` and `withhold` block delivery. `deliver` cannot coexist with unresolved unknowns. Non-PASS assertions require a repair description.
 
-The preparer and reviewer aliases cannot match after basic normalization. This is only a consistency check. Different aliases, even a structurally complete record, do not prove that two independent people reviewed the work.
+The preparer and reviewer aliases cannot match after Unicode compatibility normalization, whitespace collapse, and case normalization. This is only a consistency check. Different aliases, even a structurally complete record, do not prove that two independent people reviewed the work.
 
 Every material local input edit resets final or partial review data to a blank pending record. Save the changed inputs first, then record the actual new review. Attempts to change inputs and review data together are rejected without clearing the editor. Reordering JSON keys, review assertions, or reviewed source IDs does not count as a review change. Saving unchanged details does not reset the review. Imported records remain self-reported and unverified.
 

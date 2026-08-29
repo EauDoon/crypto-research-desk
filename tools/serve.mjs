@@ -2,8 +2,11 @@ import { createServer } from 'node:http';
 import { lstat, readFile } from 'node:fs/promises';
 import { dirname, extname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { PUBLIC_FILES, HASHED_ASSET, MANAGED_FILE, SECURITY_HEADERS } from './web-config.mjs';
-import { verifyBuild } from './build.mjs';
+import { loadVerifiedBuild } from './build.mjs';
+import { assertSupportedNode } from './runtime.mjs';
+import { PUBLIC_FILES, HASHED_ASSET, SECURITY_HEADERS } from './web-config.mjs';
+
+assertSupportedNode();
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const types = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8',
@@ -14,13 +17,11 @@ export async function startServer({ directory = join(root, 'web'), port = 4173, 
   const stat = await lstat(directory);
   if (!stat.isDirectory() || stat.isSymbolicLink()) throw new Error('Preview root must be a regular directory.');
   let allowed = new Set(PUBLIC_FILES);
+  let snapshot;
   if (built) {
-    await verifyBuild(directory);
-    const manifestStat = await lstat(join(directory, 'build-info.json'));
-    if (!manifestStat.isFile() || manifestStat.isSymbolicLink()) throw new Error('Invalid build manifest.');
-    const manifest = JSON.parse(await readFile(join(directory, 'build-info.json'), 'utf8'));
-    if (!Array.isArray(manifest.files) || manifest.files.length > 12 || !manifest.files.every(MANAGED_FILE)) throw new Error('Invalid public build allowlist.');
-    allowed = new Set([...manifest.files, 'build-info.json']);
+    const verified = await loadVerifiedBuild(directory);
+    snapshot = verified.files;
+    allowed = new Set(snapshot.keys());
   }
   const server = createServer(async (request, response) => {
     for (const [key, value] of Object.entries(SECURITY_HEADERS)) response.setHeader(key, value);
@@ -42,10 +43,16 @@ export async function startServer({ directory = join(root, 'web'), port = 4173, 
     let status = 200;
     if (!allowed.has(name)) { name = '404.html'; status = 404; }
     try {
-      const path = join(directory, name);
-      const fileStat = await lstat(path);
-      if (!fileStat.isFile() || fileStat.isSymbolicLink()) throw new Error('Invalid public file.');
-      const body = await readFile(path);
+      let body;
+      if (snapshot) {
+        body = snapshot.get(name);
+        if (!body) throw new Error('Invalid public file.');
+      } else {
+        const path = join(directory, name);
+        const fileStat = await lstat(path);
+        if (!fileStat.isFile() || fileStat.isSymbolicLink()) throw new Error('Invalid public file.');
+        body = await readFile(path);
+      }
       response.setHeader('Content-Type', types[extname(name)] ?? 'application/octet-stream');
       response.setHeader('Content-Length', body.length);
       if (built && status === 200) response.setHeader('Cache-Control',

@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+## 1.2.0, 29-08-2026
+
+- Separated the workbench release identity from the unchanged 1.1.0 research core and added both versions to exact canonical build manifests.
+- Enforced Node 24, fatal UTF-8 build inputs, raw-byte artifact digests, and immutable verified preview snapshots.
+- Made publication recovery-safe with an exclusive build lock, staged verification, rollback coverage, and fail-closed preservation of interrupted-build evidence.
+- Added a CI build using the exact production dependency boundary and made whitespace validation cover the complete final tree.
+- Made decision-facing timestamps unambiguous across daylight-saving folds, rejected unknown offsets and special-use source namespaces, and strengthened the preparer/reviewer consistency check.
+- Kept short-height navigation reachable, tied horizontal-scroll cues to measured overflow, and exposed evidence records as named heading sections.
+
 - Hardened packet ingestion against malformed UTF-8, ill-formed Unicode, reserved example and listed local/test-only source hosts, and Markdown block injection.
 - Enforced separate research and review saves for pending as well as final reviews, including safe reset of partial review data.
 - Kept editor actions reachable on small screens, opened full JSON at the beginning, clarified chart boundaries, and exposed source hostnames and horizontal-scroll cues.
