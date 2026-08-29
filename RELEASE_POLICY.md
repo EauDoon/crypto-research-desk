@@ -29,6 +29,6 @@ A patch version fixes documentation, tests, validation, or implementation defect
 
 ## Release boundary
 
-Local development may continue between releases. Public pushes are deliberate release events. No unattended process may commit, tag, publish, or change repository metadata.
+Local development may continue between releases. Public pushes are deliberate release events. No unattended process may commit, tag, push, publish a repository release or package, or change repository metadata. An explicitly authorized merge may trigger an already-approved hosting deployment; automation does not make that rollout accepted until its exact live source and artifact are verified.
 
 Promotion inside the research system is separate from GitHub publication. Publishing a candidate never makes it live, validated, or authorized for capital action.
