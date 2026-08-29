@@ -161,6 +161,24 @@ test('invalid imports preserve the open packet and report exact validation failu
   expect(await page.evaluate(() => ({}).polluted)).toBeUndefined();
 });
 
+test('the newest file import wins when reads complete out of order', async ({ page }) => {
+  await page.evaluate(() => {
+    const read = File.prototype.arrayBuffer;
+    File.prototype.arrayBuffer = async function () {
+      if (this.name.startsWith('slow')) await new Promise(resolve => setTimeout(resolve, 150));
+      return read.call(this);
+    };
+  });
+  const slow = research(); slow.asset.symbol = 'SLOW';
+  const fast = research(); fast.asset.symbol = 'FAST';
+  const input = page.locator('#packet-file');
+  await input.setInputFiles({ name: 'slow.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(slow)) });
+  await input.setInputFiles({ name: 'fast.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(fast)) });
+  await expect(page.locator('#asset-symbol')).toHaveText('FAST');
+  await page.waitForTimeout(200);
+  await expect(page.locator('#asset-symbol')).toHaveText('FAST');
+});
+
 test('unsafe links and incorrect probabilities are rejected without a network request', async ({ page }) => {
   const unsafe = research(); unsafe.sources[0].url = 'javascript:alert(1)';
   await importText(page, JSON.stringify(unsafe));
