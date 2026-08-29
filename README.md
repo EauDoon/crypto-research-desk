@@ -135,6 +135,8 @@ npx playwright install chromium firefox
 npm run test:browser
 ```
 
+For an authorized live deployment, set `PRODUCTION_URL` to its HTTPS origin and run `npm run test:production`. That separate smoke compares the deployed build manifest with the local reviewed artifact and checks the production browser flow and headers.
+
 Browser installation requires a download. `npm run test:browser` rebuilds and verifies `dist/` before the browser suite; the tests use only fictional local packets. To inspect the production artifact, run `npm run build` followed by `npm run preview`. The build has no runtime package dependency.
 
 ## License

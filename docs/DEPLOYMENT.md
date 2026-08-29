@@ -70,6 +70,14 @@ Before promotion, verify all of the following against the actual HTTPS deploymen
 7. Record the operator, support route, hosting access-log location and retention, applicable privacy notice, and backup expectations. Technical privacy documentation does not establish legal compliance.
 8. Obtain separate authorization for production promotion or a merge that triggers it. Verify the promoted URL and exact source after the action.
 
+After the local gates pass, run the separate live acceptance smoke against the exact HTTPS origin:
+
+```sh
+PRODUCTION_URL=https://crypto-research-desk.vercel.app npm run test:production
+```
+
+On PowerShell, set `$env:PRODUCTION_URL` first. For a protected preview, also set the project's `VERCEL_AUTOMATION_BYPASS_SECRET`; the test sends Vercel's documented bypass headers without disabling protection. This rebuilds locally, compares the live canonical manifest with that reviewed artifact, checks production security and cache headers, confirms repository metadata returns 404, and exercises the local-only workflow in Chromium and Firefox. It does not replace the manual ownership, privacy, support, or Git-source checks above.
+
 Do not call the release production-ready if required access, checks, ownership, or live verification is missing. Do not publish a forecast-quality claim based on software tests.
 
 ## Operations and rollback

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Added a separate Chromium/Firefox production smoke that compares the live canonical manifest with the reviewed build and verifies deployment headers, public-file boundaries, accessibility, and the local-only packet workflow.
+
 ## 1.2.0, 29-08-2026
 
 - Separated the workbench release identity from the unchanged 1.1.0 research core and added both versions to exact canonical build manifests.
