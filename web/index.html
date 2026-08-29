@@ -35,11 +35,12 @@
   <div class="shell">
     <header class="utility-bar">
       <span class="breadcrumb">Desk <span aria-hidden="true">/</span> Research workspace</span>
-      <div class="actions requires-app">
+      <div id="import-zone" class="actions requires-app">
         <button id="load-demo" class="button subtle" type="button">Load demo</button>
         <button id="new-packet" class="button" type="button">New packet</button>
-        <button id="import-packet" class="button primary" type="button"><span aria-hidden="true">↑</span> Import JSON</button>
+        <button id="import-packet" class="button primary" type="button" aria-describedby="drop-hint"><span aria-hidden="true">↑</span> Import JSON</button>
         <input id="packet-file" class="visually-hidden" type="file" accept=".json,application/json" tabindex="-1" aria-label="Choose a research packet JSON file">
+        <span id="drop-hint" class="small-copy">or drop JSON here</span>
       </div>
     </header>
     <main id="workspace" tabindex="-1">
