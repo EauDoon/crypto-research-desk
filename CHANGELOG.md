@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+## 1.6.1, 29-08-2026
+
+- Kept nested scenario controls comfortably wide on 320-pixel phone layouts without changing the desktop editor.
 - Made the live deployment gate enforce the complete shared security-header contract plus manifest, asset, and 404 cache and MIME behavior.
 
 ## 1.6.0, 29-08-2026

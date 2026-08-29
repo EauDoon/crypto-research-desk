@@ -307,6 +307,8 @@ fieldset > p { margin-bottom: 18px; }
   .editor-action-set { align-items: flex-start; flex-direction: column; gap: 8px; }
   .editor-action-set .button { width: 100%; }
   fieldset { padding: 15px; }
+  .horizon-editor-body { padding: 0 12px 12px; }
+  .scenario-editor { border-width: 1px 0 0; border-radius: 0; padding: 14px 0 0; }
   .source-dates { gap: 12px; }
 }
 @media (max-height: 420px) {

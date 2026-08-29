@@ -555,6 +555,8 @@ test('mobile and desktop layouts contain overflow and keep dialog actions reacha
     await page.locator('#edit-details').click();
     await expect(page.getByRole('button', { name: 'Save details', exact: true })).toBeInViewport();
     await expect(page.locator('#close-editor')).toBeInViewport();
+    if (width === 320) expect(await page.locator('input[name="horizon-0-scenario-0-probability"]')
+      .evaluate(node => node.getBoundingClientRect().width)).toBeGreaterThanOrEqual(180);
     await page.getByRole('button', { name: 'Save details', exact: true }).click();
     await expect(page.locator('#packet-editor')).toBeHidden();
   }
