@@ -48,6 +48,8 @@ Use $crypto-fund-research to produce a risk-cleared BTC price probability analys
 
 ## Use the browser workbench
 
+Open the [verified production workbench](https://crypto-research-desk.vercel.app), or run the same static app locally. It has no account, wallet, trading, analytics, or research-upload connection.
+
 Requirements: Node 24.x and a current Chromium or Firefox browser.
 
 ```sh
