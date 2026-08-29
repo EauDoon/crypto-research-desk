@@ -5,6 +5,7 @@
 ## 1.6.2, 29-08-2026
 
 - Prevented the fail-closed startup shell from shifting visible content when the application module arrives, with a measured Chromium regression gate.
+- Kept ignored drafts, test output, dependencies, and private local files out of Vercel CLI deployment uploads.
 
 ## 1.6.1, 29-08-2026
 

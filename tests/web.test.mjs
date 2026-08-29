@@ -76,6 +76,7 @@ test('tooling accepts Node 24.x and fails fast for other or malformed versions',
 
 test('Vercel production settings match the verified build and security configuration', async () => {
   const config = JSON.parse(await readFile(join(root, 'vercel.json'), 'utf8'));
+  assert.equal(await readFile(join(root, '.vercelignore'), 'utf8'), await readFile(join(root, '.gitignore'), 'utf8'));
   assert.equal(config.framework, null);
   assert.equal(config.buildCommand, 'npm run build');
   assert.equal(config.installCommand, 'npm ci --ignore-scripts --omit=dev');
