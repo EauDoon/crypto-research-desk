@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 1.6.2, 29-08-2026
+
+- Prevented the fail-closed startup shell from shifting visible content when the application module arrives, with a measured Chromium regression gate.
+
 ## 1.6.1, 29-08-2026
 
 - Kept nested scenario controls comfortably wide on 320-pixel phone layouts without changing the desktop editor.

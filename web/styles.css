@@ -10,6 +10,7 @@
 body { margin: 0; display: grid; grid-template-columns: 216px minmax(0, 1fr); }
 [hidden] { display: none !important; }
 .app-unavailable .requires-app { display: none !important; }
+.app-unavailable #startup-status { margin-bottom: 100vh; }
 .print-identity, .print-source-url { display: none; }
 button, input, textarea, select { font: inherit; }
 button, a, input, textarea, select, summary { -webkit-tap-highlight-color: transparent; }

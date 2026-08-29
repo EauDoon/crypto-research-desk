@@ -93,6 +93,28 @@ test('startup remains fail closed when the application module cannot load', asyn
   await context.close();
 });
 
+test('startup does not shift visible content when the application module arrives', async ({ browser, baseURL, browserName }) => {
+  test.skip(browserName !== 'chromium', 'Layout Shift entries are exposed by Chromium.');
+  const context = await browser.newContext({ baseURL });
+  await context.addInitScript(() => {
+    window.__cumulativeLayoutShift = 0;
+    new PerformanceObserver(list => {
+      for (const entry of list.getEntries()) {
+        if (!entry.hadRecentInput) window.__cumulativeLayoutShift += entry.value;
+      }
+    }).observe({ type: 'layout-shift', buffered: true });
+  });
+  await context.route(/\/app(?:\.[^/]+)?\.js$/, async route => {
+    await new Promise(resolve => setTimeout(resolve, 750));
+    await route.continue();
+  });
+  const measuredPage = await context.newPage();
+  await measuredPage.goto('/');
+  await expect(measuredPage.locator('html')).not.toHaveClass(/app-unavailable/);
+  expect(await measuredPage.evaluate(() => window.__cumulativeLayoutShift)).toBeLessThan(0.1);
+  await context.close();
+});
+
 test('horizon tabs support arrows, Home, End, and correct tab panels', async ({ page }) => {
   await page.locator('#tab-12h').focus();
   await page.keyboard.press('ArrowRight');
