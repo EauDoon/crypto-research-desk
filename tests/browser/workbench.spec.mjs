@@ -183,7 +183,7 @@ test('opening an editor cancels a pending file read before either draft can over
   await page.evaluate(() => {
     const read = File.prototype.arrayBuffer;
     File.prototype.arrayBuffer = async function () {
-      await new Promise(resolve => setTimeout(resolve, 300));
+      await new Promise(resolve => { window.releasePendingFileRead = resolve; });
       return read.call(this);
     };
   });
@@ -191,7 +191,9 @@ test('opening an editor cancels a pending file read before either draft can over
   await page.locator('#packet-file').setInputFiles({
     name: 'delayed.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(incoming)),
   });
+  await page.waitForFunction(() => typeof window.releasePendingFileRead === 'function');
   await page.locator('#edit-details').click();
+  await page.evaluate(() => window.releasePendingFileRead());
   await page.locator('textarea[name="thesis"]').fill('The editor draft remains authoritative.');
   await expect(page.locator('#packet-file')).toHaveValue('');
   await expect(page.locator('#asset-symbol')).toHaveText('DEMO');
