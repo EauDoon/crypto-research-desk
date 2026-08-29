@@ -40,7 +40,7 @@ function portableJson(value) {
     if (++nodes > 10000 || depth > 16) return false;
     if (current === null || typeof current === 'boolean') return true;
     if (typeof current === 'string') return wellFormed(current);
-    if (typeof current === 'number') return Number.isFinite(current);
+    if (typeof current === 'number') return Number.isFinite(current) && !Object.is(current, -0);
     if (typeof current !== 'object' || seen.has(current)) return false;
     seen.add(current);
     try {
@@ -155,6 +155,7 @@ export function parsePacket(text) {
     position += match[0].length;
     const number = Number(match[0]);
     if (!Number.isFinite(number)) fail('Non-finite numbers are not allowed.');
+    if (Object.is(number, -0)) fail('Negative zero is not supported. Use 0.');
     if (decimalKey(match[0]) !== decimalKey(String(number))) fail('Numeric precision would be lost. Use a representable value.');
     return number;
   }

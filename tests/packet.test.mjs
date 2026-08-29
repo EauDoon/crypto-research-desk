@@ -59,6 +59,18 @@ test('malformed, overlarge, deep, and lossy numeric inputs are rejected', () => 
   assert.equal(parsePacket('{"x":4e-9,"y":100.000,"z":1.20e2}').z, 120);
 });
 
+test('negative zero is rejected before JSON export can erase its sign', () => {
+  for (const text of ['{"x":-0}', '{"x":-0.0e5}']) assert.throws(() => parsePacket(text), /Negative zero/);
+  for (const mutate of [
+    packet => { packet.horizons[0].scenarios[0].lower = -0; },
+    packet => { packet.horizons[0].scenarios[0].probability = -0; packet.horizons[0].scenarios[1].probability += 25; },
+  ]) {
+    const packet = research(); mutate(packet);
+    assert.equal(validate(packet).valid, false);
+    assert.deepEqual(chartThresholds(packet, NOW), []);
+  }
+});
+
 test('formatted exports remain importable at the semantic packet-size boundary', () => {
   const packet = examplePacket();
   packet.sources = Array.from({ length: 32 }, (_, index) => ({

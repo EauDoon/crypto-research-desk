@@ -681,6 +681,29 @@ test('expiry refresh marks the horizon elapsed and withholds charts even with a 
   await expect(page.locator('#tab-12h')).toBeFocused();
 });
 
+test('expiry moves focus to the chart heading when it removes the focused chart region', async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 568 });
+  await page.clock.setSystemTime(new Date('2026-08-20T20:59:30Z'));
+  await importPacket(page, research());
+  await page.locator('#chart-scroll').focus();
+  await page.clock.fastForward(60000);
+  await expect(page.locator('#chart-area svg')).toHaveCount(0);
+  await expect(page.locator('#chart-heading')).toBeFocused();
+});
+
+test('import feedback and its rendered packet share one cutoff instant', async ({ page }) => {
+  const packet = research();
+  const expiry = Date.parse(packet.horizons[0].endAt);
+  await page.evaluate(cutoff => {
+    Date.now = () => /applyPacket|render|renderChart|refreshHorizonLabels/.test(new Error().stack) ? cutoff : cutoff - 1;
+  }, expiry);
+  await importPacket(page, packet);
+  await expect(page.locator('#notice')).toContainText('Review the listed data gaps');
+  await expect(page.locator('#structure-status')).toHaveText('INCOMPLETE');
+  await expect(page.locator('#chart-area svg')).toHaveCount(0);
+  await expect(page.locator('#tab-12h small')).toHaveText('ELAPSED');
+});
+
 test('one render uses one cutoff instant for structure, chart, and horizon labels', async ({ page }) => {
   const packet = research();
   const expiry = Date.parse(packet.horizons[0].endAt);
