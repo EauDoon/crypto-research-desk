@@ -1,5 +1,5 @@
 import {
-  MAX_PACKET_BYTES, HORIZONS, SCENARIOS, REVIEW_ASSERTIONS, parsePacket, validatePacket, blankPacket,
+  MAX_PACKET_BYTES, MAX_JSON_INPUT_BYTES, HORIZONS, SCENARIOS, REVIEW_ASSERTIONS, parsePacket, validatePacket, blankPacket,
   timestamp, endAt, formatDate, formatPrice, safeSourceUrl, intervalLabel, returnLabel, chartThresholds, exportMarkdown,
 } from './packet.js';
 import { examplePacket } from './example.js';
@@ -683,7 +683,7 @@ $('packet-file').addEventListener('change', async event => {
   const sequence = ++importSequence;
   if (!file) return;
   try {
-    if (file.size > MAX_PACKET_BYTES) throw new Error('The JSON packet must be smaller than 256 KiB.');
+    if (file.size > MAX_JSON_INPUT_BYTES) throw new Error('The JSON file must be no larger than 320 KiB.');
     let imported;
     try { imported = new TextDecoder('utf-8', { fatal: true }).decode(await file.arrayBuffer()); }
     catch { throw new Error('The packet must be valid UTF-8 JSON without replacement-decoded bytes.'); }

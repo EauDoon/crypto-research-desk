@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import { examplePacket } from '../../web/example.js';
-import { blankPacket } from '../../web/packet.js';
+import { MAX_PACKET_BYTES, blankPacket } from '../../web/packet.js';
 import { navigate } from './navigation.mjs';
 
 const NOW = new Date('2026-08-20T10:00:00Z');
@@ -227,6 +227,23 @@ test('JSON and Markdown downloads preserve packet content and evidence', async (
   for (const text of ['SYNTHETIC EXAMPLE', '## 12 hours', '## 24 hours', '## 3 days', '## 7 days', 'authority', 'Print / PDF']) {
     expect(markdown.text).toContain(text);
   }
+});
+
+test('a formatted near-limit JSON export can be imported again', async ({ page }) => {
+  const packet = examplePacket();
+  packet.sources = Array.from({ length: 32 }, (_, index) => ({
+    id: 'source-' + index, title: 'Source ' + index, url: 'https://example.com/source-' + index,
+    type: 'primary', publishedAt: '2026-08-20T07:00:00Z', capturedAt: '2026-08-20T08:00:00Z',
+    claim: 'c'.repeat(3890), excerpt: 'e'.repeat(3890),
+  }));
+  packet.riskReview.sourceIds = packet.sources.map(source => source.id);
+  await importPacket(page, packet);
+  const json = await exported(page, '#export-json');
+  expect(Buffer.byteLength(json.text)).toBeGreaterThan(MAX_PACKET_BYTES);
+  page.once('dialog', dialog => dialog.accept());
+  await importText(page, json.text);
+  await expect(page.locator('#notice')).toContainText('Packet imported locally');
+  expect(JSON.parse((await exported(page, '#export-json')).text)).toEqual(packet);
 });
 
 test('undated exports use exact portable fallback filenames', async ({ page }) => {

@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 1.6.4, 29-08-2026
+
+- Kept formatted near-limit JSON exports re-importable with a separate 320 KiB input envelope while retaining the 256 KiB semantic packet and browser-storage cap.
+
 ## 1.6.3, 29-08-2026
 
 - Restored the visible browser-retention state when saved-draft deletion fails, and covered complete storage denial at startup.

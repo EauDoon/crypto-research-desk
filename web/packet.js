@@ -1,4 +1,5 @@
 export const MAX_PACKET_BYTES = 256 * 1024;
+export const MAX_JSON_INPUT_BYTES = MAX_PACKET_BYTES + 64 * 1024;
 export const HORIZONS = Object.freeze([
   { id: '12h', label: '12 hours', hours: 12 },
   { id: '24h', label: '24 hours', hours: 24 },
@@ -81,9 +82,9 @@ function decimalKey(token) {
 
 // A bounded JSON reader rejects duplicate keys before information is lost by JSON.parse.
 export function parsePacket(text) {
-  if (typeof text !== 'string' || text.length > MAX_PACKET_BYTES
-    || new TextEncoder().encode(text).length > MAX_PACKET_BYTES) {
-    throw new Error('Use a UTF-8 JSON packet smaller than 256 KiB.');
+  if (typeof text !== 'string' || text.length > MAX_JSON_INPUT_BYTES
+    || new TextEncoder().encode(text).length > MAX_JSON_INPUT_BYTES) {
+    throw new Error('Use UTF-8 JSON no larger than 320 KiB.');
   }
   if (!wellFormed(text)) throw new Error('Use well-formed Unicode without unpaired surrogate code units.');
   let position = 0;

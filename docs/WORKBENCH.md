@@ -36,7 +36,7 @@ All listed fields are required, including empty fields. Unknown keys and unsuppo
 
 ### Limits and dates
 
-- Packets must fit within 256 KiB of UTF-8 JSON. Individual prose fields accept at most 5,000 characters, with tighter limits for identifiers, names, and URLs.
+- Canonical compact packet data must fit within 256 KiB. Import and full-packet editing accept at most 320 KiB of UTF-8 JSON so formatting whitespace does not consume the semantic packet limit. Individual prose fields accept at most 5,000 characters, with tighter limits for identifiers, names, and URLs.
 - Risks, unknowns, and sources each accept at most 32 entries. The parser also limits nesting, total nodes, and array lengths.
 - Duplicate keys, reserved prototype keys, sparse lists, nonfinite numbers, precision-losing numbers, malformed UTF-8, ill-formed Unicode, and hidden Unicode formatting controls are rejected.
 - Prices are numbers from zero to 1 trillion, with a strictly positive reference price. Use `null` for an unknown reference price and the unbounded upper tail.
