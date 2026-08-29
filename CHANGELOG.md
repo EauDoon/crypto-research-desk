@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 1.6.3, 29-08-2026
+
+- Restored the visible browser-retention state when saved-draft deletion fails, and covered complete storage denial at startup.
+
 ## 1.6.2, 29-08-2026
 
 - Prevented the fail-closed startup shell from shifting visible content when the application module arrives, with a measured Chromium regression gate.

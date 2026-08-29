@@ -815,7 +815,10 @@ $('remember-packet').addEventListener('change', () => {
       setText('storage-status', hadSavedDraft
         ? 'Saved draft removed. The open packet is still in memory; export it before closing.'
         : 'No saved draft was present. The open packet is unchanged.');
-    } catch { announce('Saved draft removal failed. Storage is unavailable; a previous draft may remain.', true); }
+    } catch {
+      $('remember-packet').checked = true;
+      announce('Saved draft removal failed. Storage is unavailable; a previous draft may remain.', true);
+    }
   }
 });
 $('recover-saved').addEventListener('click', () => {

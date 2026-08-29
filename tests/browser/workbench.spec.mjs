@@ -529,6 +529,33 @@ test('corrupt storage is retained without replacement and saving stays off', asy
   })).toBe(false);
 });
 
+test('storage denial at startup keeps the workbench usable and saving disabled', async ({ browser, baseURL }) => {
+  const context = await browser.newContext({ baseURL });
+  await context.addInitScript(() => {
+    Storage.prototype.getItem = function () { throw new DOMException('Test storage denied', 'SecurityError'); };
+  });
+  const deniedPage = await context.newPage();
+  await navigate(deniedPage);
+  await expect(deniedPage.locator('#asset-symbol')).toHaveText('DEMO');
+  await expect(deniedPage.locator('#remember-packet')).toBeDisabled();
+  await expect(deniedPage.locator('#recover-saved')).toBeHidden();
+  await expect(deniedPage.locator('#storage-status')).toContainText('storage is unavailable');
+  await a11y(deniedPage);
+  await context.close();
+});
+
+test('failed saved-draft removal keeps its retention state visible', async ({ page }) => {
+  await page.locator('#remember-packet').check();
+  await page.evaluate(() => { Storage.prototype.removeItem = function () { throw new DOMException('Test storage denied', 'SecurityError'); }; });
+  await page.locator('#remember-packet').evaluate(input => {
+    input.checked = false;
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+  await expect(page.locator('#remember-packet')).toBeChecked();
+  await expect(page.locator('#app-error')).toContainText('Saved draft removal failed');
+  expect(await page.evaluate(key => localStorage.getItem(key), STORAGE_KEY)).not.toBeNull();
+});
+
 test('quota failures remain visible after edits and do not replace a previous saved draft', async ({ page }) => {
   await page.locator('#remember-packet').check();
   await page.evaluate(() => { Storage.prototype.setItem = function () { throw new DOMException('Test storage full', 'QuotaExceededError'); }; });

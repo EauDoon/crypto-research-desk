@@ -51,6 +51,8 @@ After project creation and deployment are authorized, select the intended Vercel
 
 These values are in [vercel.json](../vercel.json). Confirm that dashboard overrides do not contradict them. The build needs no test dependencies; CI installs those separately. Review [Vercel configuration](https://vercel.com/docs/project-configuration/vercel-json) and [Node version selection](https://vercel.com/docs/functions/runtimes/node-js/node-js-versions) when platform behavior changes.
 
+`.vercelignore` intentionally mirrors `.gitignore`, with equality enforced by the Node tests, so CLI deployments exclude local drafts, private files, dependencies, build output, and test artifacts.
+
 Use a preview deployment first. Record the actual project ID, deployment ID, source commit, target environment, generated URL, and build log result. Never assume a guessed hostname belongs to this project. Preserve deployment protection. Do not create bypass links or relax permissions to obtain a passing test.
 
 The app's CSP excludes third-party scripts and runtime connections. Do not enable toolbar injection, analytics, or another integration by weakening that policy. Any such feature needs a separate privacy/security review and authorization.
