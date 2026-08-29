@@ -78,7 +78,7 @@ After the local gates pass, run the separate live acceptance smoke against the e
 PRODUCTION_URL=https://crypto-research-desk.vercel.app npm run test:production
 ```
 
-On PowerShell, set `$env:PRODUCTION_URL` first. For a protected preview, also set the project's `VERCEL_AUTOMATION_BYPASS_SECRET`; the test sends Vercel's documented bypass headers without disabling protection. It also sends `x-vercel-skip-toolbar` so Vercel's preview toolbar cannot add external requests or interfere with automation. This rebuilds locally, compares the live canonical manifest with that reviewed artifact, checks production security and cache headers, confirms repository metadata returns 404, and exercises the local-only workflow in Chromium and Firefox. It does not replace the manual ownership, privacy, support, or Git-source checks above.
+On PowerShell, set `$env:PRODUCTION_URL` first. For a protected preview, also set the project's `VERCEL_AUTOMATION_BYPASS_SECRET`; the test sends Vercel's documented bypass headers without disabling protection. It also sends `x-vercel-skip-toolbar` so Vercel's preview toolbar cannot add external requests or interfere with automation. This rebuilds locally, compares every live public file byte-for-byte with that reviewed artifact, checks production security and cache headers, confirms repository metadata returns 404, and exercises the local-only workflow in Chromium and Firefox. It does not replace the manual ownership, privacy, support, or Git-source checks above.
 
 Do not call the release production-ready if required access, checks, ownership, or live verification is missing. Do not publish a forecast-quality claim based on software tests.
 

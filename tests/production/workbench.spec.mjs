@@ -32,6 +32,11 @@ test('production serves the reviewed artifact and complete local-only workflow',
   expect(manifestResponse.status()).toBe(200);
   expect(manifestResponse.headers()).toMatchObject(expectedHeaders('application/json; charset=utf-8'));
   expect(await manifestResponse.json()).toEqual(localManifest);
+  for (const name of localManifest.files) {
+    const deployed = await request.get('/' + name);
+    expect(deployed.status(), name).toBe(200);
+    expect(await deployed.body(), name).toEqual(await readFile(new URL('../../dist/' + name, import.meta.url)));
+  }
   const asset = localManifest.files.find(name => name.startsWith('app.'));
   expect(HASHED_ASSET.test(asset)).toBe(true);
   const assetResponse = await request.get('/' + asset);
