@@ -660,7 +660,7 @@ function download(contents, type, suffix, filename = null) {
   const url = URL.createObjectURL(new Blob([contents], { type }));
   const anchor = element('a');
   const instant = timestamp(packet.reference.capturedAt);
-  const label = instant === null ? 'Undated' : new Date(instant).toISOString().slice(0, 10);
+  const label = instant === null ? 'Undated' : packet.reference.capturedAt.slice(0, 10);
   anchor.href = url;
   anchor.download = filename ?? '(' + label + ')' + (packet.asset.symbol ? packet.asset.symbol + ' ' : '') + suffix;
   anchor.hidden = true; document.body.append(anchor); anchor.click(); anchor.remove();

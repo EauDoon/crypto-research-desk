@@ -7,6 +7,7 @@
 - Kept decision-time validation, charts, and horizon labels on one cutoff instant, including expiry detected during horizon navigation.
 - Prevented delayed file reads and open editors from replacing one another's in-memory packet.
 - Rejected invisible Unicode formatting, carriage returns, and line breaks that editor controls cannot preserve exactly.
+- Kept export filename dates aligned with the packet's recorded cutoff across UTC boundaries.
 - Made the live deployment gate compare the manifest bytes and verify cache and MIME headers for every public artifact.
 
 ## 1.6.4, 29-08-2026

@@ -290,6 +290,20 @@ test('undated exports use exact portable fallback filenames', async ({ page }) =
   expect(markdown.name).toBe('(Undated)Research Brief.md');
 });
 
+test('export filenames keep the packet date across positive and negative UTC boundaries', async ({ page }) => {
+  for (const [capturedAt, timezone, date] of [
+    ['2026-08-20T00:30:00+08:00', 'Asia/Singapore', '2026-08-20'],
+    ['2026-08-19T23:30:00-07:00', 'America/Los_Angeles', '2026-08-19'],
+  ]) {
+    const packet = blankPacket();
+    packet.asset.symbol = 'OFFSET'; packet.reference.capturedAt = capturedAt; packet.reference.timezone = timezone;
+    if (capturedAt.endsWith('-07:00')) page.once('dialog', dialog => dialog.accept());
+    await importPacket(page, packet);
+    expect((await exported(page, '#export-json')).name).toBe('(' + date + ')OFFSET Research Packet.json');
+    expect((await exported(page, '#export-brief')).name).toBe('(' + date + ')OFFSET Research Brief.md');
+  }
+});
+
 test('editing research inputs clears the old review and withholds the chart', async ({ page }) => {
   await page.locator('#edit-details').click();
   await page.locator('textarea[name="thesis"]').fill('A changed fictional thesis.');
