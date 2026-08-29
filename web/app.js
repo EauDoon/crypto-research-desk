@@ -404,14 +404,15 @@ function applyPacket(candidate, label, localEdit = false) {
     reviewReset = reviewSignature(candidate.riskReview) !== reviewSignature(emptyReview);
     candidate.riskReview = emptyReview;
   }
-  const report = validatePacket(candidate);
+  const now = Date.now();
+  const report = validatePacket(candidate, now);
   if (!report.valid) throw validationError(report);
   importSequence++;
   $('app-error').hidden = true;
   dirty = localEdit ? dirty || JSON.stringify(canonical(candidate)) !== JSON.stringify(canonical(packet)) : false;
   packet = candidate; origin = label;
-  render(); saveLocally();
-  return reviewReset;
+  render(true, now); saveLocally();
+  return { reviewReset, report };
 }
 function confirmReplacement() {
   const current = JSON.stringify(canonical(packet));
@@ -651,9 +652,9 @@ function editorError(error, explicitTarget = null) {
   }
 }
 function completeEdit(candidate) {
-  const reset = applyPacket(candidate, 'Local draft', true);
+  const { reviewReset } = applyPacket(candidate, 'Local draft', true);
   editor.close();
-  announce(reset ? 'Research inputs changed. The previous review was reset to pending; record a new independent review before chart display.'
+  announce(reviewReset ? 'Research inputs changed. The previous review was reset to pending; record a new independent review before chart display.'
     : 'Packet updated. Structural checks are current; evidence and review identity remain unverified.');
 }
 function download(contents, type, suffix, filename = null) {
@@ -692,8 +693,8 @@ $('packet-file').addEventListener('change', async event => {
     const report = validatePacket(candidate);
     if (!report.valid) throw validationError(report);
     if (sequence !== importSequence || !confirmReplacement()) return;
-    applyPacket(candidate, 'Imported packet');
-    announce('Packet imported locally. No research data was sent to a server. ' + (report.complete ? 'Structure is complete.' : 'Review the listed data gaps.'));
+    const applied = applyPacket(candidate, 'Imported packet');
+    announce('Packet imported locally. No research data was sent to a server. ' + (applied.report.complete ? 'Structure is complete.' : 'Review the listed data gaps.'));
   } catch (error) { if (sequence === importSequence) announce(error.message, true); }
   finally { event.target.value = ''; }
 });
@@ -924,7 +925,8 @@ function refreshExpiry() {
   const activeId = document.activeElement?.id;
   // Keep scenario controls and open editor fields intact when only time has changed.
   render(false, now);
-  if (activeId && $(activeId)) $(activeId).focus({ preventScroll: true });
+  const focusTarget = activeId ? $(activeId) ?? (activeId === 'chart-scroll' ? $('chart-heading') : null) : null;
+  focusTarget?.focus({ preventScroll: true });
   announce('Time-sensitive checks changed. Review the current gaps before using or exporting this packet.');
   return now;
 }

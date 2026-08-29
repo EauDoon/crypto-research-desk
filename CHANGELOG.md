@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## 1.6.6, 29-08-2026
+
+- Rejected negative zero before JSON serialization can erase its sign from scenario records.
+- Kept packet acceptance, rendering, and import feedback on one decision-time cutoff.
+- Preserved keyboard focus when expiry withdraws a focused forecast chart.
+
 ## 1.6.5, 29-08-2026
 
 - Kept decision-time validation, charts, and horizon labels on one cutoff instant, including expiry detected during horizon navigation.
