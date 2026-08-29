@@ -2,11 +2,16 @@ import { readFile } from 'node:fs/promises';
 import { test, expect } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import { examplePacket } from '../../web/example.js';
-import { CSP, HASHED_ASSET } from '../../tools/web-config.mjs';
+import { HASHED_ASSET, SECURITY_HEADERS } from '../../tools/web-config.mjs';
 
 const origin = new URL(process.env.PRODUCTION_URL).origin;
 const localManifest = JSON.parse(await readFile(new URL('../../dist/build-info.json', import.meta.url), 'utf8'));
 const STORAGE_KEY = 'crypto-research-desk.packet.v1';
+const deployedSecurityHeaders = Object.fromEntries(Object.entries(SECURITY_HEADERS)
+  .map(([key, value]) => [key.toLowerCase(), value]));
+const expectedHeaders = (contentType, cacheControl = 'public, max-age=0, must-revalidate') => ({
+  ...deployedSecurityHeaders, 'cache-control': cacheControl, 'content-type': contentType,
+});
 async function downloaded(page, selector) {
   const pending = page.waitForEvent('download');
   await page.locator(selector).click();
@@ -20,27 +25,22 @@ async function downloaded(page, selector) {
 test('production serves the reviewed artifact and complete local-only workflow', async ({ page, request }) => {
   const root = await request.get('/');
   expect(root.status()).toBe(200);
-  expect(root.headers()).toMatchObject({
-    'cache-control': 'public, max-age=0, must-revalidate',
-    'content-security-policy': CSP,
-    'content-type': 'text/html; charset=utf-8',
-    'cross-origin-opener-policy': 'same-origin',
-    'cross-origin-resource-policy': 'same-origin',
-    'referrer-policy': 'no-referrer',
-    'x-content-type-options': 'nosniff',
-    'x-frame-options': 'DENY',
-  });
+  expect(root.headers()).toMatchObject(expectedHeaders('text/html; charset=utf-8'));
   expect(root.headers()['strict-transport-security']).toMatch(/max-age=\d+/);
 
   const manifestResponse = await request.get('/build-info.json');
   expect(manifestResponse.status()).toBe(200);
+  expect(manifestResponse.headers()).toMatchObject(expectedHeaders('application/json; charset=utf-8'));
   expect(await manifestResponse.json()).toEqual(localManifest);
   const asset = localManifest.files.find(name => name.startsWith('app.'));
   expect(HASHED_ASSET.test(asset)).toBe(true);
   const assetResponse = await request.get('/' + asset);
   expect(assetResponse.status()).toBe(200);
-  expect(assetResponse.headers()['cache-control']).toBe('public, max-age=31536000, immutable');
-  expect((await request.get('/package.json')).status()).toBe(404);
+  expect(assetResponse.headers()).toMatchObject(expectedHeaders(
+    'application/javascript; charset=utf-8', 'public, max-age=31536000, immutable'));
+  const missing = await request.get('/package.json');
+  expect(missing.status()).toBe(404);
+  expect(missing.headers()).toMatchObject(expectedHeaders('text/html; charset=utf-8'));
 
   const origins = new Set();
   const errors = [];

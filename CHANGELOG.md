@@ -2,10 +2,26 @@
 
 ## Unreleased
 
+- Made the live deployment gate enforce the complete shared security-header contract plus manifest, asset, and 404 cache and MIME behavior.
+
+## 1.6.0, 29-08-2026
+
 - Locked saving and clearing after cross-tab draft changes so one tab cannot overwrite another tab's newer browser value.
+
+## 1.5.0, 29-08-2026
+
 - Locked browser saving when an unreadable draft is detected and added a raw-download recovery action before confirmed deletion.
+
+## 1.4.0, 29-08-2026
+
 - Added structured four-horizon scenario editing with derived contiguous intervals, so routine packet creation no longer requires raw JSON.
+
+## 1.3.0, 29-08-2026
+
 - Added structured method and dated-source editing so routine packet preparation no longer requires manipulating those fields as raw JSON.
+
+## 1.2.1, 29-08-2026
+
 - Added a separate Chromium/Firefox production smoke that compares the live canonical manifest with the reviewed build and verifies deployment headers, public-file boundaries, accessibility, and the local-only packet workflow.
 
 ## 1.2.0, 29-08-2026
