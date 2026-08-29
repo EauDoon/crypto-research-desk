@@ -48,6 +48,8 @@ Use $crypto-fund-research to produce a risk-cleared BTC price probability analys
 
 ## Use the browser workbench
 
+Open the [verified production workbench](https://crypto-research-desk.vercel.app), or run the same static app locally. It has no account, wallet, trading, analytics, or research-upload connection.
+
 Requirements: Node 24.x and a current Chromium or Firefox browser.
 
 ```sh
@@ -55,7 +57,7 @@ npm ci --ignore-scripts
 npm run dev
 ```
 
-Open [the local workbench](http://127.0.0.1:4173). Start with a blank packet or inspect the clearly labeled fictional DEMO example. Edit core research and review fields in the guided form; use the full packet editor for sources, scenarios, and method details. Then export JSON, a Markdown brief, or a printable chart.
+Open [the local workbench](http://127.0.0.1:4173). Start with a blank packet or inspect the clearly labeled fictional DEMO example. Edit routine research, source, scenario, method, and review fields in the guided form; use the full packet editor for exact JSON. Then export JSON, a Markdown brief, or a printable chart.
 
 Saving is off by default. Optional browser storage keeps one unencrypted local draft; it is not a backup or a verified review system. Invalid input is rejected without replacing the open packet. Material edits reset the recorded review, and missing evidence or elapsed horizons withhold the chart.
 
@@ -134,6 +136,8 @@ These checks make no network request once dependencies are installed. For browse
 npx playwright install chromium firefox
 npm run test:browser
 ```
+
+For an authorized live deployment, set `PRODUCTION_URL` to its HTTPS origin and run `npm run test:production`. That separate smoke compares the deployed build manifest with the local reviewed artifact and checks the production browser flow and headers.
 
 Browser installation requires a download. `npm run test:browser` rebuilds and verifies `dist/` before the browser suite; the tests use only fictional local packets. To inspect the production artifact, run `npm run build` followed by `npm run preview`. The build has no runtime package dependency.
 

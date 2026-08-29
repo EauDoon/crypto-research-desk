@@ -108,6 +108,7 @@
             <h2 id="storage-heading">Keep control of your draft.</h2>
             <label class="checkbox-label" for="remember-packet"><input id="remember-packet" type="checkbox"><span>Remember in this browser</span></label>
             <p id="storage-status" class="small-copy">Off by default. Export a copy before closing. Shared-device users can access saved drafts.</p>
+            <button id="recover-saved" class="button small subtle" type="button" hidden>Download unreadable draft</button>
             <button id="clear-saved" class="button small subtle" type="button">Clear saved draft</button>
           </section>
         </div>
@@ -128,7 +129,7 @@
       </div>
       <section id="guide" class="panel guide-section" aria-labelledby="guide-heading">
         <div><p class="eyebrow">FIELD GUIDE</p><h2 id="guide-heading">From research packet to review.</h2><p>This workbench supports the project's named-ticker forecast contract. It does not conduct research or replace the five specialist functions.</p></div>
-        <ol class="guide-steps"><li><strong>Prepare the record.</strong><span>Use dated public evidence, one exact reference price, and all four horizons. Leave unsupported forecasts incomplete.</span></li><li><strong>Inspect the gaps.</strong><span>Import schema version 1 JSON or start a blank packet. Edit full packet opens the source, scenarios, and method fields.</span></li><li><strong>Record an actual review.</strong><span>Only record a disposition after independent risk review. Editing research inputs resets an existing local review record.</span></li><li><strong>Export the result.</strong><span>JSON preserves the packet. The brief includes validation gaps. Print / PDF includes the chart when its input and review requirements are met.</span></li></ol>
+        <ol class="guide-steps"><li><strong>Prepare the record.</strong><span>Use dated public evidence, one exact reference price, and all four horizons. Leave unsupported forecasts incomplete.</span></li><li><strong>Inspect the gaps.</strong><span>Import schema version 1 JSON or start a blank packet. Edit details covers routine packet inputs; Edit full packet shows the exact JSON.</span></li><li><strong>Record an actual review.</strong><span>Only record a disposition after independent risk review. Editing research inputs resets an existing local review record.</span></li><li><strong>Export the result.</strong><span>JSON preserves the packet. The brief includes validation gaps. Print / PDF includes the chart when its input and review requirements are met.</span></li></ol>
       </section>
       <footer class="page-footer">
         <p><strong>Your research stays in your browser.</strong> There is no app upload endpoint, analytics, or cloud sync. The host serves app files and may retain request metadata. External source pages have their own privacy practices.</p>
@@ -159,6 +160,27 @@
           <label>Major risks (one per line)<textarea name="risks" rows="3" maxlength="12000"></textarea></label>
           <label>Unresolved unknowns (one per line)<textarea name="unknowns" rows="3" maxlength="12000"></textarea></label>
         </div>
+        <fieldset><legend>Research method</legend><p class="small-copy">Describe how the probabilities were formed. A method label does not establish calibration or accuracy.</p>
+          <div class="form-grid">
+            <label>Probability basis<select name="method-basis"><option value="judgmental">Judgmental</option><option value="empirical">Empirical</option><option value="model-derived">Model-derived</option></select></label>
+            <label>Sample size<input name="method-sampleSize" type="number" min="1" step="1" placeholder="Unknown / not applicable"></label>
+            <label class="span-two">Method description<textarea name="method-description" rows="2" maxlength="5000"></textarea></label>
+            <label>Source window<textarea name="method-sourceWindow" rows="2" maxlength="5000"></textarea></label>
+            <label>Observation frequency<textarea name="method-observationFrequency" rows="2" maxlength="5000"></textarea></label>
+            <label>Transformations<textarea name="method-transformations" rows="2" maxlength="5000"></textarea></label>
+            <label>Regime adjustment<textarea name="method-regimeAdjustment" rows="2" maxlength="5000"></textarea></label>
+            <label>Event assumptions<textarea name="method-eventAssumptions" rows="2" maxlength="5000"></textarea></label>
+            <label>Calibration and limits<textarea name="method-limitations" rows="2" maxlength="5000"></textarea></label>
+          </div>
+        </fieldset>
+        <fieldset><legend>Dated evidence sources</legend><p class="small-copy">Record public HTTPS sources and their chronology. The workbench checks structure, not source truth.</p>
+          <p id="source-editor-empty" class="small-copy">No sources added. Add dated evidence or leave the packet incomplete.</p>
+          <div id="source-editor-list"></div>
+          <button id="add-source" class="button small" type="button">Add source</button>
+        </fieldset>
+        <fieldset><legend>Forecast horizons</legend><p class="small-copy">All four horizons share the reference cutoff. Keep a horizon incomplete when its scenario evidence is unsupported.</p>
+          <div id="horizon-editor-list"></div>
+        </fieldset>
         <fieldset><legend>Independent review record (self-reported)</legend><p class="small-copy">Record a review only after it has occurred. A researcher cannot serve as their own independent reviewer.</p>
           <div class="form-grid">
             <label>Disposition<select name="reviewStatus"><option value="pending">Pending</option><option value="deliver">Deliver</option><option value="deliver_with_warning">Deliver with warning</option><option value="repair">Repair</option><option value="withhold">Withhold</option></select></label>
@@ -176,7 +198,7 @@
       </div>
     </div>
     <div class="editor-footer">
-      <div id="details-actions" class="editor-action-set"><button class="button primary" type="submit" form="details-form">Save details</button><span class="small-copy">For scenarios, sources, and method fields, use Edit full packet.</span></div>
+      <div id="details-actions" class="editor-action-set"><button class="button primary" type="submit" form="details-form">Save details</button><span class="small-copy">Use Edit full packet only for exact JSON inspection.</span></div>
       <div id="json-actions" class="editor-action-set" hidden><button id="apply-json" class="button primary" type="button">Validate and apply</button><span class="small-copy">Malformed packets are rejected without replacing the open packet.</span></div>
     </div>
   </dialog>

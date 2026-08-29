@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import { examplePacket } from '../../web/example.js';
-import { blankPacket } from '../../web/packet.js';
+import { MAX_PACKET_BYTES, blankPacket } from '../../web/packet.js';
 import { navigate } from './navigation.mjs';
 
 const NOW = new Date('2026-08-20T10:00:00Z');
@@ -71,7 +71,8 @@ test('the default view is explicitly synthetic, local, and accessible', async ({
 test('startup fails closed when JavaScript is unavailable', async ({ browser, baseURL }) => {
   const context = await browser.newContext({ javaScriptEnabled: false, baseURL });
   const noScriptPage = await context.newPage();
-  await noScriptPage.goto('/');
+  const response = await noScriptPage.goto('/', { waitUntil: 'commit' });
+  expect(response?.status()).toBe(200);
   await expect(noScriptPage.locator('html')).toHaveClass(/app-unavailable/);
   await expect(noScriptPage.locator('#startup-status')).toContainText('Research workbench unavailable');
   await expect(noScriptPage.locator('.requires-app:visible')).toHaveCount(0);
@@ -89,6 +90,28 @@ test('startup remains fail closed when the application module cannot load', asyn
   await expect(failedPage.locator('html')).toHaveClass(/app-unavailable/);
   await expect(failedPage.locator('#startup-status')).toBeVisible();
   await expect(failedPage.locator('.requires-app:visible')).toHaveCount(0);
+  await context.close();
+});
+
+test('startup does not shift visible content when the application module arrives', async ({ browser, baseURL, browserName }) => {
+  test.skip(browserName !== 'chromium', 'Layout Shift entries are exposed by Chromium.');
+  const context = await browser.newContext({ baseURL });
+  await context.addInitScript(() => {
+    window.__cumulativeLayoutShift = 0;
+    new PerformanceObserver(list => {
+      for (const entry of list.getEntries()) {
+        if (!entry.hadRecentInput) window.__cumulativeLayoutShift += entry.value;
+      }
+    }).observe({ type: 'layout-shift', buffered: true });
+  });
+  await context.route(/\/app(?:\.[^/]+)?\.js$/, async route => {
+    await new Promise(resolve => setTimeout(resolve, 750));
+    await route.continue();
+  });
+  const measuredPage = await context.newPage();
+  await measuredPage.goto('/');
+  await expect(measuredPage.locator('html')).not.toHaveClass(/app-unavailable/);
+  expect(await measuredPage.evaluate(() => window.__cumulativeLayoutShift)).toBeLessThan(0.1);
   await context.close();
 });
 
@@ -136,6 +159,24 @@ test('invalid imports preserve the open packet and report exact validation failu
   });
   await expect(page.locator('#app-error')).toContainText('valid UTF-8');
   expect(await page.evaluate(() => ({}).polluted)).toBeUndefined();
+});
+
+test('the newest file import wins when reads complete out of order', async ({ page }) => {
+  await page.evaluate(() => {
+    const read = File.prototype.arrayBuffer;
+    File.prototype.arrayBuffer = async function () {
+      if (this.name.startsWith('slow')) await new Promise(resolve => setTimeout(resolve, 150));
+      return read.call(this);
+    };
+  });
+  const slow = research(); slow.asset.symbol = 'SLOW';
+  const fast = research(); fast.asset.symbol = 'FAST';
+  const input = page.locator('#packet-file');
+  await input.setInputFiles({ name: 'slow.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(slow)) });
+  await input.setInputFiles({ name: 'fast.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(fast)) });
+  await expect(page.locator('#asset-symbol')).toHaveText('FAST');
+  await page.waitForTimeout(200);
+  await expect(page.locator('#asset-symbol')).toHaveText('FAST');
 });
 
 test('unsafe links and incorrect probabilities are rejected without a network request', async ({ page }) => {
@@ -188,6 +229,23 @@ test('JSON and Markdown downloads preserve packet content and evidence', async (
   }
 });
 
+test('a formatted near-limit JSON export can be imported again', async ({ page }) => {
+  const packet = examplePacket();
+  packet.sources = Array.from({ length: 32 }, (_, index) => ({
+    id: 'source-' + index, title: 'Source ' + index, url: 'https://example.com/source-' + index,
+    type: 'primary', publishedAt: '2026-08-20T07:00:00Z', capturedAt: '2026-08-20T08:00:00Z',
+    claim: 'c'.repeat(3890), excerpt: 'e'.repeat(3890),
+  }));
+  packet.riskReview.sourceIds = packet.sources.map(source => source.id);
+  await importPacket(page, packet);
+  const json = await exported(page, '#export-json');
+  expect(Buffer.byteLength(json.text)).toBeGreaterThan(MAX_PACKET_BYTES);
+  page.once('dialog', dialog => dialog.accept());
+  await importText(page, json.text);
+  await expect(page.locator('#notice')).toContainText('Packet imported locally');
+  expect(JSON.parse((await exported(page, '#export-json')).text)).toEqual(packet);
+});
+
 test('undated exports use exact portable fallback filenames', async ({ page }) => {
   await page.locator('#new-packet').click();
   await page.locator('#close-editor').click();
@@ -205,6 +263,78 @@ test('editing research inputs clears the old review and withholds the chart', as
   await expect(page.locator('#review-status')).toHaveText('Pending review');
   await expect(page.locator('#chart-area svg')).toHaveCount(0);
   await expect(page.locator('#notice')).toContainText('previous review was reset');
+});
+
+test('method and dated sources can be edited without manipulating packet JSON', async ({ page }) => {
+  await page.locator('#edit-details').click();
+  await a11y(page);
+  await page.locator('select[name="method-basis"]').selectOption('empirical');
+  await page.locator('input[name="method-sampleSize"]').fill('12');
+  await page.locator('textarea[name="method-description"]').fill('Twelve fictional observations reviewed manually.');
+  await page.getByRole('button', { name: 'Remove source 2' }).click();
+  await page.locator('#add-source').click();
+  const source = {
+    id: 'official-record', title: 'Official public record', url: 'http://www.iana.org/domains/reserved', type: 'primary',
+    publishedAt: '2026-08-20T06:00:00Z', capturedAt: '2026-08-20T08:00:00Z',
+    claim: 'A fictional method input was recorded.', excerpt: 'Fictional excerpt for browser-form verification.',
+  };
+  for (const [key, value] of Object.entries(source)) {
+    const control = page.locator('[name="source-1-' + key + '"]');
+    if (key === 'type') await control.selectOption(value); else await control.fill(value);
+  }
+  await page.getByRole('button', { name: 'Save details', exact: true }).click();
+  const url = page.locator('input[name="source-1-url"]');
+  await expect(page.locator('#editor-error')).toContainText('public HTTPS');
+  await expect(url).toBeFocused();
+  await expect(url).toHaveAttribute('aria-invalid', 'true');
+  await url.fill('https://www.iana.org/domains/reserved');
+  await page.getByRole('button', { name: 'Save details', exact: true }).click();
+
+  const json = JSON.parse((await exported(page, '#export-json')).text);
+  expect(json.method).toMatchObject({ basis: 'empirical', sampleSize: 12, description: 'Twelve fictional observations reviewed manually.' });
+  expect(json.sources.map(item => item.id)).toEqual(['example-upgrade', 'official-record']);
+  expect(json.sources[1].url).toBe('https://www.iana.org/domains/reserved');
+  expect(json.riskReview).toEqual(blankPacket().riskReview);
+  await expect(page.locator('#chart-area svg')).toHaveCount(0);
+});
+
+test('horizon scenarios can be edited with derived contiguous bounds', async ({ page }) => {
+  await page.locator('#edit-details').click();
+  await expect(page.locator('#horizon-editor-list > details')).toHaveCount(4);
+  const bearCeiling = page.locator('input[name="horizon-0-bearCeiling"]');
+  await bearCeiling.fill('110');
+  await page.getByRole('button', { name: 'Save details', exact: true }).click();
+  const bullFloor = page.locator('input[name="horizon-0-bullFloor"]');
+  await expect(page.locator('#editor-error')).toContainText('upper bound greater');
+  await expect(bullFloor).toBeFocused();
+  await expect(page.locator('#horizon-editor-list > details').first()).toHaveAttribute('open', '');
+  await bearCeiling.fill('93');
+  await page.locator('textarea[name="horizon-0-scenario-0-driver"]').fill('Changed fictional downside driver.');
+  await page.getByRole('button', { name: 'Save details', exact: true }).click();
+
+  const json = JSON.parse((await exported(page, '#export-json')).text);
+  const [bear, base, bull] = json.horizons[0].scenarios;
+  expect([bear.lower, bear.upper, base.lower, base.upper, bull.lower, bull.upper]).toEqual([0, 93, 93, 106, 106, null]);
+  expect(bear.driver).toBe('Changed fictional downside driver.');
+  expect(json.riskReview).toEqual(blankPacket().riskReview);
+  await expect(page.locator('#chart-area svg')).toHaveCount(0);
+});
+
+test('marking a horizon incomplete removes probability guesses and requires a reason', async ({ page }) => {
+  await page.locator('#edit-details').click();
+  await page.locator('select[name="horizon-0-status"]').selectOption('incomplete');
+  await page.getByRole('button', { name: 'Save details', exact: true }).click();
+  const reason = page.locator('textarea[name="horizon-0-gapReason"]');
+  await expect(page.locator('#editor-error')).toContainText('Explain the missing evidence');
+  await expect(reason).toBeFocused();
+  await page.locator('select[name="horizon-0-status"]').selectOption('complete');
+  await expect(page.locator('#editor-error')).toBeHidden();
+  await page.locator('select[name="horizon-0-status"]').selectOption('incomplete');
+  await reason.fill('No evidence-backed 12-hour forecast is available.');
+  await page.getByRole('button', { name: 'Save details', exact: true }).click();
+  const json = JSON.parse((await exported(page, '#export-json')).text);
+  expect(json.horizons[0]).toMatchObject({ status: 'incomplete', gapReason: 'No evidence-backed 12-hour forecast is available.', scenarios: [] });
+  expect(json.riskReview).toEqual(blankPacket().riskReview);
 });
 
 test('changing input and review records together preserves the editor and rejects the update', async ({ page }) => {
@@ -305,6 +435,23 @@ test('a no-op details save preserves multiline lists and the original review', a
   await expect(page.locator('#chart-area svg')).toBeVisible();
 });
 
+test('review-only form edits preserve equivalent horizon timestamp spellings', async ({ page }) => {
+  const packet = research();
+  packet.reference.capturedAt = '2026-08-20T17:00:00+08:00';
+  packet.horizons.forEach((horizon, index) => {
+    horizon.endAt = ['2026-08-21T05:00:00+08:00', '2026-08-21T17:00:00+08:00',
+      '2026-08-23T17:00:00+08:00', '2026-08-27T17:00:00+08:00'][index];
+  });
+  await importPacket(page, packet);
+  await page.locator('#edit-details').click();
+  await page.locator('textarea[name="reviewNotes"]').fill('Updated review note without changing research inputs.');
+  await page.getByRole('button', { name: 'Save details', exact: true }).click();
+  const json = JSON.parse((await exported(page, '#export-json')).text);
+  expect(json.horizons.map(horizon => horizon.endAt)).toEqual(packet.horizons.map(horizon => horizon.endAt));
+  expect(json.riskReview.notes).toBe('Updated review note without changing research inputs.');
+  await expect(page.locator('#chart-area svg')).toBeVisible();
+});
+
 test('details editing refuses to flatten an existing multiline list entry', async ({ page }) => {
   const packet = research(); packet.risks = ['First line\nSecond line'];
   await importPacket(page, packet);
@@ -398,14 +545,50 @@ test('corrupt storage is retained without replacement and saving stays off', asy
   await page.evaluate(key => localStorage.setItem(key, '{"bad":true}'), STORAGE_KEY);
   await navigate(page, { reload: true });
   await expect(page.locator('#app-error')).toContainText('not deleted or overwritten');
-  await expect(page.locator('#remember-packet')).not.toBeChecked();
+  await expect(page.locator('#remember-packet')).toBeDisabled();
+  await expect(page.locator('#recover-saved')).toBeVisible();
   expect(await page.evaluate(key => localStorage.getItem(key), STORAGE_KEY)).toBe('{"bad":true}');
+  const recovery = await exported(page, '#recover-saved');
+  expect(recovery.name).toBe('Unparsed Saved Research Draft.json');
+  expect(JSON.parse(recovery.text)).toEqual({ storageKey: STORAGE_KEY, rawValue: '{"bad":true}' });
+  expect(await page.evaluate(key => localStorage.getItem(key), STORAGE_KEY)).toBe('{"bad":true}');
+  await a11y(page);
   page.once('dialog', dialog => dialog.accept());
   await page.locator('#clear-saved').click();
+  await expect(page.locator('#remember-packet')).toBeEnabled();
+  await expect(page.locator('#recover-saved')).toBeHidden();
+  expect(await page.evaluate(key => localStorage.getItem(key), STORAGE_KEY)).toBeNull();
   expect(await page.evaluate(() => {
     const event = new Event('beforeunload', { cancelable: true });
     window.dispatchEvent(event); return event.defaultPrevented;
   })).toBe(false);
+});
+
+test('storage denial at startup keeps the workbench usable and saving disabled', async ({ browser, baseURL }) => {
+  const context = await browser.newContext({ baseURL });
+  await context.addInitScript(() => {
+    Storage.prototype.getItem = function () { throw new DOMException('Test storage denied', 'SecurityError'); };
+  });
+  const deniedPage = await context.newPage();
+  await navigate(deniedPage);
+  await expect(deniedPage.locator('#asset-symbol')).toHaveText('DEMO');
+  await expect(deniedPage.locator('#remember-packet')).toBeDisabled();
+  await expect(deniedPage.locator('#recover-saved')).toBeHidden();
+  await expect(deniedPage.locator('#storage-status')).toContainText('storage is unavailable');
+  await a11y(deniedPage);
+  await context.close();
+});
+
+test('failed saved-draft removal keeps its retention state visible', async ({ page }) => {
+  await page.locator('#remember-packet').check();
+  await page.evaluate(() => { Storage.prototype.removeItem = function () { throw new DOMException('Test storage denied', 'SecurityError'); }; });
+  await page.locator('#remember-packet').evaluate(input => {
+    input.checked = false;
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+  await expect(page.locator('#remember-packet')).toBeChecked();
+  await expect(page.locator('#app-error')).toContainText('Saved draft removal failed');
+  expect(await page.evaluate(key => localStorage.getItem(key), STORAGE_KEY)).not.toBeNull();
 });
 
 test('quota failures remain visible after edits and do not replace a previous saved draft', async ({ page }) => {
@@ -419,14 +602,18 @@ test('quota failures remain visible after edits and do not replace a previous sa
   expect(await page.evaluate(key => JSON.parse(localStorage.getItem(key)).thesis, STORAGE_KEY)).toBe(examplePacket().thesis);
 });
 
-test('another tab changing storage pauses saving without replacing the open packet', async ({ page, context }) => {
+test('another tab changing storage locks destructive controls without replacing either draft', async ({ page, context }) => {
   await page.locator('#remember-packet').check();
   const other = await context.newPage();
   await navigate(other);
-  await other.evaluate(key => localStorage.removeItem(key), STORAGE_KEY);
-  await expect(page.locator('#remember-packet')).not.toBeChecked();
-  await expect(page.locator('#storage-status')).toContainText('another tab');
+  const otherPacket = research(); otherPacket.thesis = 'Newer draft from another tab.';
+  await other.evaluate(([key, value]) => localStorage.setItem(key, value), [STORAGE_KEY, JSON.stringify(otherPacket)]);
+  await expect(page.locator('#remember-packet')).toBeDisabled();
+  await expect(page.locator('#clear-saved')).toBeDisabled();
+  await expect(page.locator('#storage-status')).toContainText('locked until reload');
   await expect(page.locator('#asset-symbol')).toHaveText('DEMO');
+  expect(await page.evaluate(key => JSON.parse(localStorage.getItem(key)).thesis, STORAGE_KEY)).toBe(otherPacket.thesis);
+  await a11y(page);
   expect(await page.evaluate(() => {
     const event = new Event('beforeunload', { cancelable: true });
     window.dispatchEvent(event); return event.defaultPrevented;
@@ -452,6 +639,8 @@ test('mobile and desktop layouts contain overflow and keep dialog actions reacha
     await page.locator('#edit-details').click();
     await expect(page.getByRole('button', { name: 'Save details', exact: true })).toBeInViewport();
     await expect(page.locator('#close-editor')).toBeInViewport();
+    if (width === 320) expect(await page.locator('input[name="horizon-0-scenario-0-probability"]')
+      .evaluate(node => node.getBoundingClientRect().width)).toBeGreaterThanOrEqual(180);
     await page.getByRole('button', { name: 'Save details', exact: true }).click();
     await expect(page.locator('#packet-editor')).toBeHidden();
   }

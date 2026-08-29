@@ -51,6 +51,8 @@ After project creation and deployment are authorized, select the intended Vercel
 
 These values are in [vercel.json](../vercel.json). Confirm that dashboard overrides do not contradict them. The build needs no test dependencies; CI installs those separately. Review [Vercel configuration](https://vercel.com/docs/project-configuration/vercel-json) and [Node version selection](https://vercel.com/docs/functions/runtimes/node-js/node-js-versions) when platform behavior changes.
 
+`.vercelignore` intentionally mirrors `.gitignore`, with equality enforced by the Node tests, so CLI deployments exclude local drafts, private files, dependencies, build output, and test artifacts.
+
 Use a preview deployment first. Record the actual project ID, deployment ID, source commit, target environment, generated URL, and build log result. Never assume a guessed hostname belongs to this project. Preserve deployment protection. Do not create bypass links or relax permissions to obtain a passing test.
 
 The app's CSP excludes third-party scripts and runtime connections. Do not enable toolbar injection, analytics, or another integration by weakening that policy. Any such feature needs a separate privacy/security review and authorization.
@@ -69,6 +71,14 @@ Before promotion, verify all of the following against the actual HTTPS deploymen
 6. Confirm that no repository files, environment files, packets, source maps, or test artifacts are publicly served.
 7. Record the operator, support route, hosting access-log location and retention, applicable privacy notice, and backup expectations. Technical privacy documentation does not establish legal compliance.
 8. Obtain separate authorization for production promotion or a merge that triggers it. Verify the promoted URL and exact source after the action.
+
+After the local gates pass, run the separate live acceptance smoke against the exact HTTPS origin:
+
+```sh
+PRODUCTION_URL=https://crypto-research-desk.vercel.app npm run test:production
+```
+
+On PowerShell, set `$env:PRODUCTION_URL` first. For a protected preview, also set the project's `VERCEL_AUTOMATION_BYPASS_SECRET`; the test sends Vercel's documented bypass headers without disabling protection. It also sends `x-vercel-skip-toolbar` so Vercel's preview toolbar cannot add external requests or interfere with automation. This rebuilds locally, compares every live public file byte-for-byte with that reviewed artifact, checks production security and cache headers, confirms repository metadata returns 404, and exercises the local-only workflow in Chromium and Firefox. It does not replace the manual ownership, privacy, support, or Git-source checks above.
 
 Do not call the release production-ready if required access, checks, ownership, or live verification is missing. Do not publish a forecast-quality claim based on software tests.
 

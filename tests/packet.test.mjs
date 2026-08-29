@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  MAX_PACKET_BYTES, HORIZONS, parsePacket, validatePacket, blankPacket, timestamp,
+  MAX_PACKET_BYTES, MAX_JSON_INPUT_BYTES, HORIZONS, parsePacket, validatePacket, blankPacket, timestamp,
   endAt, safeSourceUrl, formatPrice, formatDate, intervalLabel, returnLabel,
   chartThresholds, exportMarkdown,
 } from '../web/packet.js';
@@ -52,11 +52,29 @@ test('malformed, overlarge, deep, and lossy numeric inputs are rejected', () => 
     '{"x":"\\uD800"}', '{"x":"\\uDC00"}', '{"x":"' + '\ud800' + '"}']) {
     assert.throws(() => parsePacket(text), undefined, text);
   }
-  assert.throws(() => parsePacket('{"x":"' + 'a'.repeat(MAX_PACKET_BYTES) + '"}'), /256 KiB/);
+  assert.throws(() => parsePacket('{"x":"' + 'a'.repeat(MAX_JSON_INPUT_BYTES) + '"}'), /320 KiB/);
   assert.throws(() => parsePacket('{"x":' + '['.repeat(18) + '0' + ']'.repeat(18) + '}'), /complex/);
   assert.throws(() => parsePacket('{"x":[' + Array(129).fill('0').join(',') + ']}'), /128/);
   assert.equal(parsePacket('{"x":4e-9,"y":100.000,"z":1.20e2}').x, 4e-9);
   assert.equal(parsePacket('{"x":4e-9,"y":100.000,"z":1.20e2}').z, 120);
+});
+
+test('formatted exports remain importable at the semantic packet-size boundary', () => {
+  const packet = examplePacket();
+  packet.sources = Array.from({ length: 32 }, (_, index) => ({
+    id: 'source-' + index, title: 'Source ' + index, url: 'https://example.com/source-' + index,
+    type: 'primary', publishedAt: '2026-08-20T07:00:00Z', capturedAt: '2026-08-20T08:00:00Z',
+    claim: 'c'.repeat(3890), excerpt: 'e'.repeat(3890),
+  }));
+  packet.riskReview.sourceIds = packet.sources.map(source => source.id);
+  const compact = JSON.stringify(packet);
+  const formatted = JSON.stringify(packet, null, 2) + '\n';
+  const bytes = value => new TextEncoder().encode(value).length;
+  assert.ok(bytes(compact) <= MAX_PACKET_BYTES);
+  assert.ok(bytes(formatted) > MAX_PACKET_BYTES && bytes(formatted) <= MAX_JSON_INPUT_BYTES);
+  const parsed = parsePacket(formatted);
+  assert.equal(JSON.stringify(parsed), compact);
+  assert.equal(validate(parsed).valid, true);
 });
 
 test('missing and mistyped fields fail without throwing or enabling a chart', () => {

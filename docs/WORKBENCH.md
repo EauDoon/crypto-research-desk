@@ -8,7 +8,7 @@ The existing [research workflow](../AGENTS.md) remains authoritative. A complete
 
 1. Open the app through a local HTTP server or an approved deployment. Opening `index.html` directly as a file is not supported.
 2. Choose **New packet** for empty research fields, or **Load demo** to inspect a fictional DEMO packet.
-3. Use **Edit details** for the asset, reference cutoff, thesis, risks, and manual review record. Use **Edit full packet** for source records, method details, and scenarios.
+3. Use **Edit details** for the asset, reference cutoff, thesis, risks, method, dated sources, four horizon scenarios, and manual review record. Use **Edit full packet** only for exact JSON inspection.
 4. Import an existing UTF-8 JSON packet with **Import JSON**. Strict decoding, parsing, and validation happen in the browser. Invalid input leaves the open packet unchanged.
 5. Export JSON for a portable, editable record. Export a Markdown brief for text and tables. Use **Print / PDF** for the chart and all four horizon tables.
 
@@ -36,7 +36,7 @@ All listed fields are required, including empty fields. Unknown keys and unsuppo
 
 ### Limits and dates
 
-- Packets must fit within 256 KiB of UTF-8 JSON. Individual prose fields accept at most 5,000 characters, with tighter limits for identifiers, names, and URLs.
+- Canonical compact packet data must fit within 256 KiB. Import and full-packet editing accept at most 320 KiB of UTF-8 JSON so formatting whitespace does not consume the semantic packet limit. Individual prose fields accept at most 5,000 characters, with tighter limits for identifiers, names, and URLs.
 - Risks, unknowns, and sources each accept at most 32 entries. The parser also limits nesting, total nodes, and array lengths.
 - Duplicate keys, reserved prototype keys, sparse lists, nonfinite numbers, precision-losing numbers, malformed UTF-8, ill-formed Unicode, and hidden Unicode formatting controls are rejected.
 - Prices are numbers from zero to 1 trillion, with a strictly positive reference price. Use `null` for an unknown reference price and the unbounded upper tail.
@@ -88,9 +88,9 @@ The details form preserves valid multiline risk and unknown entries on a no-op s
 
 Local saving is off by default. **Remember this packet** stores one unencrypted draft under `crypto-research-desk.packet.v1` in the current browser origin. It is not account storage, synchronization, or a backup. Different deployment URLs have separate browser storage.
 
-**Clear saved draft** removes only this app's storage key and leaves the open packet in memory. The open copy is then treated as unsaved, so closing or navigating away receives the browser's unsaved-change protection. Replacing an edited draft requires confirmation. If another tab changes storage, automatic saving pauses rather than overwriting the open packet.
+**Clear saved draft** removes only this app's storage key and leaves the open packet in memory. The open copy is then treated as unsaved, so closing or navigating away receives the browser's unsaved-change protection. Replacing an edited draft requires confirmation. If another tab changes storage, saving and clearing lock until reload so neither tab can overwrite the other's draft. Export the open packet before reloading.
 
-Corrupt saved data is retained without being overwritten. Storage failures disable automatic saving and display a warning. Export the open packet, retain any recoverable original JSON, and clear the app's saved data only when ready. Browsers and device administrators can remove local storage independently.
+Corrupt saved data is retained without being overwritten, and automatic saving is locked so the synthetic fallback cannot replace it. Use **Download unreadable draft** to preserve the exact raw value as untrusted text before clearing it. Storage access failures disable automatic saving and display a warning. Export the open packet, retain any recoverable original JSON, and clear the app's saved data only when ready. Browsers and device administrators can remove local storage independently.
 
 The app has no research upload endpoint, runtime API requests, telemetry, remote fonts, cookies of its own, or financial account integration. Hosting providers still receive ordinary page and asset requests. Clicking a source link opens that external site in a new tab without a referrer; that site's own policies apply. Browser extensions and other users of a shared browser can access local information.
 

@@ -1,5 +1,5 @@
 import {
-  MAX_PACKET_BYTES, HORIZONS, REVIEW_ASSERTIONS, parsePacket, validatePacket, blankPacket,
+  MAX_PACKET_BYTES, MAX_JSON_INPUT_BYTES, HORIZONS, SCENARIOS, REVIEW_ASSERTIONS, parsePacket, validatePacket, blankPacket,
   timestamp, endAt, formatDate, formatPrice, safeSourceUrl, intervalLabel, returnLabel, chartThresholds, exportMarkdown,
 } from './packet.js';
 import { examplePacket } from './example.js';
@@ -16,6 +16,7 @@ let importSequence = 0;
 let lastValidation = '';
 let editorOpener = null;
 let printDetailsState = null;
+let unreadableSavedDraft = null;
 let chartOverflowCleanup = () => {};
 let scenarioOverflowCleanups = [];
 const editor = $('packet-editor');
@@ -24,6 +25,16 @@ const reviewLabels = { pending: 'Pending review', deliver: 'Deliver, as recorded
 const methodLabels = { basis: 'Probability basis', description: 'Method', sourceWindow: 'Source window',
   observationFrequency: 'Observation frequency', sampleSize: 'Sample size', transformations: 'Transformations',
   regimeAdjustment: 'Regime adjustment', eventAssumptions: 'Event assumptions', limitations: 'Calibration and limits' };
+const sourceFields = [
+  ['id', 'Source ID', 'input', 40], ['title', 'Title', 'input', 200], ['url', 'Public HTTPS URL', 'input', 2048],
+  ['type', 'Source type', 'select'], ['publishedAt', 'Published at (ISO, with offset)', 'input', 35],
+  ['capturedAt', 'Captured at (ISO, with offset)', 'input', 35], ['claim', 'Supported claim', 'textarea', 5000],
+  ['excerpt', 'Supplied excerpt', 'textarea', 5000],
+];
+const scenarioFields = [
+  ['probability', 'Probability (%)'], ['confidence', 'Confidence'], ['driver', 'Driver'],
+  ['trigger', 'Observable trigger'], ['invalidation', 'Scenario invalidation'],
+];
 
 function element(tag, text, className) {
   const node = document.createElement(tag);
@@ -419,6 +430,23 @@ function editableFieldForPath(path) {
     'riskReview.reviewedAt': 'reviewedAt', 'riskReview.sourceIds': 'sourceIds', 'riskReview.notes': 'reviewNotes',
   };
   if (fields[path]) return field(fields[path]);
+  const method = /^method\.(\w+)$/.exec(path);
+  if (method) return field('method-' + method[1]);
+  const source = /^sources(?:\[(\d+)\])?(?:\.(\w+))?$/.exec(path);
+  if (source) return source[1] === undefined ? $('add-source')
+    : field('source-' + source[1] + '-' + (source[2] ?? 'id'));
+  const horizon = /^horizons(?:\[(\d+)\])?(?:\.(status|gapReason|endAt))?$/.exec(path);
+  if (horizon) return horizon[2] === 'endAt' ? field('capturedAt')
+    : field('horizon-' + (horizon[1] ?? '0') + '-' + (horizon[2] ?? 'status'));
+  const scenario = /^horizons\[(\d+)\]\.scenarios(?:\[(\d+)\])?(?:\.(\w+))?$/.exec(path);
+  if (scenario) {
+    const [horizonIndex, scenarioIndex = '0', key = 'probability'] = scenario.slice(1);
+    if (key === 'lower' || key === 'upper') {
+      const threshold = scenarioIndex === '0' || (scenarioIndex === '1' && key === 'lower') ? 'bearCeiling' : 'bullFloor';
+      return field('horizon-' + horizonIndex + '-' + threshold);
+    }
+    return field('horizon-' + horizonIndex + '-scenario-' + scenarioIndex + '-' + key);
+  }
   if (/^risks(?:\[|$)/.test(path)) return field('risks');
   if (/^unknowns(?:\[|$)/.test(path)) return field('unknowns');
   if (path === 'asset') return field('symbol');
@@ -446,6 +474,95 @@ function markInvalid(target) {
   describedBy.add('editor-error');
   target.setAttribute('aria-describedby', [...describedBy].join(' '));
 }
+function sourceEditorValues() {
+  return [...$('source-editor-list').children].map((_, index) => Object.fromEntries(
+    sourceFields.map(([key]) => [key, String(field('source-' + index + '-' + key).value)]),
+  ));
+}
+function renderSourceEditor(sources) {
+  $('source-editor-empty').hidden = sources.length > 0;
+  $('source-editor-list').replaceChildren(...sources.map((source, index) => {
+    const group = element('fieldset', undefined, 'source-editor');
+    group.append(element('legend', 'Source ' + (index + 1)));
+    const remove = element('button', 'Remove source', 'button small subtle');
+    remove.type = 'button'; remove.dataset.removeSource = String(index);
+    remove.setAttribute('aria-label', 'Remove source ' + (index + 1));
+    const grid = element('div', undefined, 'form-grid');
+    for (const [key, label, tag, limit] of sourceFields) {
+      const wrapper = element('label', label);
+      if (key === 'claim' || key === 'excerpt') wrapper.className = 'span-two';
+      const input = element(tag);
+      input.name = 'source-' + index + '-' + key;
+      if (key === 'type') for (const option of ['primary', 'secondary']) input.append(element('option', option));
+      else {
+        if (key === 'url') input.type = 'url';
+        input.maxLength = limit;
+        if (tag === 'textarea') input.rows = 2;
+      }
+      input.value = source[key] ?? '';
+      wrapper.append(input); grid.append(wrapper);
+    }
+    group.append(remove, grid); return group;
+  }));
+  $('add-source').disabled = sources.length >= 32;
+}
+function showHorizonMode(details, complete) {
+  details.querySelector('.horizon-gap').hidden = complete;
+  details.querySelector('.horizon-scenarios').hidden = !complete;
+  for (const control of details.querySelectorAll('.horizon-gap input, .horizon-gap textarea, .horizon-gap select')) control.disabled = complete;
+  for (const control of details.querySelectorAll('.horizon-scenarios input, .horizon-scenarios textarea, .horizon-scenarios select')) control.disabled = !complete;
+  details.querySelector('summary').textContent = details.dataset.label + ' · ' + (complete ? 'Complete' : 'Incomplete');
+}
+function renderHorizonEditor(horizons) {
+  $('horizon-editor-list').replaceChildren(...HORIZONS.map((definition, horizonIndex) => {
+    const horizon = horizons[horizonIndex];
+    const details = element('details', undefined, 'horizon-editor');
+    details.dataset.label = definition.label; details.open = horizonIndex === 0;
+    details.append(element('summary'));
+    const body = element('div', undefined, 'horizon-editor-body');
+    const statusLabel = element('label', 'Forecast status');
+    const status = element('select'); status.name = 'horizon-' + horizonIndex + '-status';
+    for (const option of ['incomplete', 'complete']) status.append(element('option', option));
+    status.value = horizon.status; statusLabel.append(status);
+    const statusGrid = element('div', undefined, 'form-grid'); statusGrid.append(statusLabel);
+    body.append(statusGrid);
+
+    const gap = element('div', undefined, 'horizon-gap form-grid');
+    const gapLabel = element('label', 'Evidence gap reason', 'span-two');
+    const gapInput = element('textarea'); gapInput.name = 'horizon-' + horizonIndex + '-gapReason';
+    gapInput.rows = 2; gapInput.maxLength = 5000; gapInput.value = horizon.gapReason;
+    gapLabel.append(gapInput); gap.append(gapLabel); body.append(gap);
+
+    const complete = element('div', undefined, 'horizon-scenarios');
+    const thresholds = element('div', undefined, 'form-grid');
+    for (const [key, label, value] of [
+      ['bearCeiling', 'Bear ceiling / Base floor', horizon.scenarios[0]?.upper],
+      ['bullFloor', 'Base ceiling / Bull floor', horizon.scenarios[1]?.upper],
+    ]) {
+      const wrapper = element('label', label); const input = element('input');
+      input.name = 'horizon-' + horizonIndex + '-' + key; input.type = 'number'; input.step = 'any'; input.min = '0'; input.max = '1000000000000';
+      input.value = value ?? ''; wrapper.append(input); thresholds.append(wrapper);
+    }
+    complete.append(element('p', 'Intervals are derived as [0, Bear ceiling), [Bear ceiling, Bull floor), and [Bull floor, unbounded).', 'small-copy'), thresholds);
+    SCENARIOS.forEach((label, scenarioIndex) => {
+      const scenario = horizon.scenarios[scenarioIndex] ?? { probability: '', confidence: 'low', driver: '', trigger: '', invalidation: '' };
+      const group = element('fieldset', undefined, 'scenario-editor'); group.append(element('legend', label));
+      const grid = element('div', undefined, 'form-grid');
+      for (const [key, fieldLabel] of scenarioFields) {
+        const wrapper = element('label', fieldLabel); const input = element(key === 'confidence' ? 'select' : key === 'probability' ? 'input' : 'textarea');
+        input.name = 'horizon-' + horizonIndex + '-scenario-' + scenarioIndex + '-' + key;
+        if (key === 'confidence') for (const option of ['low', 'medium', 'high']) input.append(element('option', option));
+        else if (key === 'probability') { input.type = 'number'; input.min = '0'; input.max = '100'; input.step = '0.01'; }
+        else { input.rows = 2; input.maxLength = 5000; wrapper.className = 'span-two'; }
+        input.value = scenario[key] ?? ''; wrapper.append(input); grid.append(wrapper);
+      }
+      group.append(grid); complete.append(group);
+    });
+    body.append(complete); details.append(body);
+    showHorizonMode(details, horizon.status === 'complete');
+    return details;
+  }));
+}
 function populateForm() {
   const values = { ...packet.asset, ...packet.reference, preparedBy: packet.preparedBy,
     thesis: packet.thesis, disconfirmingEvidence: packet.disconfirmingEvidence, invalidation: packet.invalidation,
@@ -453,6 +570,9 @@ function populateForm() {
     reviewStatus: packet.riskReview.status, reviewer: packet.riskReview.reviewer,
     reviewedAt: packet.riskReview.reviewedAt, sourceIds: packet.riskReview.sourceIds.join(', '), reviewNotes: packet.riskReview.notes };
   for (const [name, value] of Object.entries(values)) if (field(name)) field(name).value = value ?? '';
+  for (const [key, value] of Object.entries(packet.method)) field('method-' + key).value = value ?? '';
+  renderSourceEditor(packet.sources);
+  renderHorizonEditor(packet.horizons);
   $('review-assertions').replaceChildren();
   REVIEW_ASSERTIONS.forEach((definition, index) => {
     const assertion = packet.riskReview.assertions.find(item => item.id === definition.id)
@@ -478,6 +598,7 @@ function editorSnapshot() {
   return editorMode === 'json' ? $('packet-json').value : JSON.stringify([...new FormData(form).entries()]);
 }
 function revealEditorTarget(target) {
+  target.closest('details')?.setAttribute('open', '');
   const scrollBounds = $('editor-scroll').getBoundingClientRect();
   const targetBounds = target.getBoundingClientRect();
   const errorHeight = $('editor-error').hidden ? 0 : $('editor-error').getBoundingClientRect().height + 8;
@@ -534,13 +655,13 @@ function completeEdit(candidate) {
   announce(reset ? 'Research inputs changed. The previous review was reset to pending; record a new independent review before chart display.'
     : 'Packet updated. Structural checks are current; evidence and review identity remain unverified.');
 }
-function download(contents, type, suffix) {
+function download(contents, type, suffix, filename = null) {
   const url = URL.createObjectURL(new Blob([contents], { type }));
   const anchor = element('a');
   const instant = timestamp(packet.reference.capturedAt);
   const label = instant === null ? 'Undated' : new Date(instant).toISOString().slice(0, 10);
   anchor.href = url;
-  anchor.download = '(' + label + ')' + (packet.asset.symbol ? packet.asset.symbol + ' ' : '') + suffix;
+  anchor.download = filename ?? '(' + label + ')' + (packet.asset.symbol ? packet.asset.symbol + ' ' : '') + suffix;
   anchor.hidden = true; document.body.append(anchor); anchor.click(); anchor.remove();
   setTimeout(() => URL.revokeObjectURL(url), 10000);
 }
@@ -562,7 +683,7 @@ $('packet-file').addEventListener('change', async event => {
   const sequence = ++importSequence;
   if (!file) return;
   try {
-    if (file.size > MAX_PACKET_BYTES) throw new Error('The JSON packet must be smaller than 256 KiB.');
+    if (file.size > MAX_JSON_INPUT_BYTES) throw new Error('The JSON file must be no larger than 320 KiB.');
     let imported;
     try { imported = new TextDecoder('utf-8', { fatal: true }).decode(await file.arrayBuffer()); }
     catch { throw new Error('The packet must be valid UTF-8 JSON without replacement-decoded bytes.'); }
@@ -577,6 +698,26 @@ $('packet-file').addEventListener('change', async event => {
 });
 $('edit-details').addEventListener('click', () => openEditor('details'));
 $('edit-json').addEventListener('click', () => openEditor('json'));
+$('add-source').addEventListener('click', () => {
+  const sources = sourceEditorValues();
+  if (sources.length >= 32) return;
+  sources.push({ id: '', title: '', url: '', type: 'primary', publishedAt: '', capturedAt: '', claim: '', excerpt: '' });
+  clearEditorError(); renderSourceEditor(sources);
+  field('source-' + (sources.length - 1) + '-id').focus();
+});
+$('source-editor-list').addEventListener('click', event => {
+  const remove = event.target.closest('button[data-remove-source]');
+  if (!remove) return;
+  const sources = sourceEditorValues();
+  sources.splice(Number(remove.dataset.removeSource), 1);
+  clearEditorError(); renderSourceEditor(sources);
+  (sources.length ? field('source-' + Math.min(Number(remove.dataset.removeSource), sources.length - 1) + '-id') : $('add-source')).focus();
+});
+$('horizon-editor-list').addEventListener('change', event => {
+  if (!event.target.name?.endsWith('-status')) return;
+  clearEditorError();
+  showHorizonMode(event.target.closest('details'), event.target.value === 'complete');
+});
 $('close-editor').addEventListener('click', closeEditor);
 editor.addEventListener('cancel', closeEditor);
 editor.addEventListener('close', () => { if (editorOpener?.isConnected) editorOpener.focus({ preventScroll: true }); });
@@ -588,17 +729,37 @@ form.addEventListener('submit', event => {
   try {
     const candidate = structuredClone(packet);
     const value = name => String(field(name).value);
+    const number = (name, path) => {
+      if (value(name) === '') return null;
+      try { return parsePacket('{"value":' + value(name) + '}').value; }
+      catch (error) { error.issuePaths = [path]; throw error; }
+    };
     for (const name of ['symbol', 'name', 'quoteCurrency', 'venue']) candidate.asset[name] = value(name);
-    let price = null;
-    if (value('price') !== '') {
-      try { price = parsePacket('{"price":' + value('price') + '}').price; }
-      catch (error) { error.issuePaths = ['reference.price']; throw error; }
-    }
-    candidate.reference = { price, capturedAt: value('capturedAt'), timezone: value('timezone') };
-    if (candidate.reference.capturedAt !== packet.reference.capturedAt) {
-      candidate.horizons.forEach((horizon, index) => { horizon.endAt = endAt(candidate.reference.capturedAt, HORIZONS[index].hours); });
-    }
+    candidate.reference = { price: number('price', 'reference.price'), capturedAt: value('capturedAt'), timezone: value('timezone') };
     for (const name of ['preparedBy', 'thesis', 'disconfirmingEvidence', 'invalidation', 'liquidity']) candidate[name] = value(name);
+    candidate.method = Object.fromEntries(Object.keys(methodLabels).map(key => [key, value('method-' + key)]));
+    candidate.method.sampleSize = number('method-sampleSize', 'method.sampleSize');
+    candidate.sources = sourceEditorValues();
+    candidate.horizons = HORIZONS.map((definition, horizonIndex) => {
+      const status = value('horizon-' + horizonIndex + '-status');
+      const horizon = { id: definition.id, endAt: candidate.reference.capturedAt === packet.reference.capturedAt
+        ? packet.horizons[horizonIndex].endAt : endAt(candidate.reference.capturedAt, definition.hours), status,
+        gapReason: status === 'incomplete' ? value('horizon-' + horizonIndex + '-gapReason') : '', scenarios: [] };
+      if (status === 'complete') {
+        const bearCeiling = number('horizon-' + horizonIndex + '-bearCeiling', 'horizons[' + horizonIndex + '].scenarios[0].upper');
+        const bullFloor = number('horizon-' + horizonIndex + '-bullFloor', 'horizons[' + horizonIndex + '].scenarios[1].upper');
+        horizon.scenarios = SCENARIOS.map((label, scenarioIndex) => ({
+          label, lower: [0, bearCeiling, bullFloor][scenarioIndex], upper: [bearCeiling, bullFloor, null][scenarioIndex],
+          probability: number('horizon-' + horizonIndex + '-scenario-' + scenarioIndex + '-probability',
+            'horizons[' + horizonIndex + '].scenarios[' + scenarioIndex + '].probability'),
+          driver: value('horizon-' + horizonIndex + '-scenario-' + scenarioIndex + '-driver'),
+          trigger: value('horizon-' + horizonIndex + '-scenario-' + scenarioIndex + '-trigger'),
+          invalidation: value('horizon-' + horizonIndex + '-scenario-' + scenarioIndex + '-invalidation'),
+          confidence: value('horizon-' + horizonIndex + '-scenario-' + scenarioIndex + '-confidence'),
+        }));
+      }
+      return horizon;
+    });
     for (const name of ['risks', 'unknowns']) {
       if (value(name) !== packet[name].join('\n')) {
         if (packet[name].some(item => /[\r\n]/.test(item))) {
@@ -654,17 +815,31 @@ $('remember-packet').addEventListener('change', () => {
       setText('storage-status', hadSavedDraft
         ? 'Saved draft removed. The open packet is still in memory; export it before closing.'
         : 'No saved draft was present. The open packet is unchanged.');
-    } catch { announce('Saved draft removal failed. Storage is unavailable; a previous draft may remain.', true); }
+    } catch {
+      $('remember-packet').checked = true;
+      announce('Saved draft removal failed. Storage is unavailable; a previous draft may remain.', true);
+    }
   }
 });
+$('recover-saved').addEventListener('click', () => {
+  if (unreadableSavedDraft === null) return;
+  download(JSON.stringify({ storageKey: STORAGE_KEY, rawValue: unreadableSavedDraft }, null, 2) + '\n',
+    'application/json; charset=utf-8', '', 'Unparsed Saved Research Draft.json');
+  announce('A recovery wrapper containing the raw saved value was downloaded without changing browser storage. Treat it as untrusted data.');
+});
 $('clear-saved').addEventListener('click', () => {
-  if (!window.confirm('Remove this app’s saved browser draft? The open packet will stay in memory.')) return;
+  const prompt = unreadableSavedDraft === null ? 'Remove this app’s saved browser draft? The open packet will stay in memory.'
+    : 'Permanently remove the unreadable saved draft? Download its raw data first if you may need to recover it.';
+  if (!window.confirm(prompt)) return;
   try {
     const openPacketWasRemembered = $('remember-packet').checked;
     const hadSavedDraft = localStorage.getItem(STORAGE_KEY) !== null;
     localStorage.removeItem(STORAGE_KEY);
+    unreadableSavedDraft = null;
     if (openPacketWasRemembered) dirty = true;
     $('remember-packet').checked = false;
+    $('remember-packet').disabled = false;
+    $('recover-saved').hidden = true;
     $('app-error').hidden = true;
     setText('storage-status', hadSavedDraft
       ? 'Saved draft removed. The open packet remains in memory. Other browser storage was not changed.'
@@ -706,8 +881,10 @@ window.addEventListener('storage', event => {
   if (event.key !== STORAGE_KEY && event.key !== null) return;
   dirty = true;
   $('remember-packet').checked = false;
-  setText('storage-status', 'Browser storage changed in another tab. Automatic saving is paused.');
-  announce('Another tab changed the saved draft. Your open packet is unchanged. Export it before re-enabling local saving.');
+  $('remember-packet').disabled = true;
+  $('clear-saved').disabled = true;
+  setText('storage-status', 'Browser storage changed in another tab. Saving and clearing are locked until reload.');
+  announce('Another tab changed the saved draft. Your open packet is unchanged. Export it, then reload before saving or clearing.');
 });
 window.addEventListener('beforeunload', event => {
   if ((dirty && !$('remember-packet').checked) || (editor.open && editorSnapshot() !== editorInitial)) {
@@ -715,15 +892,22 @@ window.addEventListener('beforeunload', event => {
   }
 });
 try {
-  const saved = localStorage.getItem(STORAGE_KEY);
+  unreadableSavedDraft = localStorage.getItem(STORAGE_KEY);
+  const saved = unreadableSavedDraft;
   if (saved !== null) {
     const candidate = parsePacket(saved);
     if (!validatePacket(candidate).valid) throw new Error('Invalid saved packet.');
     packet = candidate; origin = 'Restored browser draft'; $('remember-packet').checked = true;
     setText('storage-status', 'Restored from this browser. Shared-device users can access the saved draft.');
+    unreadableSavedDraft = null;
   }
 } catch {
-  announce('The saved draft could not be loaded. It was not deleted or overwritten. A synthetic example is shown; local saving is off.', true);
+  $('remember-packet').disabled = true;
+  $('recover-saved').hidden = unreadableSavedDraft === null;
+  setText('storage-status', unreadableSavedDraft === null
+    ? 'Browser storage is unavailable. Local saving is disabled.'
+    : 'Saving is locked to protect the unreadable draft. Download its raw data before clearing it.');
+  announce('The saved draft could not be loaded. It was not deleted or overwritten. A synthetic example is shown; local saving is locked.', true);
 }
 render(); updateNavigation();
 document.documentElement.classList.toggle('page-margin-identity', supportsPageMarginIdentity());

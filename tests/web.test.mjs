@@ -76,6 +76,7 @@ test('tooling accepts Node 24.x and fails fast for other or malformed versions',
 
 test('Vercel production settings match the verified build and security configuration', async () => {
   const config = JSON.parse(await readFile(join(root, 'vercel.json'), 'utf8'));
+  assert.equal(await readFile(join(root, '.vercelignore'), 'utf8'), await readFile(join(root, '.gitignore'), 'utf8'));
   assert.equal(config.framework, null);
   assert.equal(config.buildCommand, 'npm run build');
   assert.equal(config.installCommand, 'npm ci --ignore-scripts --omit=dev');
@@ -105,7 +106,7 @@ test('the build is deterministic and publishes only the reviewed static allowlis
   const second = await build(directory);
   assert.deepEqual(second, first);
   assert.equal(first.formatVersion, 2);
-  assert.equal(first.workbenchVersion, '1.2.0');
+  assert.equal(first.workbenchVersion, '1.6.4');
   assert.equal(first.researchCoreVersion, '1.1.0');
   assert.equal(first.files.length, PUBLIC_FILES.length);
   assert.equal(first.files.filter(name => HASHED_ASSET.test(name)).length, 5);
@@ -125,7 +126,7 @@ test('package and lockfile workbench versions must remain identical', async t =>
   const directory = await fixture(t);
   const lockPath = join(directory, 'package-lock.json');
   const lock = JSON.parse(await readFile(lockPath, 'utf8'));
-  lock.packages[''].version = '1.2.1';
+  lock.packages[''].version = '1.6.5';
   await writeFile(lockPath, JSON.stringify(lock, null, 2) + '\n');
   await assert.rejects(build(directory), /Package and lockfile workbench versions differ/);
   await assert.rejects(lstat(join(directory, 'dist')), { code: 'ENOENT' });
