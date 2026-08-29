@@ -16,6 +16,7 @@ let importSequence = 0;
 let lastValidation = '';
 let editorOpener = null;
 let printDetailsState = null;
+let unreadableSavedDraft = null;
 let chartOverflowCleanup = () => {};
 let scenarioOverflowCleanups = [];
 const editor = $('packet-editor');
@@ -654,13 +655,13 @@ function completeEdit(candidate) {
   announce(reset ? 'Research inputs changed. The previous review was reset to pending; record a new independent review before chart display.'
     : 'Packet updated. Structural checks are current; evidence and review identity remain unverified.');
 }
-function download(contents, type, suffix) {
+function download(contents, type, suffix, filename = null) {
   const url = URL.createObjectURL(new Blob([contents], { type }));
   const anchor = element('a');
   const instant = timestamp(packet.reference.capturedAt);
   const label = instant === null ? 'Undated' : new Date(instant).toISOString().slice(0, 10);
   anchor.href = url;
-  anchor.download = '(' + label + ')' + (packet.asset.symbol ? packet.asset.symbol + ' ' : '') + suffix;
+  anchor.download = filename ?? '(' + label + ')' + (packet.asset.symbol ? packet.asset.symbol + ' ' : '') + suffix;
   anchor.hidden = true; document.body.append(anchor); anchor.click(); anchor.remove();
   setTimeout(() => URL.revokeObjectURL(url), 10000);
 }
@@ -817,14 +818,25 @@ $('remember-packet').addEventListener('change', () => {
     } catch { announce('Saved draft removal failed. Storage is unavailable; a previous draft may remain.', true); }
   }
 });
+$('recover-saved').addEventListener('click', () => {
+  if (unreadableSavedDraft === null) return;
+  download(JSON.stringify({ storageKey: STORAGE_KEY, rawValue: unreadableSavedDraft }, null, 2) + '\n',
+    'application/json; charset=utf-8', '', 'Unparsed Saved Research Draft.json');
+  announce('A recovery wrapper containing the raw saved value was downloaded without changing browser storage. Treat it as untrusted data.');
+});
 $('clear-saved').addEventListener('click', () => {
-  if (!window.confirm('Remove this app’s saved browser draft? The open packet will stay in memory.')) return;
+  const prompt = unreadableSavedDraft === null ? 'Remove this app’s saved browser draft? The open packet will stay in memory.'
+    : 'Permanently remove the unreadable saved draft? Download its raw data first if you may need to recover it.';
+  if (!window.confirm(prompt)) return;
   try {
     const openPacketWasRemembered = $('remember-packet').checked;
     const hadSavedDraft = localStorage.getItem(STORAGE_KEY) !== null;
     localStorage.removeItem(STORAGE_KEY);
+    unreadableSavedDraft = null;
     if (openPacketWasRemembered) dirty = true;
     $('remember-packet').checked = false;
+    $('remember-packet').disabled = false;
+    $('recover-saved').hidden = true;
     $('app-error').hidden = true;
     setText('storage-status', hadSavedDraft
       ? 'Saved draft removed. The open packet remains in memory. Other browser storage was not changed.'
@@ -875,15 +887,22 @@ window.addEventListener('beforeunload', event => {
   }
 });
 try {
-  const saved = localStorage.getItem(STORAGE_KEY);
+  unreadableSavedDraft = localStorage.getItem(STORAGE_KEY);
+  const saved = unreadableSavedDraft;
   if (saved !== null) {
     const candidate = parsePacket(saved);
     if (!validatePacket(candidate).valid) throw new Error('Invalid saved packet.');
     packet = candidate; origin = 'Restored browser draft'; $('remember-packet').checked = true;
     setText('storage-status', 'Restored from this browser. Shared-device users can access the saved draft.');
+    unreadableSavedDraft = null;
   }
 } catch {
-  announce('The saved draft could not be loaded. It was not deleted or overwritten. A synthetic example is shown; local saving is off.', true);
+  $('remember-packet').disabled = true;
+  $('recover-saved').hidden = unreadableSavedDraft === null;
+  setText('storage-status', unreadableSavedDraft === null
+    ? 'Browser storage is unavailable. Local saving is disabled.'
+    : 'Saving is locked to protect the unreadable draft. Download its raw data before clearing it.');
+  announce('The saved draft could not be loaded. It was not deleted or overwritten. A synthetic example is shown; local saving is locked.', true);
 }
 render(); updateNavigation();
 document.documentElement.classList.toggle('page-margin-identity', supportsPageMarginIdentity());

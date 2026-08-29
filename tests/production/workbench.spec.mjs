@@ -6,6 +6,16 @@ import { CSP, HASHED_ASSET } from '../../tools/web-config.mjs';
 
 const origin = new URL(process.env.PRODUCTION_URL).origin;
 const localManifest = JSON.parse(await readFile(new URL('../../dist/build-info.json', import.meta.url), 'utf8'));
+const STORAGE_KEY = 'crypto-research-desk.packet.v1';
+async function downloaded(page, selector) {
+  const pending = page.waitForEvent('download');
+  await page.locator(selector).click();
+  const download = await pending;
+  const stream = await download.createReadStream();
+  const chunks = [];
+  for await (const chunk of stream) chunks.push(chunk);
+  return { name: download.suggestedFilename(), text: Buffer.concat(chunks).toString('utf8') };
+}
 
 test('production serves the reviewed artifact and complete local-only workflow', async ({ page, request }) => {
   const root = await request.get('/');
@@ -34,11 +44,14 @@ test('production serves the reviewed artifact and complete local-only workflow',
 
   const origins = new Set();
   const errors = [];
-  page.on('request', request => {
-    const url = new URL(request.url());
-    if (['http:', 'https:'].includes(url.protocol)) origins.add(url.origin);
-  });
-  page.on('pageerror', error => errors.push(error.message));
+  const watch = target => {
+    target.on('request', request => {
+      const url = new URL(request.url());
+      if (['http:', 'https:'].includes(url.protocol)) origins.add(url.origin);
+    });
+    target.on('pageerror', error => errors.push(error.message));
+  };
+  watch(page);
   expect((await page.goto('/')).status()).toBe(200);
   await expect(page.locator('#asset-symbol')).toHaveText('DEMO');
   await expect(page.locator('#chart-area svg')).toBeVisible();
@@ -59,18 +72,12 @@ test('production serves the reviewed artifact and complete local-only workflow',
   await expect(page.locator('#chart-area svg')).toBeVisible();
 
   await page.locator('#remember-packet').check();
-  expect(await page.evaluate(key => JSON.parse(localStorage.getItem(key)).asset.symbol, 'crypto-research-desk.packet.v1')).toBe('DEMO');
-  const pendingDownload = page.waitForEvent('download');
-  await page.locator('#export-json').click();
-  const download = await pendingDownload;
-  const stream = await download.createReadStream();
-  const chunks = [];
-  for await (const chunk of stream) chunks.push(chunk);
-  expect(JSON.parse(Buffer.concat(chunks).toString('utf8'))).toEqual(packet);
+  expect(await page.evaluate(key => JSON.parse(localStorage.getItem(key)).asset.symbol, STORAGE_KEY)).toBe('DEMO');
+  expect(JSON.parse((await downloaded(page, '#export-json')).text)).toEqual(packet);
 
   page.once('dialog', dialog => dialog.accept());
   await page.locator('#clear-saved').click();
-  expect(await page.evaluate(key => localStorage.getItem(key), 'crypto-research-desk.packet.v1')).toBeNull();
+  expect(await page.evaluate(key => localStorage.getItem(key), STORAGE_KEY)).toBeNull();
   await page.locator('#edit-details').click();
   await expect(page.locator('textarea[name="method-description"]')).toHaveValue(packet.method.description);
   await expect(page.locator('#source-editor-list > fieldset')).toHaveCount(packet.sources.length);
@@ -84,6 +91,18 @@ test('production serves the reviewed artifact and complete local-only workflow',
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
   await page.emulateMedia({ media: 'print' });
   expect(await page.locator('.horizon-panel').evaluateAll(nodes => nodes.every(node => getComputedStyle(node).display !== 'none'))).toBe(true);
+
+  const corrupt = '{"bad":true}';
+  await page.evaluate(([key, value]) => localStorage.setItem(key, value), [STORAGE_KEY, corrupt]);
+  const recoveryPage = await page.context().newPage(); watch(recoveryPage);
+  await recoveryPage.goto('/');
+  await expect(recoveryPage.locator('#remember-packet')).toBeDisabled();
+  const recovery = await downloaded(recoveryPage, '#recover-saved');
+  expect(recovery.name).toBe('Unparsed Saved Research Draft.json');
+  expect(JSON.parse(recovery.text)).toEqual({ storageKey: STORAGE_KEY, rawValue: corrupt });
+  recoveryPage.once('dialog', dialog => dialog.accept());
+  await recoveryPage.locator('#clear-saved').click();
+  await recoveryPage.close();
 
   expect(errors).toEqual([]);
   expect([...origins]).toEqual([origin]);

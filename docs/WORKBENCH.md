@@ -90,7 +90,7 @@ Local saving is off by default. **Remember this packet** stores one unencrypted 
 
 **Clear saved draft** removes only this app's storage key and leaves the open packet in memory. The open copy is then treated as unsaved, so closing or navigating away receives the browser's unsaved-change protection. Replacing an edited draft requires confirmation. If another tab changes storage, automatic saving pauses rather than overwriting the open packet.
 
-Corrupt saved data is retained without being overwritten. Storage failures disable automatic saving and display a warning. Export the open packet, retain any recoverable original JSON, and clear the app's saved data only when ready. Browsers and device administrators can remove local storage independently.
+Corrupt saved data is retained without being overwritten, and automatic saving is locked so the synthetic fallback cannot replace it. Use **Download unreadable draft** to preserve the exact raw value as untrusted text before clearing it. Storage access failures disable automatic saving and display a warning. Export the open packet, retain any recoverable original JSON, and clear the app's saved data only when ready. Browsers and device administrators can remove local storage independently.
 
 The app has no research upload endpoint, runtime API requests, telemetry, remote fonts, cookies of its own, or financial account integration. Hosting providers still receive ordinary page and asset requests. Clicking a source link opens that external site in a new tab without a referrer; that site's own policies apply. Browser extensions and other users of a shared browser can access local information.
 

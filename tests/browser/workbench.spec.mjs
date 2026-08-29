@@ -488,10 +488,19 @@ test('corrupt storage is retained without replacement and saving stays off', asy
   await page.evaluate(key => localStorage.setItem(key, '{"bad":true}'), STORAGE_KEY);
   await navigate(page, { reload: true });
   await expect(page.locator('#app-error')).toContainText('not deleted or overwritten');
-  await expect(page.locator('#remember-packet')).not.toBeChecked();
+  await expect(page.locator('#remember-packet')).toBeDisabled();
+  await expect(page.locator('#recover-saved')).toBeVisible();
   expect(await page.evaluate(key => localStorage.getItem(key), STORAGE_KEY)).toBe('{"bad":true}');
+  const recovery = await exported(page, '#recover-saved');
+  expect(recovery.name).toBe('Unparsed Saved Research Draft.json');
+  expect(JSON.parse(recovery.text)).toEqual({ storageKey: STORAGE_KEY, rawValue: '{"bad":true}' });
+  expect(await page.evaluate(key => localStorage.getItem(key), STORAGE_KEY)).toBe('{"bad":true}');
+  await a11y(page);
   page.once('dialog', dialog => dialog.accept());
   await page.locator('#clear-saved').click();
+  await expect(page.locator('#remember-packet')).toBeEnabled();
+  await expect(page.locator('#recover-saved')).toBeHidden();
+  expect(await page.evaluate(key => localStorage.getItem(key), STORAGE_KEY)).toBeNull();
   expect(await page.evaluate(() => {
     const event = new Event('beforeunload', { cancelable: true });
     window.dispatchEvent(event); return event.defaultPrevented;
