@@ -199,6 +199,17 @@ export function safeSourceUrl(value) {
   } catch { return null; }
 }
 
+function sourceUrlIdentity(value) {
+  const safe = safeSourceUrl(value);
+  if (safe === null) return null;
+  const url = new URL(safe);
+  const normalizeEscapes = component => component.replace(/%[0-9a-f]{2}/gi, escape => {
+    const character = String.fromCharCode(Number.parseInt(escape.slice(1), 16));
+    return /^[A-Za-z0-9._~-]$/.test(character) ? character : escape.toUpperCase();
+  });
+  return url.origin + normalizeEscapes(url.pathname) + normalizeEscapes(url.search);
+}
+
 export function formatDate(value, timezone = 'UTC') {
   const instant = timestamp(value);
   if (instant === null) return 'UNKNOWN';
@@ -364,6 +375,7 @@ export function validatePacket(packet, now = Date.now()) {
     if (packet.method.sampleSize === null && packet.method.basis !== 'judgmental') gap('method.sampleSize', 'The empirical or model sample size is UNKNOWN.');
   }
   const sourceIds = new Set();
+  const sourceUrls = new Map();
   let latestEvidence = cutoff;
   if (list(packet.sources, 'sources')) {
     if (packet.sources.length === 0) gap('sources', 'No dated evidence has been recorded.');
@@ -376,8 +388,15 @@ export function validatePacket(packet, now = Date.now()) {
       sourceIds.add(source.id);
       line(source.title, path + '.title', true, 200);
       for (const key of ['claim', 'excerpt']) text(source[key], path + '.' + key);
-      if (!safeSourceUrl(source.url)) error(path + '.url', 'Use a public HTTPS source URL without credentials or a custom port.');
-      else if (packet.kind === 'research' && /(?:^|\.)example\.(com|org|net)$/.test(new URL(source.url).hostname)) gap(path + '.url', 'Example domains do not support real research.');
+      const sourceUrl = safeSourceUrl(source.url);
+      if (!sourceUrl) error(path + '.url', 'Use a public HTTPS source URL without credentials or a custom port.');
+      else {
+        const identity = sourceUrlIdentity(sourceUrl);
+        const firstIndex = sourceUrls.get(identity);
+        if (firstIndex !== undefined) error(path + '.url', 'Source URL ' + path + '.url duplicates sources[' + firstIndex + '].url after canonicalization.');
+        else sourceUrls.set(identity, index);
+        if (packet.kind === 'research' && /(?:^|\.)example\.(com|org|net)$/.test(new URL(sourceUrl).hostname)) gap(path + '.url', 'Example domains do not support real research.');
+      }
       if (!['primary', 'secondary'].includes(source.type)) error(path + '.type', 'Choose primary or secondary.');
       const published = date(source.publishedAt, path + '.publishedAt');
       const captured = date(source.capturedAt, path + '.capturedAt');
