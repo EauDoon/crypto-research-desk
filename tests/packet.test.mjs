@@ -192,6 +192,7 @@ test('canonical duplicate source URLs cannot inflate evidence coverage', () => {
     ['https://www.iana.org/domains/reserved', 'https://www.iana.org/a/../domains/reserved'],
     ['https://www.iana.org/domains/reserved', 'https://www.iana.org/domains/%72eserved'],
     ['https://www.iana.org/domains/reserved#first', 'https://www.iana.org/domains/reserved#second'],
+    ['https://www.iana.org/domains/reserved?', 'https://www.iana.org/domains/reserved?#fragment'],
   ];
   for (const [first, second] of duplicatePairs) {
     const packet = research();
@@ -207,6 +208,8 @@ test('canonical duplicate source URLs cannot inflate evidence coverage', () => {
 
   for (const second of [
     'https://www.iana.org/domains/other',
+    'https://www.iana.org/domains/reserved?',
+    'https://www.iana.org/domains/reserved?#fragment',
     'https://www.iana.org/domains/reserved?view=other',
     'https://www.iana.org/domains%2Freserved',
   ]) {

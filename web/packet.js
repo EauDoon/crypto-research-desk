@@ -207,7 +207,13 @@ function sourceUrlIdentity(value) {
     const character = String.fromCharCode(Number.parseInt(escape.slice(1), 16));
     return /^[A-Za-z0-9._~-]$/.test(character) ? character : escape.toUpperCase();
   });
-  return url.origin + normalizeEscapes(url.pathname) + normalizeEscapes(url.search);
+  const queryIndex = safe.indexOf('?');
+  const fragmentIndex = safe.indexOf('#');
+  const hasQuery = queryIndex !== -1 && (fragmentIndex === -1 || queryIndex < fragmentIndex);
+  const normalizedQuery = hasQuery
+    ? normalizeEscapes(safe.slice(queryIndex, fragmentIndex === -1 ? undefined : fragmentIndex))
+    : '';
+  return url.origin + normalizeEscapes(url.pathname) + normalizedQuery;
 }
 
 export function formatDate(value, timezone = 'UTC') {
