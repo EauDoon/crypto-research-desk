@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 1.8.1, 30-08-2026
+
+- Accepted safely normalized internationalized top-level domains in public HTTPS evidence links.
+
 ## 1.8.0, 30-08-2026
 
 - Added drag-and-drop JSON import through the existing strict local packet-validation path.

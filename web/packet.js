@@ -187,10 +187,14 @@ export function safeSourceUrl(value) {
   try {
     const url = new URL(value);
     const host = url.hostname.toLowerCase();
+    const labels = host.split('.');
+    const topLevel = labels.at(-1) ?? '';
+    const publicTopLevel = /^[a-z]{2,63}$/.test(topLevel)
+      || /^xn--[a-z0-9-]{1,59}$/.test(topLevel);
     if (url.protocol !== 'https:' || url.username || url.password || url.port
-      || !/^[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?\.[a-z]{2,63}$/.test(host)
+      || labels.length < 2 || !publicTopLevel
       || /(?:^|\.)(?:localhost|local|internal|test|invalid|example|onion|alt|home\.arpa)$/.test(host)) return null;
-    if (host.length > 253 || host.split('.').some(label => label.length > 63 || !/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/.test(label))) return null;
+    if (host.length > 253 || labels.some(label => label.length > 63 || !/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/.test(label))) return null;
     return url.href;
   } catch { return null; }
 }

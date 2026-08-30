@@ -156,6 +156,7 @@ test('source links exclude active schemes, credentials, private literals, and cu
     'https://2130706433', 'https://host.internal', 'https://host.local',
     'https://source.example', 'https://evidence.source.example',
     'https://source.onion', 'https://router.home.arpa', 'https://anything.alt',
+    'https://source.c', 'https://source.123', 'https://source.xn--a',
     'https://example.com:8443', 'https://example.com/\npath', '//example.com']) {
     assert.equal(safeSourceUrl(value), null, value);
   }
@@ -164,6 +165,8 @@ test('source links exclude active schemes, credentials, private literals, and cu
   assert.equal(safeSourceUrl('https://www.iana.org/domains/reserved#example'),
     'https://www.iana.org/domains/reserved#example');
   assert.equal(safeSourceUrl('https://例え.com/café'), 'https://xn--r8jz45g.com/caf%C3%A9');
+  assert.equal(safeSourceUrl('https://例え.みんな/証拠'),
+    'https://xn--r8jz45g.xn--q9jyb4c/%E8%A8%BC%E6%8B%A0');
 });
 
 test('look-ahead evidence, duplicate sources, invalid zones, and future reviews fail', () => {
