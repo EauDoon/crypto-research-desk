@@ -717,6 +717,29 @@ test('quota failures remain visible after edits and do not replace a previous sa
   expect(await page.evaluate(key => JSON.parse(localStorage.getItem(key)).thesis, STORAGE_KEY)).toBe(examplePacket().thesis);
 });
 
+test('a failed save keeps a replacement packet marked as unsaved', async ({ page }) => {
+  await page.locator('#remember-packet').check();
+  await page.evaluate(() => {
+    window.originalSetItem = Storage.prototype.setItem;
+    Storage.prototype.setItem = function () { throw new DOMException('Test storage full', 'QuotaExceededError'); };
+  });
+  page.once('dialog', dialog => dialog.accept());
+  await page.locator('#new-packet').click();
+  await expect(page.locator('#app-error')).toContainText('storage is unavailable or full');
+  await expect(page.locator('#remember-packet')).not.toBeChecked();
+  expect(await page.evaluate(key => JSON.parse(localStorage.getItem(key)).asset.symbol, STORAGE_KEY)).toBe('DEMO');
+  expect(await page.evaluate(() => {
+    const event = new Event('beforeunload', { cancelable: true });
+    window.dispatchEvent(event); return event.defaultPrevented;
+  })).toBe(true);
+  await page.locator('#close-editor').click();
+  await page.evaluate(() => {
+    Storage.prototype.setItem = window.originalSetItem;
+    delete window.originalSetItem;
+  });
+  await page.locator('#remember-packet').check();
+});
+
 test('another tab changing storage locks destructive controls without replacing either draft', async ({ page, context }) => {
   await page.locator('#remember-packet').check();
   const other = await context.newPage();
