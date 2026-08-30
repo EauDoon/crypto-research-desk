@@ -185,6 +185,41 @@ test('look-ahead evidence, duplicate sources, invalid zones, and future reviews 
   assert.equal(validate(noPrimary).chartEligible, false);
 });
 
+test('canonical duplicate source URLs cannot inflate evidence coverage', () => {
+  const duplicatePairs = [
+    ['https://www.iana.org/domains/reserved', 'HTTPS://WWW.IANA.ORG/domains/reserved'],
+    ['https://www.iana.org/domains/reserved', 'https://www.iana.org:443/domains/reserved'],
+    ['https://www.iana.org/domains/reserved', 'https://www.iana.org/a/../domains/reserved'],
+    ['https://www.iana.org/domains/reserved', 'https://www.iana.org/domains/%72eserved'],
+    ['https://www.iana.org/domains/reserved#first', 'https://www.iana.org/domains/reserved#second'],
+    ['https://www.iana.org/domains/reserved?', 'https://www.iana.org/domains/reserved?#fragment'],
+  ];
+  for (const [first, second] of duplicatePairs) {
+    const packet = research();
+    packet.sources[0].url = first;
+    packet.sources[1].url = second;
+    const report = validate(packet);
+    assert.equal(report.valid, false, second);
+    assert.equal(report.chartEligible, false, second);
+    assert.ok(report.errors.some(issue => issue.path === 'sources[1].url'
+      && issue.message.includes('sources[0].url')
+      && issue.message.includes('sources[1].url')), second);
+  }
+
+  for (const second of [
+    'https://www.iana.org/domains/other',
+    'https://www.iana.org/domains/reserved?',
+    'https://www.iana.org/domains/reserved?#fragment',
+    'https://www.iana.org/domains/reserved?view=other',
+    'https://www.iana.org/domains%2Freserved',
+  ]) {
+    const packet = research();
+    packet.sources[0].url = 'https://www.iana.org/domains/reserved';
+    packet.sources[1].url = second;
+    assert.equal(validate(packet).chartEligible, true, second);
+  }
+});
+
 test('the four horizons share one exact cutoff, order, and duration, and expire', () => {
   const packet = research();
   assert.equal(validate(packet).chartEligible, true);
