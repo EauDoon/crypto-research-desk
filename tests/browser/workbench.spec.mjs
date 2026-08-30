@@ -181,6 +181,37 @@ test('dropped JSON uses the same strict local import path', async ({ page }) => 
   await expect(page.locator('#asset-symbol')).toHaveText('DROP');
 });
 
+test('unsupported drops are canceled before browser default handling', async ({ page }) => {
+  const result = await page.evaluate(() => {
+    const zone = document.querySelector('#import-zone');
+    const dragTransfer = new DataTransfer();
+    dragTransfer.setData('text/uri-list', 'https://example.com/research.json');
+    const dragover = new DragEvent('dragover', { bubbles: true, cancelable: true, dataTransfer: dragTransfer });
+    const dragResult = zone.dispatchEvent(dragover);
+
+    const dropTransfer = new DataTransfer();
+    dropTransfer.setData('text/plain', '{"schemaVersion":1}');
+    const drop = new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: dropTransfer });
+    const dropResult = zone.dispatchEvent(drop);
+    return {
+      dragDefaultPrevented: dragover.defaultPrevented,
+      dragResult,
+      dropDefaultPrevented: drop.defaultPrevented,
+      dropResult,
+      href: window.location.href,
+    };
+  });
+  expect(result).toMatchObject({
+    dragDefaultPrevented: true,
+    dragResult: false,
+    dropDefaultPrevented: true,
+    dropResult: false,
+  });
+  expect(new URL(result.href).pathname).toBe('/');
+  await expect(page.locator('#asset-symbol')).toHaveText('DEMO');
+  await expect(page.locator('#app-error')).toContainText('Drop one JSON file at a time');
+});
+
 test('the newest file import wins when reads complete out of order', async ({ page }) => {
   await page.evaluate(() => {
     const read = File.prototype.arrayBuffer;

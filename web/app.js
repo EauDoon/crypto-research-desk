@@ -700,13 +700,18 @@ $('new-packet').addEventListener('click', () => {
 $('import-packet').addEventListener('click', () => $('packet-file').click());
 $('packet-file').addEventListener('change', event => { void importFile(event.target.files?.[0]); });
 $('import-zone').addEventListener('dragover', event => {
-  if (!Array.from(event.dataTransfer?.types ?? []).includes('Files')) return;
   event.preventDefault();
-  event.dataTransfer.dropEffect = 'copy';
+  if (event.dataTransfer) {
+    event.dataTransfer.dropEffect = Array.from(event.dataTransfer.types).includes('Files') ? 'copy' : 'none';
+  }
 });
 $('import-zone').addEventListener('drop', event => {
-  if (!Array.from(event.dataTransfer?.types ?? []).includes('Files')) return;
   event.preventDefault();
+  if (!Array.from(event.dataTransfer?.types ?? []).includes('Files')) {
+    importSequence++;
+    announce('Drop one JSON file at a time.', true);
+    return;
+  }
   if (event.dataTransfer.files.length !== 1) {
     importSequence++;
     announce('Drop one JSON file at a time.', true);
