@@ -365,9 +365,10 @@ function saveLocally() {
     $('app-error').hidden = true;
     setText('storage-status', 'Saved in this browser only. Shared-device users can access this draft. Export a separate backup.');
   } catch {
+    dirty = true;
     $('remember-packet').checked = false;
     setText('storage-status', 'Saving failed. A previous draft may remain. Export the open packet and clear saved data when storage is available.');
-    announce('Browser storage is unavailable or full. Your open packet is unchanged; export a backup.', true);
+    announce('Browser storage is unavailable or full. Your open packet remains in memory; export a backup.', true);
   }
 }
 function canonical(value) {
