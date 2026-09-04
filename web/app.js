@@ -115,8 +115,20 @@ function renderChart(now) {
   container.replaceChildren();
   const thresholds = chartThresholds(packet, now);
   const synthetic = packet.kind === 'synthetic';
-  setText('chart-badge', thresholds.length === 4 ? (synthetic ? 'SAMPLE THRESHOLDS' : 'SUBMITTED THRESHOLDS') : 'WITHHELD');
-  $('chart-badge').className = 'tag ' + (synthetic || thresholds.length !== 4 ? 'amber' : 'teal');
+  // Derive the chart-badge state once. The text and the class are
+  // independent today: a synthetic-but-complete packet reads
+  // "SAMPLE THRESHOLDS" with the amber class, while a non-synthetic and
+  // complete packet reads "SUBMITTED THRESHOLDS" with the teal class.
+  // Branch on the same condition in both places so a future maintainer
+  // cannot drift the two.
+  const chartState = thresholds.length === 4
+    ? (synthetic ? 'sample' : 'submitted')
+    : 'withheld';
+  setText('chart-badge',
+    chartState === 'sample' ? 'SAMPLE THRESHOLDS'
+    : chartState === 'submitted' ? 'SUBMITTED THRESHOLDS'
+    : 'WITHHELD');
+  $('chart-badge').className = 'tag ' + (chartState === 'withheld' || chartState === 'sample' ? 'amber' : 'teal');
   setText('chart-reference', (packet.asset.symbol || 'UNKNOWN') + ' · Reference ' + formatPrice(packet.reference.price)
     + ' ' + packet.asset.quoteCurrency + ' · ' + formatDate(packet.reference.capturedAt, packet.reference.timezone));
   if (thresholds.length !== 4) {
