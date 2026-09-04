@@ -380,9 +380,18 @@ function canonical(value) {
 }
 function reviewSignature(value) {
   if (value === null || typeof value !== 'object' || Array.isArray(value)) return JSON.stringify(canonical(value));
+  // Normalize sourceIds whitespace too. The form submit handler trims each id,
+  // so a packet whose sourceIds contain leading/trailing whitespace is
+  // recorded under the form's canonical form. Without the same trim here,
+  // a single innocent research edit trips the review-reset guard with the
+  // misleading "Save research input changes separately from a new review"
+  // error, even though the user never touched the review.
+  const normalizedSourceIds = Array.isArray(value.sourceIds)
+    ? [...value.sourceIds].map((id) => typeof id === 'string' ? id.trim() : id).sort()
+    : value.sourceIds;
   const normalized = {
     ...value,
-    sourceIds: Array.isArray(value.sourceIds) ? [...value.sourceIds].sort() : value.sourceIds,
+    sourceIds: normalizedSourceIds,
     assertions: Array.isArray(value.assertions)
       ? [...value.assertions].sort((left, right) => String(left?.id).localeCompare(String(right?.id)))
       : value.assertions,
