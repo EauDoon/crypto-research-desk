@@ -177,9 +177,14 @@ function validateArtifact(files) {
       }
     }
     if (name.endsWith('.html')) {
-      const assetReference = /\b(?:src|href)\s*=\s*(?:"([^"<>]*)"|'([^'<>]*)'|([^\s"'=<>`]+))/gi;
+      // Anchor on the start of an attribute or whitespace so the matched
+      // name is exactly `src` or `href`. A custom attribute like `data-src`,
+      // `data-href`, or an inline `<svg><use xlink:href="..."/></svg>`
+      // would otherwise be required to resolve to a real emitted file even
+      // though the attribute is not actually a script/style/image source.
+      const assetReference = /(^|[\s])(?:src|href)\s*=\s*(?:"([^"<>]*)"|'([^'<>]*)'|([^\s"'=<>`]+))/gi;
       for (const match of contents.matchAll(assetReference)) {
-        requireEmitted(match[1] ?? match[2] ?? match[3], 'HTML');
+        requireEmitted(match[2] ?? match[3] ?? match[4], 'HTML');
       }
     }
     if (name.endsWith('.css')) {
