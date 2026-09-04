@@ -151,9 +151,15 @@ function renderChart(now) {
       + '. Reference ' + formatPrice(packet.reference.price) + ' ' + packet.asset.quoteCurrency + '.'));
   for (let index = 0; index <= 4; index++) {
     const value = low + ((high - low) * index / 4);
-    const tick = value >= 10000
+    // Pick one notation strategy per chart and use it for every gridline.
+    // The previous logic mixed compact (>= 10k), exponential (< 0.01), and
+    // fixed (everything else) within the same chart, which could make the
+    // labels jump notation across one gridline.
+    const tick = high >= 10000
       ? new Intl.NumberFormat('en-US', { notation: 'compact', maximumSignificantDigits: 3 }).format(value)
-      : value > 0 && value < .01 ? value.toExponential(2) : String(Number(value.toPrecision(4)));
+      : high < 0.01
+        ? value.toExponential(2)
+        : String(Number(value.toPrecision(4)));
     svg.append(svgNode('line', { x1: 80, x2: 745, y1: y(value), y2: y(value), class: 'grid-line' }),
       svgNode('text', { x: 65, y: y(value) + 4, 'text-anchor': 'end' }, tick));
   }
