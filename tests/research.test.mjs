@@ -100,3 +100,21 @@ test('validation receipt binds exact packet bytes and records incomplete gates h
   assert.equal(incomplete.chartEligible, false);
   assert(incomplete.gapCount > 0);
 });
+
+test('receipt metadata uses the same immutable snapshot as its asynchronous digest', async () => {
+  const packet = examplePacket(); const pending = research.validationReceipt(packet, NOW);
+  packet.asset.symbol = 'CHANGED';
+  const receipt = await pending; assert.equal(receipt.asset, 'DEMO');
+});
+
+test('comparison count remains honest when a bounded display omits changes', () => {
+  const previous = examplePacket(), current = examplePacket();
+  for (const horizon of current.horizons) for (const scenario of horizon.scenarios) {
+    scenario.driver = 'changed driver'; scenario.trigger = 'changed trigger'; scenario.invalidation = 'changed invalidation';
+  }
+  current.sources = Array.from({ length: 32 }, (_, index) => ({ ...previous.sources[0], id: 'source' + index, title: 'Source ' + index, url: 'https://example.com/source/' + index }));
+  current.riskReview = research.blankPacket().riskReview;
+  const result = research.comparePackets(previous, current, NOW);
+  assert(result.total > 80); assert.equal(result.changes.length, 80);
+  assert.equal(result.omitted, result.total - 80);
+});

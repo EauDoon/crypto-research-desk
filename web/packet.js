@@ -718,6 +718,7 @@ export async function validationReceipt(packet, now = Date.now()) {
   const report = validatePacket(packet, now);
   if (!report.valid) throw new Error('A check receipt requires a structurally valid packet.');
   const serialized = JSON.stringify(packet);
+  packet = JSON.parse(serialized);
   const bytes = new TextEncoder().encode(serialized);
   const digest = await crypto.subtle.digest('SHA-256', bytes);
   return { format: 'crypto-research-check-receipt.v1', researchOnly: true,

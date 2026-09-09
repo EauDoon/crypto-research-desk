@@ -998,7 +998,7 @@ function refreshExpiry() {
   const now = Date.now();
   if (document.visibilityState !== 'visible') return now;
   const report = validatePacket(packet, now);
-  if (lastValidation === validationSignature(report)) return now;
+  if (lastValidation === validationSignature(report)) { renderOverview(now); return now; }
   const activeId = document.activeElement?.id;
   // Keep scenario controls and open editor fields intact when only time has changed.
   render(false, now);
@@ -1019,7 +1019,7 @@ function renderRepairs(now) {
     button.addEventListener('click', () => {
       openEditor('details');
       const target = editableFieldForPath(item.path);
-      if (target) revealEditorTarget(target);
+      if (target) { target.focus({ preventScroll: true }); revealEditorTarget(target); }
     });
     li.append(button); return li;
   }));

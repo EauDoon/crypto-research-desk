@@ -59,6 +59,8 @@ npm run dev
 
 Open [the local workbench](http://127.0.0.1:4173). Start with a blank packet, inspect the clearly labeled fictional DEMO example, or import a JSON packet by file picker or drag and drop. Edit routine research, source, scenario, method, and review fields in the guided form; use the full packet editor for exact JSON. Then copy or export JSON, export a Markdown brief, or print the chart.
 
+The workbench also includes an editable repair queue, evidence search and capture-age audit, a gated four-horizon overview, hypothetical reference sensitivity, revision comparison, and ten-step session undo. Export spreadsheet-safe scenario CSV, a rationale-separated risk handoff, or a SHA-256 check receipt. Read the [research tools guide](docs/WORKBENCH.md#research-tools) for their limits.
+
 Saving is off by default. Optional browser storage keeps one unencrypted local draft; it is not a backup or a verified review system. Invalid input is rejected without replacing the open packet. Material edits reset the recorded review, and missing evidence or elapsed horizons withhold the chart.
 
 Read the [packet guide](docs/WORKBENCH.md), [deployment runbook](docs/DEPLOYMENT.md), and [security policy](SECURITY.md). The browser format covers named-ticker forecasts, not the full market-scan run ledger or conflict-resolution workflow.
