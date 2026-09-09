@@ -70,3 +70,13 @@ test('renewal carries raw evidence but clears reference, scenarios and review wi
   assert(draft.horizons.every(row => row.status === 'incomplete' && row.scenarios.length === 0 && row.endAt === ''));
   assert.equal(research.validatePacket(draft, NOW).valid, true); assert.equal(research.validatePacket(draft, NOW).chartEligible, false);
 });
+
+test('receipt mismatch remains clear when the current packet postdates the original receipt', async () => {
+  const packet = examplePacket(), receipt = await research.validationReceipt(packet, NOW);
+  packet.sources[0].publishedAt = '2026-08-20T11:00:00Z'; packet.sources[0].capturedAt = '2026-08-20T11:00:00Z';
+  packet.reference.capturedAt = '2026-08-20T12:00:00Z';
+  packet.horizons.forEach((horizon, index) => { horizon.endAt = research.endAt(packet.reference.capturedAt, research.HORIZONS[index].hours); });
+  packet.riskReview = research.blankPacket().riskReview;
+  const result = await research.verifyReceipt(JSON.stringify(receipt), packet, Date.parse('2026-08-20T13:00:00Z'));
+  assert.equal(result.digestMatches, false); assert.equal(result.recordMatches, false);
+});

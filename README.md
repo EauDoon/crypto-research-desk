@@ -61,6 +61,8 @@ Open [the local workbench](http://127.0.0.1:4173). Start with a blank packet, in
 
 The workbench also includes an editable repair queue, evidence search and capture-age audit, a gated four-horizon overview, hypothetical reference sensitivity, revision comparison, and ten-step session undo. Export spreadsheet-safe scenario CSV, a rationale-separated risk handoff, or a SHA-256 check receipt. Read the [research tools guide](docs/WORKBENCH.md#research-tools) for their limits.
 
+For repeat research, pin a comparison baseline, edit evidence directly from its row, select actually reviewed sources, inspect source-host concentration, and prepare manual monitoring worksheets. Packet bundles keep JSON and its check receipt together; receipt verification checks both the digest and recorded claims. Renewal drafts preserve source history while clearing old probabilities and review.
+
 Saving is off by default. Optional browser storage keeps one unencrypted local draft; it is not a backup or a verified review system. Invalid input is rejected without replacing the open packet. Material edits reset the recorded review, and missing evidence or elapsed horizons withhold the chart.
 
 Read the [packet guide](docs/WORKBENCH.md), [deployment runbook](docs/DEPLOYMENT.md), and [security policy](SECURITY.md). The browser format covers named-ticker forecasts, not the full market-scan run ledger or conflict-resolution workflow.

@@ -1,8 +1,16 @@
 import { test, expect } from '@playwright/test';
 import { examplePacket } from '../../web/example.js';
+import AxeBuilder from '@axe-core/playwright';
 import { navigate } from './navigation.mjs';
 const NOW = new Date('2026-08-20T10:00:00Z');
-test.beforeEach(async ({ page }) => { await page.clock.install({ time: NOW }); await navigate(page); });
+const runtimeErrors = new WeakMap(), externalRequests = new WeakMap();
+test.beforeEach(async ({ page }) => {
+  runtimeErrors.set(page, []); externalRequests.set(page, []);
+  page.on('pageerror', error => runtimeErrors.get(page).push(error.message));
+  page.on('request', request => { if (!request.url().startsWith('http://127.0.0.1:4173/') && !request.url().startsWith('blob:')) externalRequests.get(page).push(request.url()); });
+  await page.clock.install({ time: NOW }); await navigate(page);
+});
+test.afterEach(async ({ page }) => { expect(runtimeErrors.get(page)).toEqual([]); expect(externalRequests.get(page)).toEqual([]); });
 async function exported(page, selector) {
   const pending = page.waitForEvent('download'); await page.locator(selector).click();
   const stream = await (await pending).createReadStream(), chunks = [];
@@ -75,4 +83,58 @@ test('renewal starts an incomplete draft and undo restores research without rest
   expect(JSON.parse(await exported(page, '#export-json')).reference.price).toBe(100);
   await expect(page.locator('#review-status')).toHaveText('Pending review');
   await expect(page.locator('#chart-area svg')).toHaveCount(0);
+});
+
+test('receipt checks distinguish tampered claims and clear results when research changes', async ({ page }) => {
+  const receipt = JSON.parse(await exported(page, '#export-receipt'));
+  await page.getByText('Check a saved receipt', { exact: true }).click();
+  await page.locator('#receipt-json').fill(JSON.stringify(receipt)); await page.locator('#verify-receipt').click();
+  await expect(page.locator('#receipt-result')).toContainText('Recorded local checks: MATCH');
+  receipt.chartEligible = false;
+  await page.locator('#receipt-json').fill(JSON.stringify(receipt)); await page.locator('#verify-receipt').click();
+  await expect(page.locator('#receipt-result')).toContainText('Packet digest: MATCH. Recorded local checks: MISMATCH');
+  await page.locator('#renew-packet').click(); await page.locator('#close-editor').click();
+  await expect(page.locator('#receipt-result')).toHaveText('');
+});
+test('late receipt checks cannot report success over a replacement packet', async ({ page }) => {
+  const receipt = await exported(page, '#export-receipt');
+  await page.getByText('Check a saved receipt', { exact: true }).click();
+  await page.locator('#receipt-json').fill(receipt);
+  await page.evaluate(() => {
+    const digest = crypto.subtle.digest.bind(crypto.subtle); let first = true; window.completedDigests = 0;
+    crypto.subtle.digest = async (...args) => {
+      if (first) { first = false; await new Promise(resolve => { window.releaseReceiptDigest = resolve; }); }
+      const result = await digest(...args); window.completedDigests++; return result;
+    };
+  });
+  await page.locator('#verify-receipt').click();
+  await page.locator('#new-packet').click(); await page.locator('#close-editor').click();
+  await page.evaluate(() => window.releaseReceiptDigest());
+  await expect.poll(() => page.evaluate(() => window.completedDigests)).toBe(2);
+  await expect(page.locator('#receipt-result')).toHaveText('');
+  await expect(page.locator('#asset-symbol')).toHaveText('NEW');
+});
+test('source audit and full CSV remain complete under screen filtering', async ({ page }) => {
+  await page.getByText('Inspect source-origin concentration', { exact: true }).click();
+  await expect(page.locator('#source-origin-audit')).toContainText('example.com: 1 of 2');
+  await page.locator('#source-search').fill('upgrade');
+  const csv = await exported(page, '#export-evidence-csv');
+  expect(csv).toContain('example-activity'); expect(csv).toContain('example-upgrade');
+});
+test('manual monitoring retains contexts and clears after research renewal', async ({ page }) => {
+  await page.getByText('Plan manual research monitoring', { exact: true }).click();
+  await expect(page.locator('#monitoring-checklist')).toContainText('12h Bear');
+  await expect(page.locator('#monitoring-checklist')).toContainText('7d Bear');
+  expect(await exported(page, '#export-monitoring')).toContain('A cancellation is reported.');
+  await page.locator('#renew-packet').click(); await page.locator('#close-editor').click();
+  await expect(page.locator('#monitoring-checklist')).toContainText('WITHHELD');
+  const withheld = await exported(page, '#export-monitoring'); expect(withheld).toContain('WITHHELD'); expect(withheld).not.toContain('cancellation');
+});
+test('second-cycle controls remain accessible across wide and narrow layouts', async ({ page }, testInfo) => {
+  for (const width of [1440, 768, 390, 320]) {
+    await page.setViewportSize({ width, height: 900 });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    expect((await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze()).violations.map(item => item.id)).toEqual([]);
+    if (testInfo.project.name === 'chromium' && [1440, 390].includes(width)) await page.screenshot({ path: '../evidence/crypto-research-desk-' + width + '.png', fullPage: true });
+  }
 });

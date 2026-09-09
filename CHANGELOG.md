@@ -1,5 +1,14 @@
 # Changelog
 
+## Workbench 1.10.0 (10-09-2026)
+
+- Compare sources and review assertions by identity and retain a pinned session baseline.
+- Edit evidence directly, select submitted review coverage, inspect host concentration and export full evidence CSV.
+- Verify saved receipt claims and round-trip integrity-checked packet bundles.
+- Prepare gated manual monitoring worksheets and renew research without carrying old probabilities or clearance.
+- Preserve packet schema 1, five specialist functions, independent review, local-only storage scope, and research core 1.1.0.
+
+
 ## Workbench 1.9.0 (09-09-2026)
 
 - Add actionable repairs, literal evidence search, cutoff-age and submitted-review coverage audit.
