@@ -48,3 +48,16 @@ test('research bundles round-trip exact data and reject altered packet or receip
   await assert.rejects(research.readResearchBundle(JSON.stringify(forged), NOW), /do not match/);
   await assert.rejects(research.readResearchBundle(text.replace('"format":', '"extra":true,"format":'), NOW), /Unsupported/);
 });
+
+test('manual monitoring keeps each horizon context and withholds blocked scenarios', () => {
+  const packet = examplePacket();
+  const checklist = research.monitoringChecklist(packet, NOW);
+  assert.equal(checklist.rows.length, 12);
+  assert.deepEqual([...new Set(checklist.rows.map(row => row.horizon))], ['12h', '24h', '3d', '7d']);
+  assert.equal(checklist.rows[0].trigger, packet.horizons[0].scenarios[0].trigger);
+  packet.riskReview.status = 'pending';
+  const withheld = research.monitoringChecklist(packet, NOW);
+  assert.equal(withheld.eligible, false); assert.equal(withheld.rows.length, 4);
+  assert(withheld.rows.every(row => row.scenario === 'WITHHELD' && row.trigger === ''));
+  assert(!research.exportMonitoringCsv(packet, NOW).includes('cancellation'));
+});

@@ -1,6 +1,6 @@
 import {
   MAX_PACKET_BYTES, MAX_JSON_INPUT_BYTES, HORIZONS, SCENARIOS, REVIEW_ASSERTIONS, parsePacket, validatePacket, blankPacket,
-  timestamp, endAt, formatDate, formatPrice, safeSourceUrl, intervalLabel, returnLabel, chartThresholds, exportMarkdown, repairQueue, evidenceAudit, sourceMatches, horizonOverview, exportScenarioCsv, comparePackets, riskHandoff, restoreResearchDraft, referenceSensitivity, validationReceipt, sourceOriginAudit, exportEvidenceCsv, verifyReceipt, exportResearchBundle, readResearchBundle,
+  timestamp, endAt, formatDate, formatPrice, safeSourceUrl, intervalLabel, returnLabel, chartThresholds, exportMarkdown, repairQueue, evidenceAudit, sourceMatches, horizonOverview, exportScenarioCsv, comparePackets, riskHandoff, restoreResearchDraft, referenceSensitivity, validationReceipt, sourceOriginAudit, exportEvidenceCsv, verifyReceipt, exportResearchBundle, readResearchBundle, monitoringChecklist, exportMonitoringCsv,
 } from './packet.js';
 import { examplePacket } from './example.js';
 
@@ -327,6 +327,7 @@ function render(updateContent = true, now = Date.now()) {
   renderRepairs(now);
   renderEvidenceAudit(now);
   renderOverview(now);
+  renderMonitoring(now);
   if (!validatePacket(packet, now).chartEligible) clearSensitivity();
   const report = validatePacket(packet, now);
   lastValidation = validationSignature(report);
@@ -1196,4 +1197,21 @@ $('export-bundle').addEventListener('click', async () => {
   try { download(await exportResearchBundle(snapshot), 'application/json; charset=utf-8', '', (snapshot.asset.symbol || 'Unnamed') + ' Research Bundle.json'); announce('Packet and matching check receipt exported together. Import JSON accepts this bundle and rechecks its contents locally.'); }
   catch (error) { announce(error.message, true); }
   finally { button.disabled = false; }
+});
+
+function renderMonitoring(now) {
+  const checklist = monitoringChecklist(packet, now);
+  if (!checklist.eligible) { listInto('monitoring-checklist', [], 'Monitoring scenarios are WITHHELD by the current packet gate.'); return; }
+  const groups = new Map();
+  for (const row of checklist.rows) groups.set(row.trigger, [...(groups.get(row.trigger) ?? []), row]);
+  $('monitoring-checklist').replaceChildren(...[...groups].map(([trigger, rows]) => {
+    const item = element('li'); item.append(element('strong', trigger));
+    const contexts = element('ul');
+    for (const row of rows) contexts.append(element('li', row.horizon + ' ' + row.scenario + ', ending ' + formatDate(row.endAt) + '. Invalidation: ' + row.invalidation));
+    item.append(contexts); return item;
+  }));
+}
+$('export-monitoring').addEventListener('click', () => {
+  try { download(exportMonitoringCsv(packet), 'text/csv; charset=utf-8', 'Manual Monitoring.csv'); announce('Manual monitoring worksheet prepared. Nothing runs in the background.'); }
+  catch (error) { announce(error.message, true); }
 });

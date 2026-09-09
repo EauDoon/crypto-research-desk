@@ -849,3 +849,16 @@ export async function readResearchBundle(text, now = Date.now()) {
   if (!result.digestMatches || !result.recordMatches) throw new Error('Bundle packet or recorded checks do not match its receipt. The open packet is unchanged.');
   return bundle.packet;
 }
+
+export function monitoringChecklist(packet, now = Date.now()) {
+  const report = validatePacket(packet, now);
+  if (!report.valid) throw new Error('Monitoring requires a structurally valid packet.');
+  return { eligible: report.chartEligible, rows: packet.horizons.flatMap(horizon => report.chartEligible
+    ? horizon.scenarios.map(scenario => ({ horizon: horizon.id, endAt: horizon.endAt, scenario: scenario.label, trigger: scenario.trigger, invalidation: scenario.invalidation }))
+    : [{ horizon: horizon.id, endAt: horizon.endAt, scenario: 'WITHHELD', trigger: '', invalidation: '' }]) };
+}
+export function exportMonitoringCsv(packet, now = Date.now()) {
+  const checklist = monitoringChecklist(packet, now);
+  return csvRows([['kind', 'asset', 'reference_cutoff', 'horizon', 'deadline', 'submitted_scenario', 'observe_manually', 'invalidation'],
+    ...checklist.rows.map(row => [packet.kind, packet.asset.symbol, packet.reference.capturedAt, row.horizon, row.endAt, row.scenario, row.trigger, row.invalidation])]);
+}
