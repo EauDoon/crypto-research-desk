@@ -613,3 +613,14 @@ export function repairQueue(packet, now = Date.now()) {
   return [...report.errors.map(item => ({ ...item, severity: 'error' })),
     ...report.gaps.map(item => ({ ...item, severity: 'gap' }))];
 }
+
+export function evidenceAudit(packet) {
+  const cutoff = timestamp(packet.reference.capturedAt);
+  const reviewed = new Set(packet.riskReview.sourceIds.map(id => id.trim()));
+  return packet.sources.map(source => {
+    const captured = timestamp(source.capturedAt);
+    return { id: source.id, type: source.type, reviewed: reviewed.has(source.id),
+      hasExcerpt: Boolean(source.excerpt.trim()),
+      ageHours: cutoff === null || captured === null || captured > cutoff ? null : (cutoff - captured) / 3600000 };
+  });
+}

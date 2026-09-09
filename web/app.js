@@ -1,6 +1,6 @@
 import {
   MAX_PACKET_BYTES, MAX_JSON_INPUT_BYTES, HORIZONS, SCENARIOS, REVIEW_ASSERTIONS, parsePacket, validatePacket, blankPacket,
-  timestamp, endAt, formatDate, formatPrice, safeSourceUrl, intervalLabel, returnLabel, chartThresholds, exportMarkdown, repairQueue,
+  timestamp, endAt, formatDate, formatPrice, safeSourceUrl, intervalLabel, returnLabel, chartThresholds, exportMarkdown, repairQueue, evidenceAudit,
 } from './packet.js';
 import { examplePacket } from './example.js';
 
@@ -309,6 +309,7 @@ function renderSources() {
 }
 function render(updateContent = true, now = Date.now()) {
   renderRepairs(now);
+  renderEvidenceAudit();
   const report = validatePacket(packet, now);
   lastValidation = validationSignature(report);
   const synthetic = packet.kind === 'synthetic';
@@ -1006,4 +1007,12 @@ function renderRepairs(now) {
     li.append(button); return li;
   }));
   if (!queue.length) $('repair-list').append(element('li', 'No structural repairs recorded. Source truth and reviewer identity still require human verification.'));
+}
+
+function renderEvidenceAudit() {
+  const audit = evidenceAudit(packet);
+  listInto('evidence-audit', audit.map(item => item.id + ': ' + item.type + '; ' +
+    (item.ageHours === null ? 'UNKNOWN capture age' : item.ageHours.toFixed(2) + ' hours before cutoff') +
+    '; ' + (item.reviewed ? 'listed in submitted review' : 'not listed in submitted review') +
+    '; ' + (item.hasExcerpt ? 'excerpt supplied' : 'excerpt UNKNOWN')), 'No source records to audit.');
 }

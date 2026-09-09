@@ -7,3 +7,12 @@ test('repair queue keeps exact editable paths and missing information', () => {
   assert(research.repairQueue(research.blankPacket(), NOW).some(item => item.path === 'reference.price'));
   assert.deepEqual(research.repairQueue(examplePacket(), NOW), []);
 });
+
+test('evidence audit uses cutoff, never current age or implied review authenticity', () => {
+  const packet = examplePacket();
+  assert.equal(research.evidenceAudit(packet)[0].ageHours, 0.5);
+  packet.riskReview.sourceIds = [];
+  packet.reference.capturedAt = '';
+  assert.equal(research.evidenceAudit(packet)[0].ageHours, null);
+  assert.equal(research.evidenceAudit(packet)[0].reviewed, false);
+});
