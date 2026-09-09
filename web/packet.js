@@ -181,6 +181,46 @@ export function timestamp(value) {
   return Number.isFinite(instant) ? instant : null;
 }
 
+// Decode ACE labels independently of platform URL acceptance. RFC 3492 section
+// 6.2: https://www.rfc-editor.org/rfc/rfc3492#section-6.2
+function validEncodedSourceLabel(label) {
+  if (!label.startsWith('xn--')) return true;
+  const input = label.slice(4), delimiter = input.lastIndexOf('-');
+  const output = delimiter < 0 ? [] : [...input.slice(0, delimiter)].map(char => char.codePointAt(0));
+  let cursor = delimiter < 0 ? 0 : delimiter + 1, codePoint = 128, insertion = 0, bias = 72;
+  while (cursor < input.length) {
+    const previous = insertion;
+    let weight = 1;
+    for (let step = 36; ; step += 36) {
+      if (cursor >= input.length) return false;
+      const char = input.charCodeAt(cursor++);
+      const digit = char >= 97 && char <= 122 ? char - 97 : char >= 48 && char <= 57 ? char - 22 : 36;
+      if (digit >= 36) return false;
+      insertion += digit * weight;
+      if (!Number.isSafeInteger(insertion)) return false;
+      const threshold = Math.max(1, Math.min(26, step - bias));
+      if (digit < threshold) break;
+      weight *= 36 - threshold;
+      if (!Number.isSafeInteger(weight)) return false;
+    }
+    const length = output.length + 1;
+    let delta = Math.floor((insertion - previous) / (previous === 0 ? 700 : 2));
+    delta += Math.floor(delta / length);
+    bias = 0;
+    while (delta > 455) { delta = Math.floor(delta / 35); bias += 36; }
+    bias += Math.floor(36 * delta / (delta + 38));
+    codePoint += Math.floor(insertion / length);
+    if (codePoint > 0x10ffff || (codePoint >= 0xd800 && codePoint <= 0xdfff)) return false;
+    insertion %= length;
+    output.splice(insertion++, 0, codePoint);
+  }
+  if (!output.some(point => point >= 128)) return false;
+  const decoded = String.fromCodePoint(...output);
+  if (/[\p{C}\p{Z}]|\p{Default_Ignorable_Code_Point}/u.test(decoded)) return false;
+  // Re-encode the Unicode form to reject noncanonical or otherwise invalid IDNA.
+  return new URL('https://' + decoded + '.invalid').hostname === label + '.invalid';
+}
+
 export function safeSourceUrl(value) {
   if (typeof value !== 'string' || !wellFormed(value) || value.length > 2048
     || /[\u0000-\u0020\u007f-\u009f]|\p{Cf}|\p{Default_Ignorable_Code_Point}/u.test(value)) return null;
@@ -195,6 +235,7 @@ export function safeSourceUrl(value) {
       || labels.length < 2 || !publicTopLevel
       || /(?:^|\.)(?:localhost|local|internal|test|invalid|example|onion|alt|home\.arpa)$/.test(host)) return null;
     if (host.length > 253 || labels.some(label => label.length > 63 || !/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/.test(label))) return null;
+    if (labels.some(label => !validEncodedSourceLabel(label))) return null;
     return url.href;
   } catch { return null; }
 }

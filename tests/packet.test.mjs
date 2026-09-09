@@ -455,3 +455,27 @@ test('overflowing derived returns stay explicitly unknown instead of showing inf
   assert.equal(returnLabel({ lower: 94, upper: 106 }, Number.MIN_VALUE), 'UNKNOWN (numeric overflow)');
   assert.equal(returnLabel({ lower: 0, upper: Number.MIN_VALUE }, Number.MIN_VALUE), '≈ -100% to below 0%');
 });
+
+test('encoded source labels are checked even when the URL parser accepts invalid Punycode', t => {
+  const NativeURL = URL;
+  const invalid = ['https://source.xn--a', 'https://source.xn--b', 'https://xn--a.source.com',
+    'https://source.xn--ib9b', 'https://source.xn--zug', 'https://source.xn--266c',
+    'https://source.xn--6a', 'https://source.xn--0', 'https://source.xn--' + 'z'.repeat(40)];
+  t.mock.method(globalThis, 'URL', class extends NativeURL {
+    constructor(value) {
+      if (invalid.includes(value)) {
+        super('https://source.com');
+        Object.defineProperties(this, { hostname: { value: value.slice(8) }, href: { value: value + '/' } });
+      } else super(value);
+    }
+  });
+  for (const value of invalid) assert.equal(safeSourceUrl(value), null, value);
+});
+
+test('internationalized sources retain canonical Unicode and ACE spellings', () => {
+  for (const host of ['例え.みんな', 'bücher.de', 'mañana.com', 'παράδειγμα.δοκιμή', 'مثال.إختبار', 'пример.рф', '例子.中国', '실례.한국', '例え.テスト', '日本語.jp', '💩.la']) {
+    const canonical = new URL('https://' + host + '/evidence').href;
+    assert.equal(safeSourceUrl('https://' + host + '/evidence'), canonical, host);
+    assert.equal(safeSourceUrl(canonical), canonical, host);
+  }
+});

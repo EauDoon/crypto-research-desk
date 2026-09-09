@@ -123,3 +123,16 @@ test('independent handoff downloads cannot reveal a prior review through readine
     expect(JSON.parse(await downloadText(page, '#export-json'))).toEqual(packet);
   }
 });
+
+test('internationalized source imports remain valid while encoded controls fail closed', async ({ page }) => {
+  page.on('dialog', dialog => dialog.accept());
+  const packet = examplePacket(); packet.sources[0].url = 'https://例え.みんな/証拠';
+  await page.locator('#packet-file').setInputFiles({ name: 'source.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(packet)) });
+  await expect(page.locator('#source-list a').first()).toHaveAttribute('href', 'https://xn--r8jz45g.xn--q9jyb4c/%E8%A8%BC%E6%8B%A0');
+  for (const url of ['https://source.xn--a', 'https://xn--a.example.com']) {
+    const invalid = structuredClone(packet); invalid.sources[0].url = url;
+    await page.locator('#packet-file').setInputFiles({ name: 'invalid.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(invalid)) });
+    await expect(page.locator('#app-error')).toContainText('HTTPS');
+    expect(JSON.parse(await downloadText(page, '#export-json'))).toEqual(packet);
+  }
+});
