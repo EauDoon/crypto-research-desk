@@ -117,3 +117,5 @@ All tools preserve the schema-version-1 packet, the five research functions, the
 Revision comparisons preserve source identity across reordering. A changed claim appears under its source ID; added or removed records retain their complete submitted values in the comparison result. Matching identifiers does not establish that evidence is correct.
 
 **Pin current packet as baseline** preserves one immutable snapshot in page memory and compares subsequent same-asset edits automatically. Importing a different asset or quote currency clears it. Forget pinned baseline removes it; reloading also forgets it. This does not change the open packet or store another browser draft.
+
+Use **Edit this source** beside a source record to open its exact claim field. Saving retains the current evidence filter, updates the record, resets any previous review, and returns keyboard focus to the rebuilt row action when that row remains visible.

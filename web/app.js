@@ -304,7 +304,15 @@ function renderSources() {
     heading.append(title, element('span', source.type.toUpperCase(), 'tag'),
       element('span', new URL(sourceUrl).hostname, 'source-host'));
     const details = element('details'); details.append(element('summary', 'Supplied excerpt (' + source.id + ')'), element('blockquote', source.excerpt));
-    content.append(heading, element('p', source.claim), details);
+    const editSource = element('button', 'Edit this source', 'button small subtle');
+    editSource.type = 'button'; editSource.id = 'edit-source-' + source.id;
+    editSource.setAttribute('aria-label', 'Edit source ' + source.id);
+    editSource.addEventListener('click', () => {
+      openEditor('details');
+      const target = field('source-' + index + '-claim');
+      target.focus({ preventScroll: true }); revealEditorTarget(target);
+    });
+    content.append(heading, element('p', source.claim), details, editSource);
     const dates = element('dl', undefined, 'source-dates');
     for (const [key, label] of [['publishedAt', 'Published'], ['capturedAt', 'Captured']]) {
       const item = element('div'); item.append(element('dt', label), element('dd', formatDate(source[key]))); dates.append(item);
@@ -793,7 +801,10 @@ $('horizon-editor-list').addEventListener('change', event => {
 });
 $('close-editor').addEventListener('click', closeEditor);
 editor.addEventListener('cancel', closeEditor);
-editor.addEventListener('close', () => { if (editorOpener?.isConnected) editorOpener.focus({ preventScroll: true }); });
+editor.addEventListener('close', () => {
+  const opener = editorOpener?.isConnected ? editorOpener : editorOpener?.id ? $(editorOpener.id) : null;
+  (opener?.getClientRects().length ? opener : $('edit-details')).focus({ preventScroll: true });
+});
 editor.addEventListener('input', event => { if (event.target.matches?.('[aria-invalid="true"]')) clearEditorError(); });
 editor.addEventListener('change', event => { if (event.target.matches?.('[aria-invalid="true"]')) clearEditorError(); });
 form.addEventListener('submit', event => {
