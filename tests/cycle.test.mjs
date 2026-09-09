@@ -61,3 +61,12 @@ test('manual monitoring keeps each horizon context and withholds blocked scenari
   assert(withheld.rows.every(row => row.scenario === 'WITHHELD' && row.trigger === ''));
   assert(!research.exportMonitoringCsv(packet, NOW).includes('cancellation'));
 });
+
+test('renewal carries raw evidence but clears reference, scenarios and review without mutation', () => {
+  const packet = examplePacket(), before = JSON.stringify(packet), draft = research.renewResearchPacket(packet, NOW);
+  assert.equal(JSON.stringify(packet), before); assert.deepEqual(draft.sources, packet.sources);
+  assert.equal(draft.kind, 'synthetic'); assert.equal(draft.reference.price, null); assert.equal(draft.reference.capturedAt, '');
+  assert.equal(draft.riskReview.status, 'pending'); assert.equal(draft.horizons.length, 4);
+  assert(draft.horizons.every(row => row.status === 'incomplete' && row.scenarios.length === 0 && row.endAt === ''));
+  assert.equal(research.validatePacket(draft, NOW).valid, true); assert.equal(research.validatePacket(draft, NOW).chartEligible, false);
+});

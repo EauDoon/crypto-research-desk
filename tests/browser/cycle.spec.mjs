@@ -63,3 +63,16 @@ test('bundles import through the normal picker and reject tampering without repl
   await expect(page.locator('#app-error')).toContainText('do not match');
   expect(JSON.parse(await exported(page, '#export-json'))).toEqual(JSON.parse(text).packet);
 });
+
+test('renewal starts an incomplete draft and undo restores research without restoring clearance', async ({ page }) => {
+  await page.locator('#renew-packet').click();
+  await expect(page.locator('[name="price"]')).toBeFocused();
+  await expect(page.locator('#editor-help')).toContainText('unverified starting material');
+  await page.locator('#close-editor').click();
+  const draft = JSON.parse(await exported(page, '#export-json'));
+  expect(draft.reference.price).toBeNull(); expect(draft.horizons.every(row => row.scenarios.length === 0)).toBe(true);
+  await page.locator('#undo-edit').click();
+  expect(JSON.parse(await exported(page, '#export-json')).reference.price).toBe(100);
+  await expect(page.locator('#review-status')).toHaveText('Pending review');
+  await expect(page.locator('#chart-area svg')).toHaveCount(0);
+});

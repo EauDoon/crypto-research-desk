@@ -1,6 +1,6 @@
 import {
   MAX_PACKET_BYTES, MAX_JSON_INPUT_BYTES, HORIZONS, SCENARIOS, REVIEW_ASSERTIONS, parsePacket, validatePacket, blankPacket,
-  timestamp, endAt, formatDate, formatPrice, safeSourceUrl, intervalLabel, returnLabel, chartThresholds, exportMarkdown, repairQueue, evidenceAudit, sourceMatches, horizonOverview, exportScenarioCsv, comparePackets, riskHandoff, restoreResearchDraft, referenceSensitivity, validationReceipt, sourceOriginAudit, exportEvidenceCsv, verifyReceipt, exportResearchBundle, readResearchBundle, monitoringChecklist, exportMonitoringCsv,
+  timestamp, endAt, formatDate, formatPrice, safeSourceUrl, intervalLabel, returnLabel, chartThresholds, exportMarkdown, repairQueue, evidenceAudit, sourceMatches, horizonOverview, exportScenarioCsv, comparePackets, riskHandoff, restoreResearchDraft, referenceSensitivity, validationReceipt, sourceOriginAudit, exportEvidenceCsv, verifyReceipt, exportResearchBundle, readResearchBundle, monitoringChecklist, exportMonitoringCsv, renewResearchPacket,
 } from './packet.js';
 import { examplePacket } from './example.js';
 
@@ -1214,4 +1214,19 @@ function renderMonitoring(now) {
 $('export-monitoring').addEventListener('click', () => {
   try { download(exportMonitoringCsv(packet), 'text/csv; charset=utf-8', 'Manual Monitoring.csv'); announce('Manual monitoring worksheet prepared. Nothing runs in the background.'); }
   catch (error) { announce(error.message, true); }
+});
+
+$('renew-packet').addEventListener('click', () => {
+  if (!confirmReplacement()) return;
+  try {
+    const draft = renewResearchPacket(packet);
+    // The existing local-edit path records undo and resets the unchanged prior
+    // review itself, so renewal cannot supply a new review with new inputs.
+    draft.riskReview = structuredClone(packet.riskReview);
+    applyPacket(draft, 'Renewal draft', true);
+    openEditor('details');
+    setText('editor-help', 'Renewal preserves dated sources and research as unverified starting material. Supply a new reference and newly supported scenarios. Old probabilities and review were cleared; undo can restore previous research inputs.');
+    const target = field('price'); target.focus({ preventScroll: true }); revealEditorTarget(target);
+    announce('Renewal draft created. All four forecasts are incomplete and the review is pending. Carried-forward evidence has not been refreshed.');
+  } catch (error) { announce(error.message, true); }
 });

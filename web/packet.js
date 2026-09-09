@@ -862,3 +862,12 @@ export function exportMonitoringCsv(packet, now = Date.now()) {
   return csvRows([['kind', 'asset', 'reference_cutoff', 'horizon', 'deadline', 'submitted_scenario', 'observe_manually', 'invalidation'],
     ...checklist.rows.map(row => [packet.kind, packet.asset.symbol, packet.reference.capturedAt, row.horizon, row.endAt, row.scenario, row.trigger, row.invalidation])]);
 }
+
+export function renewResearchPacket(packet, now = Date.now()) {
+  if (!validatePacket(packet, now).valid) throw new Error('Renewal requires a structurally valid packet.');
+  const draft = JSON.parse(JSON.stringify(packet)), blank = blankPacket();
+  draft.reference.price = null; draft.reference.capturedAt = '';
+  draft.horizons = blank.horizons.map(horizon => ({ ...horizon, gapReason: 'Renewal requires fresh evidence and newly supported scenarios.' }));
+  draft.riskReview = blank.riskReview;
+  return draft;
+}
