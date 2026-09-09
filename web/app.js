@@ -11,6 +11,7 @@ let activeHorizon = '12h';
 let origin = 'Synthetic example';
 let dirty = false;
 let undoHistory = [];
+let pinnedBaseline = null;
 let editorMode = 'details';
 let editorInitial = '';
 let importSequence = 0;
@@ -457,6 +458,8 @@ function applyPacket(candidate, label, localEdit = false, restoring = false) {
   if (restoring) dirty = true;
   packet = candidate; origin = label;
   clearComparison();
+  if (pinnedBaseline && (pinnedBaseline.asset.symbol !== packet.asset.symbol || pinnedBaseline.asset.quoteCurrency !== packet.asset.quoteCurrency)) pinnedBaseline = null;
+  renderPinnedBaseline();
   clearSensitivity();
   render(true, now); saveLocally();
   return { reviewReset, report };
@@ -1066,13 +1069,17 @@ function clearComparison() {
   $('comparison-json').value = ''; $('comparison-results').replaceChildren(); $('comparison-status').textContent = '';
 }
 $('clear-comparison').addEventListener('click', clearComparison);
-$('compare-packets').addEventListener('click', () => {
+function showComparison(previous) {
   try {
-    const result = comparePackets(parsePacket($('comparison-json').value), packet);
+    const result = comparePackets(previous, packet);
     const summary = value => JSON.stringify(value).slice(0, 240);
     listInto('comparison-results', result.changes.map(item => item.path + ': ' + summary(item.previous) + ' → ' + summary(item.current)), 'No submitted fields changed.');
     setText('comparison-status', result.total + ' changed fields; ' + result.omitted + ' omitted. Long values are shortened. Sources and review assertions are matched by ID. Open raw JSON for full evidence.');
   } catch (error) { $('comparison-results').replaceChildren(); setText('comparison-status', error.message); }
+}
+$('compare-packets').addEventListener('click', () => {
+  try { showComparison(parsePacket($('comparison-json').value)); }
+  catch (error) { $('comparison-results').replaceChildren(); setText('comparison-status', error.message); }
 });
 
 $('export-risk-handoff').addEventListener('click', () => {
@@ -1114,3 +1121,14 @@ $('export-receipt').addEventListener('click', async () => {
   } catch (error) { announce('Check receipt unavailable: ' + error.message, true); }
   finally { button.disabled = false; }
 });
+
+function renderPinnedBaseline() {
+  $('clear-baseline').disabled = !pinnedBaseline;
+  setText('baseline-status', pinnedBaseline ? 'Pinned ' + pinnedBaseline.asset.symbol + ' at ' + (pinnedBaseline.reference.capturedAt || 'UNKNOWN cutoff') + '. Local edits compare automatically; reload forgets this snapshot.' : 'No baseline pinned. A pinned snapshot stays in page memory only.');
+  if (pinnedBaseline) showComparison(pinnedBaseline);
+}
+$('pin-baseline').addEventListener('click', () => {
+  if (!packet.asset.symbol) { announce('Name the asset before pinning a comparison baseline.', true); return; }
+  pinnedBaseline = structuredClone(packet); renderPinnedBaseline();
+});
+$('clear-baseline').addEventListener('click', () => { pinnedBaseline = null; clearComparison(); renderPinnedBaseline(); });

@@ -115,3 +115,5 @@ Undo retains up to ten saved edits in page memory. It restores research inputs a
 All tools preserve the schema-version-1 packet, the five research functions, the independent risk gate, and the research-only authority boundary. They add no network requests or persistent storage keys.
 
 Revision comparisons preserve source identity across reordering. A changed claim appears under its source ID; added or removed records retain their complete submitted values in the comparison result. Matching identifiers does not establish that evidence is correct.
+
+**Pin current packet as baseline** preserves one immutable snapshot in page memory and compares subsequent same-asset edits automatically. Importing a different asset or quote currency clears it. Forget pinned baseline removes it; reloading also forgets it. This does not change the open packet or store another browser draft.
