@@ -38,3 +38,13 @@ test('receipt checking separates byte matches from tampered local-check claims',
   await assert.rejects(research.verifyReceipt('x'.repeat(65537), packet, NOW), /64 KiB/);
   await assert.rejects(research.verifyReceipt('{"__proto__":{}}', packet, NOW));
 });
+
+test('research bundles round-trip exact data and reject altered packet or receipt fields', async () => {
+  const packet = examplePacket(), text = await research.exportResearchBundle(packet, NOW);
+  assert.equal(JSON.stringify(await research.readResearchBundle(text, NOW)), JSON.stringify(packet));
+  const changed = JSON.parse(text); changed.packet.thesis = 'Tampered';
+  await assert.rejects(research.readResearchBundle(JSON.stringify(changed), NOW), /do not match/);
+  const forged = JSON.parse(text); forged.receipt.chartEligible = false;
+  await assert.rejects(research.readResearchBundle(JSON.stringify(forged), NOW), /do not match/);
+  await assert.rejects(research.readResearchBundle(text.replace('"format":', '"extra":true,"format":'), NOW), /Unsupported/);
+});

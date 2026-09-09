@@ -1,6 +1,6 @@
 import {
   MAX_PACKET_BYTES, MAX_JSON_INPUT_BYTES, HORIZONS, SCENARIOS, REVIEW_ASSERTIONS, parsePacket, validatePacket, blankPacket,
-  timestamp, endAt, formatDate, formatPrice, safeSourceUrl, intervalLabel, returnLabel, chartThresholds, exportMarkdown, repairQueue, evidenceAudit, sourceMatches, horizonOverview, exportScenarioCsv, comparePackets, riskHandoff, restoreResearchDraft, referenceSensitivity, validationReceipt, sourceOriginAudit, exportEvidenceCsv, verifyReceipt,
+  timestamp, endAt, formatDate, formatPrice, safeSourceUrl, intervalLabel, returnLabel, chartThresholds, exportMarkdown, repairQueue, evidenceAudit, sourceMatches, horizonOverview, exportScenarioCsv, comparePackets, riskHandoff, restoreResearchDraft, referenceSensitivity, validationReceipt, sourceOriginAudit, exportEvidenceCsv, verifyReceipt, exportResearchBundle, readResearchBundle,
 } from './packet.js';
 import { examplePacket } from './example.js';
 
@@ -737,7 +737,8 @@ async function importFile(file) {
     let imported;
     try { imported = new TextDecoder('utf-8', { fatal: true }).decode(await file.arrayBuffer()); }
     catch { throw new Error('The packet must be valid UTF-8 JSON without replacement-decoded bytes.'); }
-    const candidate = parsePacket(imported);
+    const parsed = parsePacket(imported);
+    const candidate = parsed?.format === 'crypto-research-bundle.v1' ? await readResearchBundle(imported) : parsed;
     const report = validatePacket(candidate);
     if (!report.valid) throw validationError(report);
     if (sequence !== importSequence || !confirmReplacement()) return;
@@ -1188,4 +1189,11 @@ $('verify-receipt').addEventListener('click', async () => {
     setText('receipt-result', 'Packet digest: ' + (result.digestMatches ? 'MATCH' : 'MISMATCH') + '. Recorded local checks: ' + (result.recordMatches ? 'MATCH' : 'MISMATCH') + '. Current chart gate: ' + (result.currentChartEligible ? 'eligible, unauthenticated' : 'withheld') + '. This is not authentication.');
   } catch (error) { if (sequence === receiptCheckSequence) setText('receipt-result', error.message); }
   finally { if (sequence === receiptCheckSequence) $('verify-receipt').disabled = false; }
+});
+
+$('export-bundle').addEventListener('click', async () => {
+  const button = $('export-bundle'); button.disabled = true; const snapshot = structuredClone(packet);
+  try { download(await exportResearchBundle(snapshot), 'application/json; charset=utf-8', '', (snapshot.asset.symbol || 'Unnamed') + ' Research Bundle.json'); announce('Packet and matching check receipt exported together. Import JSON accepts this bundle and rechecks its contents locally.'); }
+  catch (error) { announce(error.message, true); }
+  finally { button.disabled = false; }
 });

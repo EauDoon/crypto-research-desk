@@ -50,3 +50,16 @@ test('guided review coverage updates source IDs without authenticating a reviewe
   await page.getByRole('button', { name: 'Save details', exact: true }).click();
   expect(JSON.parse(await exported(page, '#export-json')).riskReview.sourceIds).toEqual(['example-upgrade', 'example-activity']);
 });
+
+test('bundles import through the normal picker and reject tampering without replacement', async ({ page }) => {
+  const text = await exported(page, '#export-bundle');
+  page.on('dialog', dialog => dialog.accept());
+  await page.locator('#new-packet').click(); await page.locator('#close-editor').click();
+  await page.locator('#packet-file').setInputFiles({ name: 'bundle.json', mimeType: 'application/json', buffer: Buffer.from(text) });
+  await expect(page.locator('#asset-symbol')).toHaveText('DEMO');
+  expect(JSON.parse(await exported(page, '#export-json'))).toEqual(JSON.parse(text).packet);
+  const forged = JSON.parse(text); forged.packet.thesis = 'Unbound change';
+  await page.locator('#packet-file').setInputFiles({ name: 'forged.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(forged)) });
+  await expect(page.locator('#app-error')).toContainText('do not match');
+  expect(JSON.parse(await exported(page, '#export-json'))).toEqual(JSON.parse(text).packet);
+});
