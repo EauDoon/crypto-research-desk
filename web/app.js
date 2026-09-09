@@ -1,6 +1,6 @@
 import {
   MAX_PACKET_BYTES, MAX_JSON_INPUT_BYTES, HORIZONS, SCENARIOS, REVIEW_ASSERTIONS, parsePacket, validatePacket, blankPacket,
-  timestamp, endAt, formatDate, formatPrice, safeSourceUrl, intervalLabel, returnLabel, chartThresholds, exportMarkdown, repairQueue, evidenceAudit, sourceMatches, horizonOverview, exportScenarioCsv, comparePackets, riskHandoff, restoreResearchDraft, referenceSensitivity, validationReceipt, sourceOriginAudit, exportEvidenceCsv,
+  timestamp, endAt, formatDate, formatPrice, safeSourceUrl, intervalLabel, returnLabel, chartThresholds, exportMarkdown, repairQueue, evidenceAudit, sourceMatches, horizonOverview, exportScenarioCsv, comparePackets, riskHandoff, restoreResearchDraft, referenceSensitivity, validationReceipt, sourceOriginAudit, exportEvidenceCsv, verifyReceipt,
 } from './packet.js';
 import { examplePacket } from './example.js';
 
@@ -12,6 +12,7 @@ let origin = 'Synthetic example';
 let dirty = false;
 let undoHistory = [];
 let pinnedBaseline = null;
+let receiptCheckSequence = 0;
 let editorMode = 'details';
 let editorInitial = '';
 let importSequence = 0;
@@ -469,6 +470,7 @@ function applyPacket(candidate, label, localEdit = false, restoring = false) {
   if (pinnedBaseline && (pinnedBaseline.asset.symbol !== packet.asset.symbol || pinnedBaseline.asset.quoteCurrency !== packet.asset.quoteCurrency)) pinnedBaseline = null;
   renderPinnedBaseline();
   clearSensitivity();
+  clearReceiptCheck();
   render(true, now); saveLocally();
   return { reviewReset, report };
 }
@@ -1172,4 +1174,18 @@ field('sourceIds').addEventListener('input', renderReviewSources);
 $('export-evidence-csv').addEventListener('click', () => {
   try { download(exportEvidenceCsv(packet), 'text/csv; charset=utf-8', 'Evidence.csv'); announce('Complete evidence CSV prepared. Filters do not remove records; review coverage remains self-reported.'); }
   catch (error) { announce(error.message, true); }
+});
+
+function clearReceiptCheck() {
+  receiptCheckSequence++; $('receipt-json').value = ''; $('receipt-result').textContent = ''; $('verify-receipt').disabled = false;
+}
+$('receipt-json').addEventListener('input', () => { receiptCheckSequence++; $('receipt-result').textContent = ''; $('verify-receipt').disabled = false; });
+$('verify-receipt').addEventListener('click', async () => {
+  const sequence = ++receiptCheckSequence; $('verify-receipt').disabled = true;
+  try {
+    const result = await verifyReceipt($('receipt-json').value, structuredClone(packet));
+    if (sequence !== receiptCheckSequence) return;
+    setText('receipt-result', 'Packet digest: ' + (result.digestMatches ? 'MATCH' : 'MISMATCH') + '. Recorded local checks: ' + (result.recordMatches ? 'MATCH' : 'MISMATCH') + '. Current chart gate: ' + (result.currentChartEligible ? 'eligible, unauthenticated' : 'withheld') + '. This is not authentication.');
+  } catch (error) { if (sequence === receiptCheckSequence) setText('receipt-result', error.message); }
+  finally { if (sequence === receiptCheckSequence) $('verify-receipt').disabled = false; }
 });

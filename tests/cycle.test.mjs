@@ -28,3 +28,13 @@ test('evidence CSV retains every dated raw record and neutralizes spreadsheet fo
   assert(csv.includes('SELF_REPORTED_YES'));
   assert.equal(research.exportEvidenceCsv(research.blankPacket(), NOW).trim().split('\r\n').length, 1);
 });
+
+test('receipt checking separates byte matches from tampered local-check claims', async () => {
+  const packet = examplePacket(), receipt = await research.validationReceipt(packet, NOW);
+  assert.deepEqual(await research.verifyReceipt(JSON.stringify(receipt), packet, NOW), { digestMatches: true, recordMatches: true, checkedAt: receipt.checkedAt, currentChartEligible: true });
+  receipt.chartEligible = false;
+  const tampered = await research.verifyReceipt(JSON.stringify(receipt), packet, NOW);
+  assert.equal(tampered.digestMatches, true); assert.equal(tampered.recordMatches, false);
+  await assert.rejects(research.verifyReceipt('x'.repeat(65537), packet, NOW), /64 KiB/);
+  await assert.rejects(research.verifyReceipt('{"__proto__":{}}', packet, NOW));
+});

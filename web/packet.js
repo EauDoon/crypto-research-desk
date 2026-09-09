@@ -813,3 +813,21 @@ export function exportEvidenceCsv(packet, now = Date.now()) {
     source.id, source.title, source.url, source.type, source.publishedAt, source.capturedAt, source.claim, source.excerpt, reviewed.has(source.id) ? 'SELF_REPORTED_YES' : 'NOT_LISTED']);
   return csvRows(rows);
 }
+
+export async function verifyReceipt(text, packet, now = Date.now()) {
+  if (typeof text !== 'string' || new TextEncoder().encode(text).length > 65536) throw new Error('Receipt JSON must be at most 64 KiB.');
+  const receipt = parsePacket(text);
+  if (!receipt || receipt.format !== 'crypto-research-check-receipt.v1' || receipt.researchOnly !== true
+    || typeof receipt.packetSha256 !== 'string' || !/^[a-f0-9]{64}$/.test(receipt.packetSha256)
+    || timestamp(receipt.checkedAt) === null || timestamp(receipt.checkedAt) > now + 300000) throw new Error('Supply a supported, dated research check receipt.');
+  if (!validatePacket(packet, now).valid) throw new Error('The current packet must be structurally valid.');
+  const snapshot = JSON.parse(JSON.stringify(packet));
+  const expected = await validationReceipt(snapshot, timestamp(receipt.checkedAt));
+  const keys = Object.keys(expected);
+  if (Object.keys(receipt).length !== keys.length || keys.some(key => !Object.hasOwn(receipt, key))) throw new Error('Receipt fields do not match the supported format.');
+  const ordered = value => Array.isArray(value) ? value.map(ordered) : value !== null && typeof value === 'object'
+    ? Object.fromEntries(Object.keys(value).sort().map(key => [key, ordered(value[key])])) : value;
+  return { digestMatches: receipt.packetSha256 === expected.packetSha256,
+    recordMatches: JSON.stringify(ordered(receipt)) === JSON.stringify(ordered(expected)),
+    checkedAt: receipt.checkedAt, currentChartEligible: validatePacket(snapshot, now).chartEligible };
+}

@@ -94,6 +94,12 @@
             <p class="eyebrow">LOCAL CHECKS</p><h2 id="gate-heading">Packet structure</h2>
             <div id="structure-status" class="structure-status"></div>
             <p class="small-copy">A structural check does not verify a source, authenticate a reviewer, or establish forecast accuracy.</p>
+            <details><summary>Check a saved receipt</summary>
+              <p class="small-copy">Compare a receipt with this packet. Matching bytes and recorded local checks do not authenticate a reviewer or verify sources.</p>
+              <label for="receipt-json">Check receipt JSON</label><textarea id="receipt-json" rows="4" maxlength="65536" spellcheck="false" autocomplete="off"></textarea>
+              <button id="verify-receipt" class="button small" type="button">Check receipt against packet</button>
+              <p id="receipt-result" role="status" class="small-copy"></p>
+            </details>
             <ul id="gate-checks" class="gate-checks"></ul>
             <details id="gap-details" class="gap-details"><summary id="gap-summary"></summary><ul id="gap-list"></ul></details>
           </section>
