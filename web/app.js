@@ -1,6 +1,6 @@
 import {
   MAX_PACKET_BYTES, MAX_JSON_INPUT_BYTES, HORIZONS, SCENARIOS, REVIEW_ASSERTIONS, parsePacket, validatePacket, blankPacket,
-  timestamp, endAt, formatDate, formatPrice, safeSourceUrl, intervalLabel, returnLabel, chartThresholds, exportMarkdown, repairQueue, evidenceAudit, sourceMatches, horizonOverview, exportScenarioCsv, comparePackets, riskHandoff, restoreResearchDraft, referenceSensitivity, validationReceipt,
+  timestamp, endAt, formatDate, formatPrice, safeSourceUrl, intervalLabel, returnLabel, chartThresholds, exportMarkdown, repairQueue, evidenceAudit, sourceMatches, horizonOverview, exportScenarioCsv, comparePackets, riskHandoff, restoreResearchDraft, referenceSensitivity, validationReceipt, sourceOriginAudit,
 } from './packet.js';
 import { examplePacket } from './example.js';
 
@@ -1045,6 +1045,11 @@ function renderRepairs(now) {
 }
 
 function renderEvidenceAudit() {
+  const origins = sourceOriginAudit(packet);
+  listInto('source-origin-audit', [
+    ...origins.hosts.map(item => item.host + ': ' + item.count + ' of ' + packet.sources.length + ' records (' + item.sharePercent.toFixed(1) + '%); ' + item.primaryCount + ' labeled primary'),
+    ...origins.repeatedExcerpts.map(ids => 'Matching excerpt after whitespace normalization: ' + ids.join(', ')),
+  ], 'No source records to inspect.');
   const audit = evidenceAudit(packet);
   listInto('evidence-audit', audit.map(item => item.id + ': ' + item.type + '; ' +
     (item.ageHours === null ? 'UNKNOWN capture age' : item.ageHours.toFixed(2) + ' hours before cutoff') +

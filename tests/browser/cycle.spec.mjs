@@ -45,7 +45,7 @@ test('guided review coverage updates source IDs without authenticating a reviewe
   await expect(page.locator('.repair-action').filter({ hasText: 'account for every recorded source' })).toHaveCount(1);
   await expect(page.locator('#chart-area svg')).toHaveCount(0);
   await page.locator('#edit-details').click();
-  if (!(await page.locator('#review-source-picker').getAttribute('open'))) await page.getByText('Select sources actually reviewed', { exact: true }).click();
+  if (!(await page.locator('#review-source-picker').evaluate(node => node.open))) await page.getByText('Select sources actually reviewed', { exact: true }).click();
   await source.check();
   await page.getByRole('button', { name: 'Save details', exact: true }).click();
   expect(JSON.parse(await exported(page, '#export-json')).riskReview.sourceIds).toEqual(['example-upgrade', 'example-activity']);

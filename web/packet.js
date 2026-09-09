@@ -784,3 +784,19 @@ export async function validationReceipt(packet, now = Date.now()) {
     gaps: report.gaps, warnings: report.warnings, omittedIssueCounts: report.omittedIssueCounts,
     limitation: 'Local structural checks only. This digest detects byte changes; it is not a signature, authenticated review, source verification, or evidence of forecast accuracy.' };
 }
+
+export function sourceOriginAudit(packet, now = Date.now()) {
+  if (!validatePacket(packet, now).valid) throw new Error('Source audit requires a structurally valid packet.');
+  const hosts = new Map(), excerpts = new Map();
+  for (const source of packet.sources) {
+    const host = new URL(safeSourceUrl(source.url)).hostname;
+    const item = hosts.get(host) ?? { host, count: 0, primaryCount: 0 };
+    item.count++; if (source.type === 'primary') item.primaryCount++; hosts.set(host, item);
+    const excerpt = source.excerpt.trim().replace(/\s+/g, ' ');
+    if (excerpt) excerpts.set(excerpt, [...(excerpts.get(excerpt) ?? []), source.id]);
+  }
+  return {
+    hosts: [...hosts.values()].map(item => ({ ...item, sharePercent: item.count / packet.sources.length * 100 })).sort((a, b) => b.count - a.count || (a.host < b.host ? -1 : a.host > b.host ? 1 : 0)),
+    repeatedExcerpts: [...excerpts.values()].filter(ids => ids.length > 1),
+  };
+}

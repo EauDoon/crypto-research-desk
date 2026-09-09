@@ -121,3 +121,5 @@ Revision comparisons preserve source identity across reordering. A changed claim
 Use **Edit this source** beside a source record to open its exact claim field. Saving retains the current evidence filter, updates the record, resets any previous review, and returns keyboard focus to the rebuilt row action when that row remains visible.
 
 The review editor includes **Select sources actually reviewed**. Its checkboxes update the existing comma-separated reviewed source IDs, including the ability to remove IDs whose source was deleted. Coverage is a self-reported assertion. Selecting records never authenticates a reviewer or verifies their contents, and material source edits still require a separate new review.
+
+**Inspect source-origin concentration** counts exact hostnames and flags matching excerpts after whitespace normalization. Counts describe supplied records only. Subdomains are separate hosts, shared ownership is not detected, and neither multiple hosts nor primary labels establish independent or verified evidence.
