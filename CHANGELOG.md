@@ -1,5 +1,14 @@
 # Changelog
 
+## Workbench 1.9.0 (09-09-2026)
+
+- Add actionable repairs, literal evidence search, cutoff-age and submitted-review coverage audit.
+- Add gated horizon comparisons, spreadsheet-safe scenario CSV, and isolated reference sensitivity.
+- Add validated revision comparison and ten-step memory-only undo that resets review.
+- Add rationale-separated incomplete risk handoffs and reproducible SHA-256 check receipts.
+- Preserve schema version 1 and research core 1.1.0, including all five specialists and independent risk requirements.
+
+
 ## Unreleased
 
 ## 1.8.1, 30-08-2026

@@ -1,6 +1,6 @@
 import {
   MAX_PACKET_BYTES, MAX_JSON_INPUT_BYTES, HORIZONS, SCENARIOS, REVIEW_ASSERTIONS, parsePacket, validatePacket, blankPacket,
-  timestamp, endAt, formatDate, formatPrice, safeSourceUrl, intervalLabel, returnLabel, chartThresholds, exportMarkdown,
+  timestamp, endAt, formatDate, formatPrice, safeSourceUrl, intervalLabel, returnLabel, chartThresholds, exportMarkdown, repairQueue, evidenceAudit, sourceMatches, horizonOverview, exportScenarioCsv, comparePackets, riskHandoff, restoreResearchDraft, referenceSensitivity, validationReceipt,
 } from './packet.js';
 import { examplePacket } from './example.js';
 
@@ -10,6 +10,7 @@ let packet = examplePacket();
 let activeHorizon = '12h';
 let origin = 'Synthetic example';
 let dirty = false;
+let undoHistory = [];
 let editorMode = 'details';
 let editorInitial = '';
 let importSequence = 0;
@@ -280,11 +281,14 @@ function refreshHorizonLabels(now = Date.now()) {
   }
 }
 function renderSources() {
+  const count = packet.sources.filter(source => sourceMatches(source, $('source-search').value, $('source-type').value)).length;
+  setText('source-results', count + ' of ' + packet.sources.length + ' sources match. Exports and printing retain all sources.');
   $('source-list').replaceChildren();
   setText('source-count', packet.sources.length + ' SOURCE RECORD' + (packet.sources.length === 1 ? '' : 'S'));
   if (!packet.sources.length) $('source-list').append(element('p', 'UNKNOWN. No source records have been supplied.', 'small-copy'));
   for (const [index, source] of packet.sources.entries()) {
     const article = element('article', undefined, 'source-item'), content = element('div');
+    article.classList.toggle('source-filtered', !sourceMatches(source, $('source-search').value, $('source-type').value));
     const heading = element('div', undefined, 'source-title');
     const sourceUrl = safeSourceUrl(source.url);
     const link = element('a', source.title + ' ↗');
@@ -308,6 +312,12 @@ function renderSources() {
   }
 }
 function render(updateContent = true, now = Date.now()) {
+  $('undo-edit').disabled = undoHistory.length === 0;
+  $('undo-edit').textContent = 'Undo saved edit' + (undoHistory.length ? ' (' + undoHistory.length + ')' : '');
+  renderRepairs(now);
+  renderEvidenceAudit();
+  renderOverview(now);
+  if (!validatePacket(packet, now).chartEligible) clearSensitivity();
   const report = validatePacket(packet, now);
   lastValidation = validationSignature(report);
   const synthetic = packet.kind === 'synthetic';
@@ -420,7 +430,7 @@ function researchChanged(candidate) {
   const withoutReview = value => JSON.stringify(canonical(Object.fromEntries(Object.entries(value).filter(([key]) => key !== 'riskReview'))));
   return withoutReview(candidate) !== withoutReview(packet);
 }
-function applyPacket(candidate, label, localEdit = false) {
+function applyPacket(candidate, label, localEdit = false, restoring = false) {
   let reviewReset = false;
   if (localEdit && researchChanged(candidate)) {
     if (reviewSignature(candidate.riskReview) !== reviewSignature(packet.riskReview)) {
@@ -438,7 +448,16 @@ function applyPacket(candidate, label, localEdit = false) {
   importSequence++;
   $('app-error').hidden = true;
   dirty = localEdit ? dirty || JSON.stringify(canonical(candidate)) !== JSON.stringify(canonical(packet)) : false;
+  if (!restoring) {
+    if (localEdit && JSON.stringify(candidate) !== JSON.stringify(packet)) {
+      undoHistory.push(structuredClone(packet));
+      if (undoHistory.length > 10) undoHistory.shift();
+    } else if (!localEdit) undoHistory = [];
+  }
+  if (restoring) dirty = true;
   packet = candidate; origin = label;
+  clearComparison();
+  clearSensitivity();
   render(true, now); saveLocally();
   return { reviewReset, report };
 }
@@ -462,7 +481,7 @@ function editableFieldForPath(path) {
   const method = /^method\.(\w+)$/.exec(path);
   if (method) return field('method-' + method[1]);
   const source = /^sources(?:\[(\d+)\])?(?:\.(\w+))?$/.exec(path);
-  if (source) return source[1] === undefined ? $('add-source')
+  if (source) return source[1] === undefined ? field('source-0-type') ?? $('add-source')
     : field('source-' + source[1] + '-' + (source[2] ?? 'id'));
   const horizon = /^horizons(?:\[(\d+)\])?(?:\.(status|gapReason|endAt))?$/.exec(path);
   if (horizon) return horizon[2] === 'endAt' ? field('capturedAt')
@@ -979,7 +998,7 @@ function refreshExpiry() {
   const now = Date.now();
   if (document.visibilityState !== 'visible') return now;
   const report = validatePacket(packet, now);
-  if (lastValidation === validationSignature(report)) return now;
+  if (lastValidation === validationSignature(report)) { renderOverview(now); return now; }
   const activeId = document.activeElement?.id;
   // Keep scenario controls and open editor fields intact when only time has changed.
   render(false, now);
@@ -990,3 +1009,108 @@ function refreshExpiry() {
 }
 setInterval(refreshExpiry, 60000);
 document.addEventListener('visibilitychange', refreshExpiry);
+
+function renderRepairs(now) {
+  const queue = repairQueue(packet, now);
+  $('repair-list').replaceChildren(...queue.map(item => {
+    const li = element('li');
+    const button = element('button', item.path + ': ' + item.message, 'button small subtle repair-action');
+    button.type = 'button';
+    button.addEventListener('click', () => {
+      openEditor('details');
+      const elapsedHorizon = /^horizons\[\d+\]$/.test(item.path) && item.message === 'This forecast horizon has elapsed. Refresh the packet.';
+      const target = elapsedHorizon ? field('capturedAt') : editableFieldForPath(item.path);
+      if (elapsedHorizon) setText('editor-help', 'Refresh the reference price, capture time, and supporting research together. Changing the cutoff alone does not refresh evidence or recalibrate probabilities. Saving research edits resets the review.');
+      if (item.path === 'sources' && packet.sources.length) setText('editor-help', 'Inspect the existing source record and replace it with actual primary evidence when needed. Changing the source type label alone does not verify evidence. Saving research edits resets the review.');
+      if (target) { target.focus({ preventScroll: true }); revealEditorTarget(target); }
+    });
+    li.append(button); return li;
+  }));
+  if (!queue.length) $('repair-list').append(element('li', 'No structural repairs recorded. Source truth and reviewer identity still require human verification.'));
+}
+
+function renderEvidenceAudit() {
+  const audit = evidenceAudit(packet);
+  listInto('evidence-audit', audit.map(item => item.id + ': ' + item.type + '; ' +
+    (item.ageHours === null ? 'UNKNOWN capture age' : item.ageHours.toFixed(2) + ' hours before cutoff') +
+    '; ' + (item.reviewed ? 'listed in submitted review' : 'not listed in submitted review') +
+    '; ' + (item.hasExcerpt ? 'excerpt supplied' : 'excerpt UNKNOWN')), 'No source records to audit.');
+}
+
+$('source-search').addEventListener('input', renderSources);
+$('source-type').addEventListener('change', renderSources);
+
+function renderOverview(now) {
+  const table = element('table'), head = element('thead'), tr = element('tr');
+  for (const label of ['Horizon', 'Timing', 'Bear ceiling', 'Bull floor', 'Base probability']) {
+    const th = element('th', label); th.scope = 'col'; tr.append(th);
+  }
+  head.append(tr); table.append(head);
+  const body = element('tbody');
+  for (const item of horizonOverview(packet, now)) {
+    const row = element('tr');
+    for (const value of [item.label, item.timing, formatPrice(item.bearCeiling), formatPrice(item.bullFloor), item.baseProbability === null ? 'WITHHELD' : item.baseProbability + '%']) row.append(element('td', value));
+    body.append(row);
+  }
+  table.append(body); $('horizon-overview').replaceChildren(table);
+}
+
+$('export-csv').addEventListener('click', () => {
+  try {
+    download(exportScenarioCsv(packet), 'text/csv; charset=utf-8', 'Scenario Research.csv');
+    announce('Scenario CSV prepared with packet cutoff, research labels, and gate status.');
+  } catch (error) { announce(error.message, true); }
+});
+
+function clearComparison() {
+  $('comparison-json').value = ''; $('comparison-results').replaceChildren(); $('comparison-status').textContent = '';
+}
+$('clear-comparison').addEventListener('click', clearComparison);
+$('compare-packets').addEventListener('click', () => {
+  try {
+    const result = comparePackets(parsePacket($('comparison-json').value), packet);
+    const summary = value => JSON.stringify(value).slice(0, 240);
+    listInto('comparison-results', result.changes.map(item => item.path + ': ' + summary(item.previous) + ' → ' + summary(item.current)), 'No submitted fields changed.');
+    setText('comparison-status', result.total + ' changed fields; ' + result.omitted + ' omitted. Long values are shortened. Source arrays are compared by position. Open raw JSON for full evidence.');
+  } catch (error) { $('comparison-results').replaceChildren(); setText('comparison-status', error.message); }
+});
+
+$('export-risk-handoff').addEventListener('click', () => {
+  try {
+    download(JSON.stringify(riskHandoff(packet), null, 2) + '\n', 'application/json; charset=utf-8', 'Independent Review Handoff.json');
+    announce('Incomplete risk handoff prepared. Attach the mandate, run ledger, and conflict receipts before independent review.');
+  } catch (error) { announce(error.message, true); }
+});
+
+$('undo-edit').addEventListener('click', () => {
+  if (!undoHistory.length) return;
+  try {
+    const restored = restoreResearchDraft(undoHistory.at(-1));
+    undoHistory.pop();
+    applyPacket(restored, 'Restored session edit', false, true);
+    announce('Previous research inputs restored. Review reset to pending. Undo history is memory-only and ends when the page closes or a packet is replaced.');
+  } catch (error) { announce(error.message, true); }
+});
+
+function clearSensitivity() {
+  $('sensitivity-price').value = ''; $('sensitivity-status').textContent = ''; $('sensitivity-results').replaceChildren();
+}
+$('calculate-sensitivity').addEventListener('click', () => {
+  try {
+    const rows = referenceSensitivity(packet, Number($('sensitivity-price').value));
+    const percent = value => (Math.abs(value) > 1e8 ? value.toExponential(3) : value.toFixed(3)) + '%';
+    listInto('sensitivity-results', rows.map(item => item.label + ': bear ceiling ' + percent(item.bearDistance) + '; bull floor ' + percent(item.bullDistance)), 'No eligible thresholds.');
+    setText('sensitivity-status', 'Hypothetical arithmetic only. Original packet, probabilities, and review are unchanged.');
+  } catch (error) { $('sensitivity-results').replaceChildren(); setText('sensitivity-status', error.message); }
+});
+
+$('export-receipt').addEventListener('click', async () => {
+  const button = $('export-receipt'); button.disabled = true;
+  const snapshot = structuredClone(packet);
+  try {
+    const receipt = await validationReceipt(snapshot);
+    download(JSON.stringify(receipt, null, 2) + '\n', 'application/json; charset=utf-8', '', snapshot.asset.symbol + ' Research Check Receipt.json');
+    announce('Check receipt prepared for the packet snapshot at click time. Export matching packet JSON to reproduce its SHA-256.');
+  } catch (error) { announce('Check receipt unavailable: ' + error.message, true); }
+  finally { button.disabled = false; }
+});

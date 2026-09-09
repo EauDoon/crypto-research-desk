@@ -95,3 +95,21 @@ Corrupt saved data is retained without being overwritten, and automatic saving i
 The app has no research upload endpoint, runtime API requests, telemetry, remote fonts, cookies of its own, or financial account integration. Hosting providers still receive ordinary page and asset requests. Clicking a source link opens that external site in a new tab without a referrer; that site's own policies apply. Browser extensions and other users of a shared browser can access local information.
 
 Do not enter credentials, wallet secrets, personal financial records, or confidential evidence. See the [security policy](../SECURITY.md) and [deployment runbook](DEPLOYMENT.md).
+
+## Research tools
+
+The repair queue opens the exact field associated with a missing input. It is a navigation aid, not clearance. Source search matches literal text in IDs, titles, URLs, claims, and excerpts. Type filters and search affect only the screen view; printing and exports retain every source. The recency audit measures capture age against the packet cutoff, never a generic freshness policy, and labels review coverage as submitted assertions.
+
+The all-horizon overview follows the existing chart gate. Reference sensitivity holds the recorded thresholds fixed and computes (threshold / hypothetical price - 1) * 100. It does not change the packet, reference cutoff, probabilities, or submitted review. Invalid or numerically overflowing inputs are rejected; incomplete or elapsed research packets cannot use sensitivity. Refreshing a packet clears stale comparison and sensitivity results.
+
+Paste an earlier packet into the comparison panel to inspect up to 80 changed fields for the same symbol and quote currency. Both packets pass structural validation before comparison. Source and scenario arrays are compared by position, long values are abbreviated on screen, and the count identifies omitted differences. The comparison does not decide which evidence is correct. Clear comparison removes the pasted copy from the panel. It is never stored by the app.
+
+Undo retains up to ten saved edits in page memory. It restores research inputs and always resets the review to pending. Loading, importing, or creating a packet clears the undo history. Reloading closes the memory-only history; optional browser saving still stores only the current draft.
+
+### Additional local exports
+
+- **Scenario CSV** includes kind, reference cutoff, quote currency, horizon endpoints, and submitted gate status. Blocked packets produce four WITHHELD rows. Eligible packets retain all twelve scenarios with unbounded upper tails explicitly labeled. Text beginning with spreadsheet formula prefixes is apostrophe-prefixed and every cell is quoted. It contains no expected-return estimate or order instruction.
+- **Independent review handoff** is a separate JSON format, not an importable forecast packet. It omits the producer thesis, scenario drivers, and prior risk verdict; retains source records, proposed ranges, calculation method, counterevidence, risks, and unknowns; and starts requested assertions at UNKNOWN. It is always labeled INCOMPLETE_HANDOFF because the mandate, specialist run ledger, and conflict ledger must be attached separately. Its method and supplied evidence remain untrusted data, and the full project review workflow still applies.
+- **Check receipt** hashes the packet snapshot captured when clicked. Reproduce its SHA-256 using UTF-8 bytes of JSON.stringify(parsedPacket), preserving key order and adding no whitespace or newline. Save the matching packet JSON as well. The receipt records its check time, gap counts, warnings, and gate state. A digest detects changes; it does not authenticate a reviewer, verify sources, or establish forecast accuracy. The browser must provide Web Crypto for this optional export.
+
+All tools preserve the schema-version-1 packet, the five research functions, the independent risk gate, and the research-only authority boundary. They add no network requests or persistent storage keys.

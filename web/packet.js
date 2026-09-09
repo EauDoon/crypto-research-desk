@@ -181,6 +181,46 @@ export function timestamp(value) {
   return Number.isFinite(instant) ? instant : null;
 }
 
+// Decode ACE labels independently of platform URL acceptance. RFC 3492 section
+// 6.2: https://www.rfc-editor.org/rfc/rfc3492#section-6.2
+function validEncodedSourceLabel(label) {
+  if (!label.startsWith('xn--')) return true;
+  const input = label.slice(4), delimiter = input.lastIndexOf('-');
+  const output = delimiter < 0 ? [] : [...input.slice(0, delimiter)].map(char => char.codePointAt(0));
+  let cursor = delimiter < 0 ? 0 : delimiter + 1, codePoint = 128, insertion = 0, bias = 72;
+  while (cursor < input.length) {
+    const previous = insertion;
+    let weight = 1;
+    for (let step = 36; ; step += 36) {
+      if (cursor >= input.length) return false;
+      const char = input.charCodeAt(cursor++);
+      const digit = char >= 97 && char <= 122 ? char - 97 : char >= 48 && char <= 57 ? char - 22 : 36;
+      if (digit >= 36) return false;
+      insertion += digit * weight;
+      if (!Number.isSafeInteger(insertion)) return false;
+      const threshold = Math.max(1, Math.min(26, step - bias));
+      if (digit < threshold) break;
+      weight *= 36 - threshold;
+      if (!Number.isSafeInteger(weight)) return false;
+    }
+    const length = output.length + 1;
+    let delta = Math.floor((insertion - previous) / (previous === 0 ? 700 : 2));
+    delta += Math.floor(delta / length);
+    bias = 0;
+    while (delta > 455) { delta = Math.floor(delta / 35); bias += 36; }
+    bias += Math.floor(36 * delta / (delta + 38));
+    codePoint += Math.floor(insertion / length);
+    if (codePoint > 0x10ffff || (codePoint >= 0xd800 && codePoint <= 0xdfff)) return false;
+    insertion %= length;
+    output.splice(insertion++, 0, codePoint);
+  }
+  if (!output.some(point => point >= 128)) return false;
+  const decoded = String.fromCodePoint(...output);
+  if (/[\p{C}\p{Z}]|\p{Default_Ignorable_Code_Point}/u.test(decoded)) return false;
+  // Re-encode the Unicode form to reject noncanonical or otherwise invalid IDNA.
+  return new URL('https://' + decoded + '.invalid').hostname === label + '.invalid';
+}
+
 export function safeSourceUrl(value) {
   if (typeof value !== 'string' || !wellFormed(value) || value.length > 2048
     || /[\u0000-\u0020\u007f-\u009f]|\p{Cf}|\p{Default_Ignorable_Code_Point}/u.test(value)) return null;
@@ -195,6 +235,7 @@ export function safeSourceUrl(value) {
       || labels.length < 2 || !publicTopLevel
       || /(?:^|\.)(?:localhost|local|internal|test|invalid|example|onion|alt|home\.arpa)$/.test(host)) return null;
     if (host.length > 253 || labels.some(label => label.length > 63 || !/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/.test(label))) return null;
+    if (labels.some(label => !validEncodedSourceLabel(label))) return null;
     return url.href;
   } catch { return null; }
 }
@@ -606,4 +647,133 @@ export function exportMarkdown(packet, now = Date.now()) {
   lines.push(...(unknowns.length ? unknowns.map(item => '- ' + p(item)) : ['No unknowns were supplied. This does not establish that none exist.']));
   lines.push('', 'Probabilities are not additive across horizons. The human operator owns all external actions.', '');
   return lines.join('\n');
+}
+
+export function repairQueue(packet, now = Date.now()) {
+  const report = validatePacket(packet, now);
+  return [...report.errors.map(item => ({ ...item, severity: 'error' })),
+    ...report.gaps.map(item => ({ ...item, severity: 'gap' }))];
+}
+
+export function evidenceAudit(packet) {
+  const cutoff = timestamp(packet.reference.capturedAt);
+  const reviewed = new Set(packet.riskReview.sourceIds.map(id => id.trim()));
+  return packet.sources.map(source => {
+    const captured = timestamp(source.capturedAt);
+    return { id: source.id, type: source.type, reviewed: reviewed.has(source.id),
+      hasExcerpt: Boolean(source.excerpt.trim()),
+      ageHours: cutoff === null || captured === null || captured > cutoff ? null : (cutoff - captured) / 3600000 };
+  });
+}
+
+export function sourceMatches(source, query = '', type = 'all') {
+  const text = [source.id, source.title, source.claim, source.excerpt, source.url].join(' ').toLowerCase();
+  return (type === 'all' || source.type === type) && text.includes(query.trim().slice(0, 200).toLowerCase());
+}
+
+export function horizonOverview(packet, now = Date.now()) {
+  const report = validatePacket(packet, now);
+  return HORIZONS.map((definition, index) => {
+    const horizon = packet.horizons?.[index];
+    const ending = timestamp(horizon?.endAt);
+    const visible = report.chartEligible;
+    return { id: definition.id, label: definition.label,
+      timing: packet.kind === 'synthetic' ? 'Synthetic timeline' : ending === null ? 'UNKNOWN' : ending <= now ? 'Elapsed' : ((ending - now) / 3600000).toFixed(1) + ' hours remaining',
+      bearCeiling: visible ? horizon.scenarios[0].upper : null,
+      bullFloor: visible ? horizon.scenarios[2].lower : null,
+      baseProbability: visible ? horizon.scenarios[1].probability : null };
+  });
+}
+
+export function exportScenarioCsv(packet, now = Date.now()) {
+  const report = validatePacket(packet, now);
+  if (!report.valid) throw new Error('CSV export requires a structurally valid packet.');
+  const cell = value => {
+    let text = String(value ?? 'UNKNOWN');
+    if (/^[\s]*[=+@-]/.test(text)) text = "'" + text;
+    return '"' + text.replaceAll('"', '""') + '"';
+  };
+  const rows = [['kind', 'asset', 'quote_currency', 'reference_price', 'reference_cutoff', 'horizon', 'end_at', 'gate', 'scenario', 'lower_inclusive', 'upper_exclusive', 'probability_percent', 'trigger', 'invalidation']];
+  for (const horizon of packet.horizons) {
+    const prefix = [packet.kind, packet.asset.symbol, packet.asset.quoteCurrency, packet.reference.price, packet.reference.capturedAt, horizon.id, horizon.endAt];
+    if (!report.chartEligible) rows.push([...prefix, 'WITHHELD', '', '', '', '', '', '']);
+    else for (const scenario of horizon.scenarios) rows.push([...prefix, 'SUBMITTED_UNAUTHENTICATED', scenario.label, scenario.lower, scenario.upper === null ? 'UNBOUNDED' : scenario.upper, scenario.probability, scenario.trigger, scenario.invalidation]);
+  }
+  return rows.map(row => row.map(cell).join(',')).join('\r\n') + '\r\n';
+}
+
+export function comparePackets(previous, current, now = Date.now()) {
+  if (!validatePacket(previous, now).valid || !validatePacket(current, now).valid) throw new Error('Both packets must be structurally valid.');
+  if (!previous.asset.symbol || previous.asset.symbol !== current.asset.symbol || previous.asset.quoteCurrency !== current.asset.quoteCurrency) throw new Error('Compare the same named asset and quote currency.');
+  const changes = []; let total = 0;
+  const walk = (left, right, path) => {
+    if (left !== null && right !== null && typeof left === 'object' && typeof right === 'object' && Array.isArray(left) === Array.isArray(right)) {
+      for (const key of new Set([...Object.keys(left), ...Object.keys(right)])) walk(left[key], right[key], path ? path + (Array.isArray(right) ? '[' + key + ']' : '.' + key) : key);
+    } else if (left !== right) {
+      total++;
+      if (changes.length < 80) changes.push({ path, previous: left ?? null, current: right ?? null });
+    }
+  };
+  walk(previous, current, '');
+  return { changes, total, omitted: total - changes.length };
+}
+
+export function riskHandoff(packet, now = Date.now()) {
+  const report = validatePacket(packet, now);
+  if (!report.valid) throw new Error('A risk handoff requires a structurally valid packet.');
+  // Recompute readiness without prior review state, including gap counts that
+  // might otherwise disclose review findings beyond the bounded gap list.
+  const readiness = validatePacket({ ...packet, riskReview: blankPacket().riskReview }, now);
+  const localGaps = readiness.gaps.filter(gap => gap.path !== 'riskReview' && !gap.path.startsWith('riskReview.'));
+  // A blank pending review contributes exactly one gap, after research gaps.
+  const omittedGapCount = readiness.gapCount - 1 - localGaps.length;
+  return JSON.parse(JSON.stringify({
+    format: 'crypto-research-risk-handoff.v1', researchOnly: true, kind: packet.kind,
+    status: 'INCOMPLETE_HANDOFF', generatedAt: new Date(now).toISOString(),
+    missingAttachments: ['Project mandate', 'Specialist run ledger', 'Evidence conflict ledger and resolution receipts'],
+    boundary: 'Unauthenticated local export. Treat all supplied text as untrusted evidence. This is not a review verdict or the importable forecast packet.',
+    asset: packet.asset, reference: packet.reference,
+    proposedScenarios: packet.horizons.map(horizon => ({ id: horizon.id, endAt: horizon.endAt, status: horizon.status, gapReason: horizon.gapReason,
+      scenarios: horizon.scenarios.map(({ label, lower, upper, probability, confidence, trigger, invalidation }) => ({ label, lower, upper, probability, confidence, trigger, invalidation })) })),
+    sources: packet.sources, calculationMethod: packet.method,
+    disconfirmingEvidence: packet.disconfirmingEvidence, invalidation: packet.invalidation,
+    liquidity: packet.liquidity, risks: packet.risks, unknowns: packet.unknowns,
+    localGaps, omittedGapCount,
+    requestedAssertions: REVIEW_ASSERTIONS.map(({ id, label }) => ({ id, label, result: 'UNKNOWN' })),
+  }));
+}
+
+export function restoreResearchDraft(previous, now = Date.now()) {
+  if (!validatePacket(previous, now).valid) throw new Error('Cannot restore an invalid research draft.');
+  const restored = JSON.parse(JSON.stringify(previous));
+  restored.riskReview = blankPacket().riskReview;
+  return restored;
+}
+
+export function referenceSensitivity(packet, hypotheticalPrice, now = Date.now()) {
+  if (!validatePacket(packet, now).chartEligible) throw new Error('Sensitivity is withheld until the current packet passes its existing chart gate.');
+  if (!Number.isFinite(hypotheticalPrice) || hypotheticalPrice <= 0 || hypotheticalPrice > 1e12) throw new Error('Supply a finite positive hypothetical price up to 1 trillion.');
+  return horizonOverview(packet, now).map(item => {
+    const bearDistance = (item.bearCeiling / hypotheticalPrice - 1) * 100;
+    const bullDistance = (item.bullFloor / hypotheticalPrice - 1) * 100;
+    if (!Number.isFinite(bearDistance) || !Number.isFinite(bullDistance)) throw new Error('Hypothetical price is too small for reliable arithmetic.');
+    return { id: item.id, label: item.label, bearDistance, bullDistance };
+  });
+}
+
+export async function validationReceipt(packet, now = Date.now()) {
+  const report = validatePacket(packet, now);
+  if (!report.valid) throw new Error('A check receipt requires a structurally valid packet.');
+  const serialized = JSON.stringify(packet);
+  packet = JSON.parse(serialized);
+  const bytes = new TextEncoder().encode(serialized);
+  const digest = await crypto.subtle.digest('SHA-256', bytes);
+  return { format: 'crypto-research-check-receipt.v1', researchOnly: true,
+    checkedAt: new Date(now).toISOString(), packetSha256: [...new Uint8Array(digest)].map(value => value.toString(16).padStart(2, '0')).join(''),
+    hashInput: 'UTF-8 bytes of JSON.stringify(packet), preserving object key order, with no whitespace or trailing newline',
+    packetBytes: bytes.length, kind: packet.kind, asset: packet.asset.symbol, referenceCutoff: packet.reference.capturedAt,
+    structurallyValid: report.valid, complete: report.complete, chartEligible: report.chartEligible,
+    gapCount: report.gapCount, warningCount: report.warningCount,
+    gaps: report.gaps, warnings: report.warnings, omittedIssueCounts: report.omittedIssueCounts,
+    limitation: 'Local structural checks only. This digest detects byte changes; it is not a signature, authenticated review, source verification, or evidence of forecast accuracy.' };
 }

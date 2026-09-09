@@ -67,8 +67,8 @@
           <div><dt>Probability basis</dt><dd id="probability-basis"></dd></div>
         </dl>
         <div class="packet-toolbar">
-          <div class="actions"><button id="edit-details" class="button small" type="button">Edit details</button><button id="edit-json" class="button small subtle" type="button">Edit full packet</button></div>
-          <div class="actions"><button id="copy-json" class="button small subtle" type="button">Copy JSON</button><button id="export-json" class="button small subtle" type="button">Export JSON</button><button id="export-brief" class="button small subtle" type="button">Export brief</button><button id="print-packet" class="button small subtle" type="button">Print / PDF</button></div>
+          <div class="actions"><button id="edit-details" class="button small" type="button">Edit details</button><button id="undo-edit" class="button small subtle" type="button" disabled>Undo saved edit</button><button id="edit-json" class="button small subtle" type="button">Edit full packet</button></div>
+          <div class="actions"><button id="copy-json" class="button small subtle" type="button">Copy JSON</button><button id="export-json" class="button small subtle" type="button">Export JSON</button><button id="export-receipt" class="button small subtle" type="button">Export check receipt</button><button id="export-csv" class="button small subtle" type="button">Export scenario CSV</button><button id="export-brief" class="button small subtle" type="button">Export brief</button><button id="print-packet" class="button small subtle" type="button">Print / PDF</button></div>
         </div>
       </section>
       <div class="workspace-grid requires-app">
@@ -102,6 +102,8 @@
             <span id="review-status" class="tag amber"></span>
             <dl class="review-facts"><div><dt>Reviewer alias</dt><dd id="reviewer"></dd></div><div><dt>Recorded at</dt><dd id="reviewed-at"></dd></div></dl>
             <p id="review-notes" class="small-copy"></p>
+            <button id="export-risk-handoff" class="button small subtle" type="button">Export independent review handoff</button>
+            <p class="small-copy">A separate JSON handoff excludes the producer thesis and scenario rationale. The mandate, run ledger, and conflict ledger must be supplied separately.</p>
             <details class="gap-details"><summary>Submitted review assertions</summary><div id="assertion-record"></div></details>
             <p class="review-caveat">Self-reported. Identity, independence, and approval authority are not authenticated.</p>
           </section>
@@ -114,20 +116,53 @@
           </section>
         </div>
       </div>
+      <section class="panel requires-app" aria-labelledby="repair-heading">
+        <h2 id="repair-heading">Research repair queue</h2>
+        <p class="small-copy">Open a field to resolve missing inputs. These checks never grant research clearance.</p>
+        <ul id="repair-list" class="text-list"></ul>
+      </section>
       <section id="scenarios" class="panel scenarios-section requires-app" aria-labelledby="scenarios-heading">
         <div class="section-heading"><div><p class="eyebrow">FOUR HORIZONS, SEPARATE DISTRIBUTIONS</p><h2 id="scenarios-heading">Scenario tables</h2></div><span class="muted small-copy">Lower bound included. Upper bound excluded.</span></div>
+        <details><summary>Compare all four horizon boundaries</summary>
+          <p class="small-copy">Submitted boundaries are shown only when the existing packet gate permits the chart. They are not expected values or guaranteed outcomes.</p>
+          <div id="horizon-overview" class="table-scroll" tabindex="0" role="region" aria-label="All horizon boundaries"></div>
+        </details>
+        <details class="sensitivity-controls"><summary>Explore reference-price sensitivity</summary>
+          <p class="small-copy">Arithmetic only. Hold submitted thresholds fixed and calculate their percentage distance from a hypothetical price. This neither updates the forecast cutoff nor recalibrates probabilities.</p>
+          <label for="sensitivity-price">Hypothetical reference price</label><input id="sensitivity-price" type="number" min="0" max="1000000000000" step="any">
+          <button id="calculate-sensitivity" class="button small" type="button">Calculate threshold distances</button>
+          <p id="sensitivity-status" role="status"></p><ul id="sensitivity-results" class="text-list"></ul>
+        </details>
         <div id="horizon-tabs" class="horizon-tabs" role="tablist" aria-label="Forecast horizons"></div>
         <div id="horizon-panels"></div>
       </section>
       <section id="evidence" class="panel evidence-section requires-app" aria-labelledby="evidence-heading">
         <div class="section-heading"><div><p class="eyebrow">THE SOURCE RECORD</p><h2 id="evidence-heading">Evidence, with its dates.</h2></div><span id="source-count" class="tag"></span></div>
         <p class="section-description">These are supplied claims and excerpts. Source pages open only when you choose a link; the app does not retrieve or verify them.</p>
+        <div class="source-controls">
+          <label for="source-search">Search evidence<input id="source-search" type="search" maxlength="200" placeholder="Title, claim, excerpt, or source ID"></label>
+          <label for="source-type">Source type<select id="source-type"><option value="all">All sources</option><option value="primary">Primary</option><option value="secondary">Secondary</option></select></label>
+          <p id="source-results" role="status" class="small-copy"></p>
+        </div>
+        <details><summary>Source recency and review coverage</summary>
+          <p class="small-copy">Age is measured at the packet cutoff. A recent capture does not establish accuracy or current relevance. Review coverage is self-reported.</p>
+          <ul id="evidence-audit" class="text-list"></ul>
+        </details>
         <div id="source-list"></div>
       </section>
       <div class="bottom-grid requires-app">
         <section id="method" class="panel" aria-labelledby="method-heading"><p class="eyebrow">REPRODUCIBILITY</p><h2 id="method-heading">Method and limits</h2><dl id="method-list" class="method-list"></dl></section>
         <section class="panel" aria-labelledby="unknowns-heading"><p class="eyebrow">WHAT COULD CHANGE THE VIEW</p><h2 id="unknowns-heading">Risk and uncertainty</h2><h3>Major risks</h3><ul id="risk-list" class="text-list"></ul><h3>Unresolved unknowns</h3><ul id="unknown-list" class="text-list"></ul></section>
       </div>
+      <section class="panel requires-app" aria-labelledby="compare-heading">
+        <h2 id="compare-heading">Compare a previous research packet</h2>
+        <p class="small-copy">Paste previous JSON for the same asset and quote currency. Comparison is local, shows raw submitted changes, and never resolves evidence conflicts or grants clearance.</p>
+        <details><summary>Open packet comparison</summary>
+          <label for="comparison-json">Previous packet JSON</label><textarea id="comparison-json" rows="6" maxlength="327680" spellcheck="false" autocomplete="off"></textarea>
+          <div class="actions"><button id="compare-packets" class="button small" type="button">Compare with current packet</button><button id="clear-comparison" class="button small subtle" type="button">Clear comparison</button></div>
+          <p id="comparison-status" role="status"></p><ul id="comparison-results" class="text-list"></ul>
+        </details>
+      </section>
       <section id="guide" class="panel guide-section" aria-labelledby="guide-heading">
         <div><p class="eyebrow">FIELD GUIDE</p><h2 id="guide-heading">From research packet to review.</h2><p>This workbench supports the project's named-ticker forecast contract. It does not conduct research or replace the five specialist functions.</p></div>
         <ol class="guide-steps"><li><strong>Prepare the record.</strong><span>Use dated public evidence, one exact reference price, and all four horizons. Leave unsupported forecasts incomplete.</span></li><li><strong>Inspect the gaps.</strong><span>Import schema version 1 JSON or start a blank packet. Edit details covers routine packet inputs; Edit full packet shows the exact JSON.</span></li><li><strong>Record an actual review.</strong><span>Only record a disposition after independent risk review. Editing research inputs resets an existing local review record.</span></li><li><strong>Export the result.</strong><span>JSON preserves the packet. The brief includes validation gaps. Print / PDF includes the chart when its input and review requirements are met.</span></li></ol>
