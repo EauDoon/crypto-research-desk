@@ -118,3 +118,34 @@ test('comparison count remains honest when a bounded display omits changes', () 
   assert(result.total > 80); assert.equal(result.changes.length, 80);
   assert.equal(result.omitted, result.total - 80);
 });
+
+test('risk handoff is independent of every prior review disposition and retains research gaps', () => {
+  let expected;
+  for (const status of ['pending', 'deliver', 'deliver_with_warning', 'repair', 'withhold']) {
+    const packet = examplePacket(); packet.liquidity = ''; packet.sources[0].excerpt = '';
+    packet.riskReview.status = status;
+    packet.riskReview.notes = 'PRIOR REVIEW ' + status;
+    packet.riskReview.sourceIds = [];
+    packet.riskReview.assertions.forEach(assertion => { assertion.result = 'PASS'; });
+    const before = JSON.stringify(packet);
+    const handoff = research.riskHandoff(packet, NOW);
+    assert.equal(JSON.stringify(packet), before);
+    assert(handoff.localGaps.some(gap => gap.path === 'liquidity'));
+    assert(handoff.localGaps.some(gap => gap.path === 'sources[0].excerpt'));
+    assert(handoff.localGaps.every(gap => !gap.path.startsWith('riskReview')));
+    assert(!JSON.stringify(handoff).includes('PRIOR REVIEW'));
+    assert.equal(handoff.omittedGapCount, 0);
+    if (expected) assert.deepEqual(handoff, expected);
+    expected = handoff;
+  }
+});
+
+test('risk handoff omission counts include only research gaps when output is truncated', () => {
+  const packet = examplePacket();
+  packet.sources = Array.from({ length: 32 }, (_, index) => ({ ...packet.sources[0], id: 'source' + index, title: '', claim: '', excerpt: '', url: 'https://example.com/' + index }));
+  packet.riskReview = research.blankPacket().riskReview;
+  const handoff = research.riskHandoff(packet, NOW);
+  assert.equal(handoff.localGaps.length, 80);
+  assert.equal(handoff.omittedGapCount, 16);
+  assert(handoff.localGaps.every(gap => !gap.path.startsWith('riskReview')));
+});

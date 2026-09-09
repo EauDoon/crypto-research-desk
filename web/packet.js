@@ -680,6 +680,12 @@ export function comparePackets(previous, current, now = Date.now()) {
 export function riskHandoff(packet, now = Date.now()) {
   const report = validatePacket(packet, now);
   if (!report.valid) throw new Error('A risk handoff requires a structurally valid packet.');
+  // Recompute readiness without prior review state, including gap counts that
+  // might otherwise disclose review findings beyond the bounded gap list.
+  const readiness = validatePacket({ ...packet, riskReview: blankPacket().riskReview }, now);
+  const localGaps = readiness.gaps.filter(gap => gap.path !== 'riskReview' && !gap.path.startsWith('riskReview.'));
+  // A blank pending review contributes exactly one gap, after research gaps.
+  const omittedGapCount = readiness.gapCount - 1 - localGaps.length;
   return JSON.parse(JSON.stringify({
     format: 'crypto-research-risk-handoff.v1', researchOnly: true, kind: packet.kind,
     status: 'INCOMPLETE_HANDOFF', generatedAt: new Date(now).toISOString(),
@@ -691,7 +697,7 @@ export function riskHandoff(packet, now = Date.now()) {
     sources: packet.sources, calculationMethod: packet.method,
     disconfirmingEvidence: packet.disconfirmingEvidence, invalidation: packet.invalidation,
     liquidity: packet.liquidity, risks: packet.risks, unknowns: packet.unknowns,
-    localGaps: report.gaps, omittedGapCount: report.omittedIssueCounts.gaps,
+    localGaps, omittedGapCount,
     requestedAssertions: REVIEW_ASSERTIONS.map(({ id, label }) => ({ id, label, result: 'UNKNOWN' })),
   }));
 }

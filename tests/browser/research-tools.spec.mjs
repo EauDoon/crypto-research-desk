@@ -102,3 +102,24 @@ test('overview clock advances and expired research clears hypothetical results',
   await expect(page.locator('#sensitivity-results li')).toHaveCount(0);
   expect(await downloadText(page, '#export-csv')).toContain('WITHHELD');
 });
+
+test('independent handoff downloads cannot reveal a prior review through readiness gaps', async ({ page }) => {
+  page.on('dialog', dialog => dialog.accept());
+  let expected;
+  for (const status of ['pending', 'deliver', 'deliver_with_warning', 'repair', 'withhold']) {
+    const packet = examplePacket(); packet.liquidity = ''; packet.sources[0].excerpt = '';
+    packet.riskReview.status = status; packet.riskReview.notes = 'PRIOR REVIEW ' + status;
+    packet.riskReview.sourceIds = [];
+    packet.riskReview.assertions.forEach(assertion => { assertion.result = 'PASS'; });
+    await page.locator('#packet-file').setInputFiles({ name: 'review.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(packet)) });
+    const handoff = JSON.parse(await downloadText(page, '#export-risk-handoff'));
+    expect(handoff.localGaps.map(gap => gap.path)).toContain('liquidity');
+    expect(handoff.localGaps.map(gap => gap.path)).toContain('sources[0].excerpt');
+    expect(handoff.localGaps.every(gap => !gap.path.startsWith('riskReview'))).toBe(true);
+    expect(JSON.stringify(handoff)).not.toContain('PRIOR REVIEW');
+    const comparable = { ...handoff, generatedAt: null };
+    if (expected) expect(comparable).toEqual(expected);
+    expected = comparable;
+    expect(JSON.parse(await downloadText(page, '#export-json'))).toEqual(packet);
+  }
+});
