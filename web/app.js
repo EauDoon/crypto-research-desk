@@ -1,6 +1,6 @@
 import {
   MAX_PACKET_BYTES, MAX_JSON_INPUT_BYTES, HORIZONS, SCENARIOS, REVIEW_ASSERTIONS, parsePacket, validatePacket, blankPacket,
-  timestamp, endAt, formatDate, formatPrice, safeSourceUrl, intervalLabel, returnLabel, chartThresholds, exportMarkdown,
+  timestamp, endAt, formatDate, formatPrice, safeSourceUrl, intervalLabel, returnLabel, chartThresholds, exportMarkdown, repairQueue,
 } from './packet.js';
 import { examplePacket } from './example.js';
 
@@ -308,6 +308,7 @@ function renderSources() {
   }
 }
 function render(updateContent = true, now = Date.now()) {
+  renderRepairs(now);
   const report = validatePacket(packet, now);
   lastValidation = validationSignature(report);
   const synthetic = packet.kind === 'synthetic';
@@ -990,3 +991,19 @@ function refreshExpiry() {
 }
 setInterval(refreshExpiry, 60000);
 document.addEventListener('visibilitychange', refreshExpiry);
+
+function renderRepairs(now) {
+  const queue = repairQueue(packet, now);
+  $('repair-list').replaceChildren(...queue.map(item => {
+    const li = element('li');
+    const button = element('button', item.path + ': ' + item.message, 'button small subtle repair-action');
+    button.type = 'button';
+    button.addEventListener('click', () => {
+      openEditor('details');
+      const target = editableFieldForPath(item.path);
+      if (target) revealEditorTarget(target);
+    });
+    li.append(button); return li;
+  }));
+  if (!queue.length) $('repair-list').append(element('li', 'No structural repairs recorded. Source truth and reviewer identity still require human verification.'));
+}

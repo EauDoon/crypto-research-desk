@@ -607,3 +607,9 @@ export function exportMarkdown(packet, now = Date.now()) {
   lines.push('', 'Probabilities are not additive across horizons. The human operator owns all external actions.', '');
   return lines.join('\n');
 }
+
+export function repairQueue(packet, now = Date.now()) {
+  const report = validatePacket(packet, now);
+  return [...report.errors.map(item => ({ ...item, severity: 'error' })),
+    ...report.gaps.map(item => ({ ...item, severity: 'gap' }))];
+}

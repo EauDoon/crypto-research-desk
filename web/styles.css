@@ -360,3 +360,5 @@ fieldset > p { margin-bottom: 18px; }
   .provenance-banner, .tag { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
   a { color: inherit; }
 }
+
+.repair-action { white-space: normal; text-align: left; max-width: 100%; overflow-wrap: anywhere; }
