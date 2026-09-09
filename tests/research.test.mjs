@@ -76,3 +76,14 @@ test('undo always resets review and preserves the original snapshot', () => {
   restored.sources[0].claim = 'Changed';
   assert.notEqual(restored.sources[0].claim, original.sources[0].claim);
 });
+
+test('sensitivity computes fixed-boundary distances without mutating forecasts', () => {
+  const packet = examplePacket(), before = JSON.stringify(packet);
+  const rows = research.referenceSensitivity(packet, 200, NOW);
+  assert.equal(rows[0].bearDistance, -53);
+  assert.equal(rows[0].bullDistance, -47);
+  assert.equal(JSON.stringify(packet), before);
+  for (const price of [0, -1, Infinity, NaN, 1e13, Number.MIN_VALUE]) assert.throws(() => research.referenceSensitivity(packet, price, NOW));
+  packet.riskReview.status = 'pending';
+  assert.throws(() => research.referenceSensitivity(packet, 100, NOW), /withheld/);
+});

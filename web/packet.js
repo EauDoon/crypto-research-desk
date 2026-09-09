@@ -702,3 +702,14 @@ export function restoreResearchDraft(previous, now = Date.now()) {
   restored.riskReview = blankPacket().riskReview;
   return restored;
 }
+
+export function referenceSensitivity(packet, hypotheticalPrice, now = Date.now()) {
+  if (!validatePacket(packet, now).chartEligible) throw new Error('Sensitivity is withheld until the current packet passes its existing chart gate.');
+  if (!Number.isFinite(hypotheticalPrice) || hypotheticalPrice <= 0 || hypotheticalPrice > 1e12) throw new Error('Supply a finite positive hypothetical price up to 1 trillion.');
+  return horizonOverview(packet, now).map(item => {
+    const bearDistance = (item.bearCeiling / hypotheticalPrice - 1) * 100;
+    const bullDistance = (item.bullFloor / hypotheticalPrice - 1) * 100;
+    if (!Number.isFinite(bearDistance) || !Number.isFinite(bullDistance)) throw new Error('Hypothetical price is too small for reliable arithmetic.');
+    return { id: item.id, label: item.label, bearDistance, bullDistance };
+  });
+}

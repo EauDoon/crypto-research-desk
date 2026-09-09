@@ -127,6 +127,12 @@
           <p class="small-copy">Submitted boundaries are shown only when the existing packet gate permits the chart. They are not expected values or guaranteed outcomes.</p>
           <div id="horizon-overview" class="table-scroll" tabindex="0" role="region" aria-label="All horizon boundaries"></div>
         </details>
+        <details class="sensitivity-controls"><summary>Explore reference-price sensitivity</summary>
+          <p class="small-copy">Arithmetic only. Hold submitted thresholds fixed and calculate their percentage distance from a hypothetical price. This neither updates the forecast cutoff nor recalibrates probabilities.</p>
+          <label for="sensitivity-price">Hypothetical reference price</label><input id="sensitivity-price" type="number" min="0" max="1000000000000" step="any">
+          <button id="calculate-sensitivity" class="button small" type="button">Calculate threshold distances</button>
+          <p id="sensitivity-status" role="status"></p><ul id="sensitivity-results" class="text-list"></ul>
+        </details>
         <div id="horizon-tabs" class="horizon-tabs" role="tablist" aria-label="Forecast horizons"></div>
         <div id="horizon-panels"></div>
       </section>

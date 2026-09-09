@@ -1,6 +1,6 @@
 import {
   MAX_PACKET_BYTES, MAX_JSON_INPUT_BYTES, HORIZONS, SCENARIOS, REVIEW_ASSERTIONS, parsePacket, validatePacket, blankPacket,
-  timestamp, endAt, formatDate, formatPrice, safeSourceUrl, intervalLabel, returnLabel, chartThresholds, exportMarkdown, repairQueue, evidenceAudit, sourceMatches, horizonOverview, exportScenarioCsv, comparePackets, riskHandoff, restoreResearchDraft,
+  timestamp, endAt, formatDate, formatPrice, safeSourceUrl, intervalLabel, returnLabel, chartThresholds, exportMarkdown, repairQueue, evidenceAudit, sourceMatches, horizonOverview, exportScenarioCsv, comparePackets, riskHandoff, restoreResearchDraft, referenceSensitivity,
 } from './packet.js';
 import { examplePacket } from './example.js';
 
@@ -317,6 +317,7 @@ function render(updateContent = true, now = Date.now()) {
   renderRepairs(now);
   renderEvidenceAudit();
   renderOverview(now);
+  if (!validatePacket(packet, now).chartEligible) clearSensitivity();
   const report = validatePacket(packet, now);
   lastValidation = validationSignature(report);
   const synthetic = packet.kind === 'synthetic';
@@ -456,6 +457,7 @@ function applyPacket(candidate, label, localEdit = false, restoring = false) {
   if (restoring) dirty = true;
   packet = candidate; origin = label;
   clearComparison();
+  clearSensitivity();
   render(true, now); saveLocally();
   return { reviewReset, report };
 }
@@ -1085,4 +1087,16 @@ $('undo-edit').addEventListener('click', () => {
     applyPacket(restored, 'Restored session edit', false, true);
     announce('Previous research inputs restored. Review reset to pending. Undo history is memory-only and ends when the page closes or a packet is replaced.');
   } catch (error) { announce(error.message, true); }
+});
+
+function clearSensitivity() {
+  $('sensitivity-price').value = ''; $('sensitivity-status').textContent = ''; $('sensitivity-results').replaceChildren();
+}
+$('calculate-sensitivity').addEventListener('click', () => {
+  try {
+    const rows = referenceSensitivity(packet, Number($('sensitivity-price').value));
+    const percent = value => (Math.abs(value) > 1e8 ? value.toExponential(3) : value.toFixed(3)) + '%';
+    listInto('sensitivity-results', rows.map(item => item.label + ': bear ceiling ' + percent(item.bearDistance) + '; bull floor ' + percent(item.bullDistance)), 'No eligible thresholds.');
+    setText('sensitivity-status', 'Hypothetical arithmetic only. Original packet, probabilities, and review are unchanged.');
+  } catch (error) { $('sensitivity-results').replaceChildren(); setText('sensitivity-status', error.message); }
 });
