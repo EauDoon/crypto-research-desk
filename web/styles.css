@@ -362,3 +362,9 @@ fieldset > p { margin-bottom: 18px; }
 }
 
 .repair-action { white-space: normal; text-align: left; max-width: 100%; overflow-wrap: anywhere; }
+
+.source-controls { display: flex; gap: 1rem; align-items: end; flex-wrap: wrap; margin: 1rem 0; }
+.source-controls label { flex: 1 1 12rem; }
+.source-controls input, .source-controls select { display: block; width: 100%; }
+.source-filtered { display: none; }
+@media print { .source-controls { display: none; } .source-filtered { display: grid; } }

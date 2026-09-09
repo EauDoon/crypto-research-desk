@@ -1,6 +1,6 @@
 import {
   MAX_PACKET_BYTES, MAX_JSON_INPUT_BYTES, HORIZONS, SCENARIOS, REVIEW_ASSERTIONS, parsePacket, validatePacket, blankPacket,
-  timestamp, endAt, formatDate, formatPrice, safeSourceUrl, intervalLabel, returnLabel, chartThresholds, exportMarkdown, repairQueue, evidenceAudit,
+  timestamp, endAt, formatDate, formatPrice, safeSourceUrl, intervalLabel, returnLabel, chartThresholds, exportMarkdown, repairQueue, evidenceAudit, sourceMatches,
 } from './packet.js';
 import { examplePacket } from './example.js';
 
@@ -280,11 +280,14 @@ function refreshHorizonLabels(now = Date.now()) {
   }
 }
 function renderSources() {
+  const count = packet.sources.filter(source => sourceMatches(source, $('source-search').value, $('source-type').value)).length;
+  setText('source-results', count + ' of ' + packet.sources.length + ' sources match. Exports and printing retain all sources.');
   $('source-list').replaceChildren();
   setText('source-count', packet.sources.length + ' SOURCE RECORD' + (packet.sources.length === 1 ? '' : 'S'));
   if (!packet.sources.length) $('source-list').append(element('p', 'UNKNOWN. No source records have been supplied.', 'small-copy'));
   for (const [index, source] of packet.sources.entries()) {
     const article = element('article', undefined, 'source-item'), content = element('div');
+    article.classList.toggle('source-filtered', !sourceMatches(source, $('source-search').value, $('source-type').value));
     const heading = element('div', undefined, 'source-title');
     const sourceUrl = safeSourceUrl(source.url);
     const link = element('a', source.title + ' ↗');
@@ -1016,3 +1019,6 @@ function renderEvidenceAudit() {
     '; ' + (item.reviewed ? 'listed in submitted review' : 'not listed in submitted review') +
     '; ' + (item.hasExcerpt ? 'excerpt supplied' : 'excerpt UNKNOWN')), 'No source records to audit.');
 }
+
+$('source-search').addEventListener('input', renderSources);
+$('source-type').addEventListener('change', renderSources);

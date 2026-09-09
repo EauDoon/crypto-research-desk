@@ -16,3 +16,10 @@ test('evidence audit uses cutoff, never current age or implied review authentici
   assert.equal(research.evidenceAudit(packet)[0].ageHours, null);
   assert.equal(research.evidenceAudit(packet)[0].reviewed, false);
 });
+
+test('source search is literal, bounded, and respects primary filters', () => {
+  const source = examplePacket().sources[0];
+  assert(research.sourceMatches(source, ' UPGRADE ', 'primary'));
+  assert(!research.sourceMatches(source, '', 'secondary'));
+  assert(!research.sourceMatches(source, '.*'));
+});

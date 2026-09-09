@@ -624,3 +624,8 @@ export function evidenceAudit(packet) {
       ageHours: cutoff === null || captured === null || captured > cutoff ? null : (cutoff - captured) / 3600000 };
   });
 }
+
+export function sourceMatches(source, query = '', type = 'all') {
+  const text = [source.id, source.title, source.claim, source.excerpt, source.url].join(' ').toLowerCase();
+  return (type === 'all' || source.type === type) && text.includes(query.trim().slice(0, 200).toLowerCase());
+}

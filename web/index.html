@@ -127,6 +127,11 @@
       <section id="evidence" class="panel evidence-section requires-app" aria-labelledby="evidence-heading">
         <div class="section-heading"><div><p class="eyebrow">THE SOURCE RECORD</p><h2 id="evidence-heading">Evidence, with its dates.</h2></div><span id="source-count" class="tag"></span></div>
         <p class="section-description">These are supplied claims and excerpts. Source pages open only when you choose a link; the app does not retrieve or verify them.</p>
+        <div class="source-controls">
+          <label for="source-search">Search evidence<input id="source-search" type="search" maxlength="200" placeholder="Title, claim, excerpt, or source ID"></label>
+          <label for="source-type">Source type<select id="source-type"><option value="all">All sources</option><option value="primary">Primary</option><option value="secondary">Secondary</option></select></label>
+          <p id="source-results" role="status" class="small-copy"></p>
+        </div>
         <details><summary>Source recency and review coverage</summary>
           <p class="small-copy">Age is measured at the packet cutoff. A recent capture does not establish accuracy or current relevance. Review coverage is self-reported.</p>
           <ul id="evidence-audit" class="text-list"></ul>
