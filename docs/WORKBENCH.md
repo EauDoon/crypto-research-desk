@@ -102,7 +102,7 @@ The repair queue opens the exact field associated with a missing input. It is a 
 
 The all-horizon overview follows the existing chart gate. Reference sensitivity holds the recorded thresholds fixed and computes (threshold / hypothetical price - 1) * 100. It does not change the packet, reference cutoff, probabilities, or submitted review. Invalid or numerically overflowing inputs are rejected; incomplete or elapsed research packets cannot use sensitivity. Refreshing a packet clears stale comparison and sensitivity results.
 
-Paste an earlier packet into the comparison panel to inspect up to 80 changed fields for the same symbol and quote currency. Both packets pass structural validation before comparison. Source and scenario arrays are compared by position, long values are abbreviated on screen, and the count identifies omitted differences. The comparison does not decide which evidence is correct. Clear comparison removes the pasted copy from the panel. It is never stored by the app.
+Paste an earlier packet into the comparison panel to inspect up to 80 changed fields for the same symbol and quote currency. Both packets pass structural validation before comparison. Sources and review assertions are matched by ID, reviewed-source order is ignored, scenario arrays remain positional, long values are abbreviated on screen, and the count identifies omitted differences. The comparison does not decide which evidence is correct. Clear comparison removes the pasted copy from the panel. It is never stored by the app.
 
 Undo retains up to ten saved edits in page memory. It restores research inputs and always resets the review to pending. Loading, importing, or creating a packet clears the undo history. Reloading closes the memory-only history; optional browser saving still stores only the current draft.
 
@@ -113,3 +113,5 @@ Undo retains up to ten saved edits in page memory. It restores research inputs a
 - **Check receipt** hashes the packet snapshot captured when clicked. Reproduce its SHA-256 using UTF-8 bytes of JSON.stringify(parsedPacket), preserving key order and adding no whitespace or newline. Save the matching packet JSON as well. The receipt records its check time, gap counts, warnings, and gate state. A digest detects changes; it does not authenticate a reviewer, verify sources, or establish forecast accuracy. The browser must provide Web Crypto for this optional export.
 
 All tools preserve the schema-version-1 packet, the five research functions, the independent risk gate, and the research-only authority boundary. They add no network requests or persistent storage keys.
+
+Revision comparisons preserve source identity across reordering. A changed claim appears under its source ID; added or removed records retain their complete submitted values in the comparison result. Matching identifiers does not establish that evidence is correct.

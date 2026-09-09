@@ -707,6 +707,13 @@ export function comparePackets(previous, current, now = Date.now()) {
   if (!previous.asset.symbol || previous.asset.symbol !== current.asset.symbol || previous.asset.quoteCurrency !== current.asset.quoteCurrency) throw new Error('Compare the same named asset and quote currency.');
   const changes = []; let total = 0;
   const walk = (left, right, path) => {
+    if (path === 'sources' || path === 'riskReview.assertions') {
+      const before = new Map(left.map(item => [item.id, item]));
+      const after = new Map(right.map(item => [item.id, item]));
+      for (const id of new Set([...before.keys(), ...after.keys()])) walk(before.get(id), after.get(id), path + '[' + id + ']');
+      return;
+    }
+    if (path === 'riskReview.sourceIds') { left = [...left].sort(); right = [...right].sort(); }
     if (left !== null && right !== null && typeof left === 'object' && typeof right === 'object' && Array.isArray(left) === Array.isArray(right)) {
       for (const key of new Set([...Object.keys(left), ...Object.keys(right)])) walk(left[key], right[key], path ? path + (Array.isArray(right) ? '[' + key + ']' : '.' + key) : key);
     } else if (left !== right) {

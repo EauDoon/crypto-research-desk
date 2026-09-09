@@ -1071,7 +1071,7 @@ $('compare-packets').addEventListener('click', () => {
     const result = comparePackets(parsePacket($('comparison-json').value), packet);
     const summary = value => JSON.stringify(value).slice(0, 240);
     listInto('comparison-results', result.changes.map(item => item.path + ': ' + summary(item.previous) + ' → ' + summary(item.current)), 'No submitted fields changed.');
-    setText('comparison-status', result.total + ' changed fields; ' + result.omitted + ' omitted. Long values are shortened. Source arrays are compared by position. Open raw JSON for full evidence.');
+    setText('comparison-status', result.total + ' changed fields; ' + result.omitted + ' omitted. Long values are shortened. Sources and review assertions are matched by ID. Open raw JSON for full evidence.');
   } catch (error) { $('comparison-results').replaceChildren(); setText('comparison-status', error.message); }
 });
 
