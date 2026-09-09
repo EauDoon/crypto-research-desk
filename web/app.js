@@ -1,6 +1,6 @@
 import {
   MAX_PACKET_BYTES, MAX_JSON_INPUT_BYTES, HORIZONS, SCENARIOS, REVIEW_ASSERTIONS, parsePacket, validatePacket, blankPacket,
-  timestamp, endAt, formatDate, formatPrice, safeSourceUrl, intervalLabel, returnLabel, chartThresholds, exportMarkdown, repairQueue, evidenceAudit, sourceMatches, horizonOverview, exportScenarioCsv, comparePackets, riskHandoff,
+  timestamp, endAt, formatDate, formatPrice, safeSourceUrl, intervalLabel, returnLabel, chartThresholds, exportMarkdown, repairQueue, evidenceAudit, sourceMatches, horizonOverview, exportScenarioCsv, comparePackets, riskHandoff, restoreResearchDraft,
 } from './packet.js';
 import { examplePacket } from './example.js';
 
@@ -10,6 +10,7 @@ let packet = examplePacket();
 let activeHorizon = '12h';
 let origin = 'Synthetic example';
 let dirty = false;
+let undoHistory = [];
 let editorMode = 'details';
 let editorInitial = '';
 let importSequence = 0;
@@ -311,6 +312,8 @@ function renderSources() {
   }
 }
 function render(updateContent = true, now = Date.now()) {
+  $('undo-edit').disabled = undoHistory.length === 0;
+  $('undo-edit').textContent = 'Undo saved edit' + (undoHistory.length ? ' (' + undoHistory.length + ')' : '');
   renderRepairs(now);
   renderEvidenceAudit();
   renderOverview(now);
@@ -426,7 +429,7 @@ function researchChanged(candidate) {
   const withoutReview = value => JSON.stringify(canonical(Object.fromEntries(Object.entries(value).filter(([key]) => key !== 'riskReview'))));
   return withoutReview(candidate) !== withoutReview(packet);
 }
-function applyPacket(candidate, label, localEdit = false) {
+function applyPacket(candidate, label, localEdit = false, restoring = false) {
   let reviewReset = false;
   if (localEdit && researchChanged(candidate)) {
     if (reviewSignature(candidate.riskReview) !== reviewSignature(packet.riskReview)) {
@@ -444,6 +447,13 @@ function applyPacket(candidate, label, localEdit = false) {
   importSequence++;
   $('app-error').hidden = true;
   dirty = localEdit ? dirty || JSON.stringify(canonical(candidate)) !== JSON.stringify(canonical(packet)) : false;
+  if (!restoring) {
+    if (localEdit && JSON.stringify(candidate) !== JSON.stringify(packet)) {
+      undoHistory.push(structuredClone(packet));
+      if (undoHistory.length > 10) undoHistory.shift();
+    } else if (!localEdit) undoHistory = [];
+  }
+  if (restoring) dirty = true;
   packet = candidate; origin = label;
   clearComparison();
   render(true, now); saveLocally();
@@ -1064,5 +1074,15 @@ $('export-risk-handoff').addEventListener('click', () => {
   try {
     download(JSON.stringify(riskHandoff(packet), null, 2) + '\n', 'application/json; charset=utf-8', 'Independent Review Handoff.json');
     announce('Incomplete risk handoff prepared. Attach the mandate, run ledger, and conflict receipts before independent review.');
+  } catch (error) { announce(error.message, true); }
+});
+
+$('undo-edit').addEventListener('click', () => {
+  if (!undoHistory.length) return;
+  try {
+    const restored = restoreResearchDraft(undoHistory.at(-1));
+    undoHistory.pop();
+    applyPacket(restored, 'Restored session edit', false, true);
+    announce('Previous research inputs restored. Review reset to pending. Undo history is memory-only and ends when the page closes or a packet is replaced.');
   } catch (error) { announce(error.message, true); }
 });

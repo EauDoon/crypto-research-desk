@@ -66,3 +66,13 @@ test('risk handoff excludes producer persuasion and prior verdict while retainin
   assert.equal(handoff.status, 'INCOMPLETE_HANDOFF');
   assert(handoff.requestedAssertions.every(item => item.result === 'UNKNOWN'));
 });
+
+test('undo always resets review and preserves the original snapshot', () => {
+  const original = examplePacket();
+  const restored = research.restoreResearchDraft(original, NOW);
+  assert.equal(restored.riskReview.status, 'pending');
+  assert.equal(original.riskReview.status, 'deliver_with_warning');
+  assert.deepEqual(restored.sources, original.sources);
+  restored.sources[0].claim = 'Changed';
+  assert.notEqual(restored.sources[0].claim, original.sources[0].claim);
+});

@@ -695,3 +695,10 @@ export function riskHandoff(packet, now = Date.now()) {
     requestedAssertions: REVIEW_ASSERTIONS.map(({ id, label }) => ({ id, label, result: 'UNKNOWN' })),
   }));
 }
+
+export function restoreResearchDraft(previous, now = Date.now()) {
+  if (!validatePacket(previous, now).valid) throw new Error('Cannot restore an invalid research draft.');
+  const restored = JSON.parse(JSON.stringify(previous));
+  restored.riskReview = blankPacket().riskReview;
+  return restored;
+}
