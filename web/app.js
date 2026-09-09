@@ -1,6 +1,6 @@
 import {
   MAX_PACKET_BYTES, MAX_JSON_INPUT_BYTES, HORIZONS, SCENARIOS, REVIEW_ASSERTIONS, parsePacket, validatePacket, blankPacket,
-  timestamp, endAt, formatDate, formatPrice, safeSourceUrl, intervalLabel, returnLabel, chartThresholds, exportMarkdown, repairQueue, evidenceAudit, sourceMatches,
+  timestamp, endAt, formatDate, formatPrice, safeSourceUrl, intervalLabel, returnLabel, chartThresholds, exportMarkdown, repairQueue, evidenceAudit, sourceMatches, horizonOverview,
 } from './packet.js';
 import { examplePacket } from './example.js';
 
@@ -313,6 +313,7 @@ function renderSources() {
 function render(updateContent = true, now = Date.now()) {
   renderRepairs(now);
   renderEvidenceAudit();
+  renderOverview(now);
   const report = validatePacket(packet, now);
   lastValidation = validationSignature(report);
   const synthetic = packet.kind === 'synthetic';
@@ -1022,3 +1023,18 @@ function renderEvidenceAudit() {
 
 $('source-search').addEventListener('input', renderSources);
 $('source-type').addEventListener('change', renderSources);
+
+function renderOverview(now) {
+  const table = element('table'), head = element('thead'), tr = element('tr');
+  for (const label of ['Horizon', 'Timing', 'Bear ceiling', 'Bull floor', 'Base probability']) {
+    const th = element('th', label); th.scope = 'col'; tr.append(th);
+  }
+  head.append(tr); table.append(head);
+  const body = element('tbody');
+  for (const item of horizonOverview(packet, now)) {
+    const row = element('tr');
+    for (const value of [item.label, item.timing, formatPrice(item.bearCeiling), formatPrice(item.bullFloor), item.baseProbability === null ? 'WITHHELD' : item.baseProbability + '%']) row.append(element('td', value));
+    body.append(row);
+  }
+  table.append(body); $('horizon-overview').replaceChildren(table);
+}

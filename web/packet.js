@@ -629,3 +629,17 @@ export function sourceMatches(source, query = '', type = 'all') {
   const text = [source.id, source.title, source.claim, source.excerpt, source.url].join(' ').toLowerCase();
   return (type === 'all' || source.type === type) && text.includes(query.trim().slice(0, 200).toLowerCase());
 }
+
+export function horizonOverview(packet, now = Date.now()) {
+  const report = validatePacket(packet, now);
+  return HORIZONS.map((definition, index) => {
+    const horizon = packet.horizons?.[index];
+    const ending = timestamp(horizon?.endAt);
+    const visible = report.chartEligible;
+    return { id: definition.id, label: definition.label,
+      timing: packet.kind === 'synthetic' ? 'Synthetic timeline' : ending === null ? 'UNKNOWN' : ending <= now ? 'Elapsed' : ((ending - now) / 3600000).toFixed(1) + ' hours remaining',
+      bearCeiling: visible ? horizon.scenarios[0].upper : null,
+      bullFloor: visible ? horizon.scenarios[2].lower : null,
+      baseProbability: visible ? horizon.scenarios[1].probability : null };
+  });
+}

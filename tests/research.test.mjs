@@ -23,3 +23,11 @@ test('source search is literal, bounded, and respects primary filters', () => {
   assert(!research.sourceMatches(source, '', 'secondary'));
   assert(!research.sourceMatches(source, '.*'));
 });
+
+test('overview follows independent risk and elapsed research gates', () => {
+  const packet = examplePacket();
+  assert.equal(research.horizonOverview(packet, NOW)[0].bearCeiling, 94);
+  packet.riskReview.status = 'pending';
+  assert(research.horizonOverview(packet, NOW).every(item => item.bearCeiling === null));
+  assert.equal(research.horizonOverview(research.blankPacket(), NOW)[0].timing, 'UNKNOWN');
+});
