@@ -688,18 +688,13 @@ export function horizonOverview(packet, now = Date.now()) {
 export function exportScenarioCsv(packet, now = Date.now()) {
   const report = validatePacket(packet, now);
   if (!report.valid) throw new Error('CSV export requires a structurally valid packet.');
-  const cell = value => {
-    let text = String(value ?? 'UNKNOWN');
-    if (/^[\s]*[=+@-]/.test(text)) text = "'" + text;
-    return '"' + text.replaceAll('"', '""') + '"';
-  };
   const rows = [['kind', 'asset', 'quote_currency', 'reference_price', 'reference_cutoff', 'horizon', 'end_at', 'gate', 'scenario', 'lower_inclusive', 'upper_exclusive', 'probability_percent', 'trigger', 'invalidation']];
   for (const horizon of packet.horizons) {
     const prefix = [packet.kind, packet.asset.symbol, packet.asset.quoteCurrency, packet.reference.price, packet.reference.capturedAt, horizon.id, horizon.endAt];
     if (!report.chartEligible) rows.push([...prefix, 'WITHHELD', '', '', '', '', '', '']);
     else for (const scenario of horizon.scenarios) rows.push([...prefix, 'SUBMITTED_UNAUTHENTICATED', scenario.label, scenario.lower, scenario.upper === null ? 'UNBOUNDED' : scenario.upper, scenario.probability, scenario.trigger, scenario.invalidation]);
   }
-  return rows.map(row => row.map(cell).join(',')).join('\r\n') + '\r\n';
+  return csvRows(rows);
 }
 
 export function comparePackets(previous, current, now = Date.now()) {
@@ -799,4 +794,22 @@ export function sourceOriginAudit(packet, now = Date.now()) {
     hosts: [...hosts.values()].map(item => ({ ...item, sharePercent: item.count / packet.sources.length * 100 })).sort((a, b) => b.count - a.count || (a.host < b.host ? -1 : a.host > b.host ? 1 : 0)),
     repeatedExcerpts: [...excerpts.values()].filter(ids => ids.length > 1),
   };
+}
+
+function csvRows(rows) {
+  const cell = value => {
+    let text = String(value ?? 'UNKNOWN');
+    if (/^[\s]*[=+@-]/.test(text)) text = "'" + text;
+    return '"' + text.replaceAll('"', '""') + '"';
+  };
+  return rows.map(row => row.map(cell).join(',')).join('\r\n') + '\r\n';
+}
+
+export function exportEvidenceCsv(packet, now = Date.now()) {
+  if (!validatePacket(packet, now).valid) throw new Error('Evidence CSV requires a structurally valid packet.');
+  const reviewed = new Set(packet.riskReview.sourceIds);
+  const rows = [['kind', 'asset', 'reference_cutoff', 'source_id', 'title', 'url', 'type_as_recorded', 'published_at', 'captured_at', 'claim', 'excerpt', 'listed_in_submitted_review']];
+  for (const source of packet.sources) rows.push([packet.kind, packet.asset.symbol, packet.reference.capturedAt,
+    source.id, source.title, source.url, source.type, source.publishedAt, source.capturedAt, source.claim, source.excerpt, reviewed.has(source.id) ? 'SELF_REPORTED_YES' : 'NOT_LISTED']);
+  return csvRows(rows);
 }

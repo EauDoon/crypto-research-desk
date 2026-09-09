@@ -19,3 +19,12 @@ test('source origin audit counts exact hosts and discloses repeated excerpts', (
   assert.deepEqual(audit.repeatedExcerpts, [['example-upgrade', 'example-activity']]);
   assert.deepEqual(research.sourceOriginAudit(research.blankPacket(), NOW), { hosts: [], repeatedExcerpts: [] });
 });
+
+test('evidence CSV retains every dated raw record and neutralizes spreadsheet formulas', () => {
+  const packet = examplePacket(); packet.sources[0].claim = '=SUM(1,2)'; packet.sources[1].excerpt = 'Quoted "value"\nnext line';
+  const csv = research.exportEvidenceCsv(packet, NOW);
+  assert(csv.includes("'=SUM(1,2)")); assert(csv.includes('Quoted ""value""\nnext line'));
+  assert(csv.includes('example-activity')); assert(csv.includes(packet.reference.capturedAt));
+  assert(csv.includes('SELF_REPORTED_YES'));
+  assert.equal(research.exportEvidenceCsv(research.blankPacket(), NOW).trim().split('\r\n').length, 1);
+});

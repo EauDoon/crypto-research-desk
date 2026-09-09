@@ -1,6 +1,6 @@
 import {
   MAX_PACKET_BYTES, MAX_JSON_INPUT_BYTES, HORIZONS, SCENARIOS, REVIEW_ASSERTIONS, parsePacket, validatePacket, blankPacket,
-  timestamp, endAt, formatDate, formatPrice, safeSourceUrl, intervalLabel, returnLabel, chartThresholds, exportMarkdown, repairQueue, evidenceAudit, sourceMatches, horizonOverview, exportScenarioCsv, comparePackets, riskHandoff, restoreResearchDraft, referenceSensitivity, validationReceipt, sourceOriginAudit,
+  timestamp, endAt, formatDate, formatPrice, safeSourceUrl, intervalLabel, returnLabel, chartThresholds, exportMarkdown, repairQueue, evidenceAudit, sourceMatches, horizonOverview, exportScenarioCsv, comparePackets, riskHandoff, restoreResearchDraft, referenceSensitivity, validationReceipt, sourceOriginAudit, exportEvidenceCsv,
 } from './packet.js';
 import { examplePacket } from './example.js';
 
@@ -324,7 +324,7 @@ function render(updateContent = true, now = Date.now()) {
   $('undo-edit').disabled = undoHistory.length === 0;
   $('undo-edit').textContent = 'Undo saved edit' + (undoHistory.length ? ' (' + undoHistory.length + ')' : '');
   renderRepairs(now);
-  renderEvidenceAudit();
+  renderEvidenceAudit(now);
   renderOverview(now);
   if (!validatePacket(packet, now).chartEligible) clearSensitivity();
   const report = validatePacket(packet, now);
@@ -1044,8 +1044,8 @@ function renderRepairs(now) {
   if (!queue.length) $('repair-list').append(element('li', 'No structural repairs recorded. Source truth and reviewer identity still require human verification.'));
 }
 
-function renderEvidenceAudit() {
-  const origins = sourceOriginAudit(packet);
+function renderEvidenceAudit(now = Date.now()) {
+  const origins = sourceOriginAudit(packet, now);
   listInto('source-origin-audit', [
     ...origins.hosts.map(item => item.host + ': ' + item.count + ' of ' + packet.sources.length + ' records (' + item.sharePercent.toFixed(1) + '%); ' + item.primaryCount + ' labeled primary'),
     ...origins.repeatedExcerpts.map(ids => 'Matching excerpt after whitespace normalization: ' + ids.join(', ')),
@@ -1168,3 +1168,8 @@ function renderReviewSources() {
 }
 $('review-source-picker').addEventListener('toggle', () => { if ($('review-source-picker').open) renderReviewSources(); });
 field('sourceIds').addEventListener('input', renderReviewSources);
+
+$('export-evidence-csv').addEventListener('click', () => {
+  try { download(exportEvidenceCsv(packet), 'text/csv; charset=utf-8', 'Evidence.csv'); announce('Complete evidence CSV prepared. Filters do not remove records; review coverage remains self-reported.'); }
+  catch (error) { announce(error.message, true); }
+});

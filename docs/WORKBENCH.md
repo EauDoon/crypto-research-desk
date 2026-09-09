@@ -123,3 +123,5 @@ Use **Edit this source** beside a source record to open its exact claim field. S
 The review editor includes **Select sources actually reviewed**. Its checkboxes update the existing comma-separated reviewed source IDs, including the ability to remove IDs whose source was deleted. Coverage is a self-reported assertion. Selecting records never authenticates a reviewer or verifies their contents, and material source edits still require a separate new review.
 
 **Inspect source-origin concentration** counts exact hostnames and flags matching excerpts after whitespace normalization. Counts describe supplied records only. Subdomains are separate hosts, shared ownership is not detected, and neither multiple hosts nor primary labels establish independent or verified evidence.
+
+**Export complete evidence CSV** includes all dated source records, raw URLs, claims, excerpts, packet kind and cutoff, and clearly self-reported review coverage. Screen filters never remove exported records. Standard CSV quoting preserves line breaks and quotations; formula-leading text is apostrophe-prefixed for spreadsheet safety. A blank packet exports column headers only.
