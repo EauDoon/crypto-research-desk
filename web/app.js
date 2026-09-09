@@ -1,6 +1,6 @@
 import {
   MAX_PACKET_BYTES, MAX_JSON_INPUT_BYTES, HORIZONS, SCENARIOS, REVIEW_ASSERTIONS, parsePacket, validatePacket, blankPacket,
-  timestamp, endAt, formatDate, formatPrice, safeSourceUrl, intervalLabel, returnLabel, chartThresholds, exportMarkdown, repairQueue, evidenceAudit, sourceMatches, horizonOverview, exportScenarioCsv, comparePackets,
+  timestamp, endAt, formatDate, formatPrice, safeSourceUrl, intervalLabel, returnLabel, chartThresholds, exportMarkdown, repairQueue, evidenceAudit, sourceMatches, horizonOverview, exportScenarioCsv, comparePackets, riskHandoff,
 } from './packet.js';
 import { examplePacket } from './example.js';
 
@@ -1058,4 +1058,11 @@ $('compare-packets').addEventListener('click', () => {
     listInto('comparison-results', result.changes.map(item => item.path + ': ' + summary(item.previous) + ' → ' + summary(item.current)), 'No submitted fields changed.');
     setText('comparison-status', result.total + ' changed fields; ' + result.omitted + ' omitted. Long values are shortened. Source arrays are compared by position. Open raw JSON for full evidence.');
   } catch (error) { $('comparison-results').replaceChildren(); setText('comparison-status', error.message); }
+});
+
+$('export-risk-handoff').addEventListener('click', () => {
+  try {
+    download(JSON.stringify(riskHandoff(packet), null, 2) + '\n', 'application/json; charset=utf-8', 'Independent Review Handoff.json');
+    announce('Incomplete risk handoff prepared. Attach the mandate, run ledger, and conflict receipts before independent review.');
+  } catch (error) { announce(error.message, true); }
 });

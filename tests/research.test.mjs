@@ -54,3 +54,15 @@ test('comparison rejects malformed and unrelated packets and bounds differences'
   assert.throws(() => research.comparePackets({}, current, NOW), /structurally valid/);
   assert.equal(research.comparePackets(previous, previous, NOW).total, 0);
 });
+
+test('risk handoff excludes producer persuasion and prior verdict while retaining raw evidence', () => {
+  const packet = examplePacket();
+  packet.thesis = 'UNIQUE PERSUASIVE THESIS'; packet.horizons[0].scenarios[0].driver = 'UNIQUE PERSUASIVE DRIVER';
+  const handoff = research.riskHandoff(packet, NOW), serialized = JSON.stringify(handoff);
+  assert(!serialized.includes('UNIQUE PERSUASIVE'));
+  assert(!Object.hasOwn(handoff, 'riskReview'));
+  assert.deepEqual(handoff.sources, packet.sources);
+  assert.equal(handoff.missingAttachments.length, 3);
+  assert.equal(handoff.status, 'INCOMPLETE_HANDOFF');
+  assert(handoff.requestedAssertions.every(item => item.result === 'UNKNOWN'));
+});

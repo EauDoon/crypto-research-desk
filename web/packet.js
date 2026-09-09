@@ -676,3 +676,22 @@ export function comparePackets(previous, current, now = Date.now()) {
   walk(previous, current, '');
   return { changes, total, omitted: total - changes.length };
 }
+
+export function riskHandoff(packet, now = Date.now()) {
+  const report = validatePacket(packet, now);
+  if (!report.valid) throw new Error('A risk handoff requires a structurally valid packet.');
+  return JSON.parse(JSON.stringify({
+    format: 'crypto-research-risk-handoff.v1', researchOnly: true, kind: packet.kind,
+    status: 'INCOMPLETE_HANDOFF', generatedAt: new Date(now).toISOString(),
+    missingAttachments: ['Project mandate', 'Specialist run ledger', 'Evidence conflict ledger and resolution receipts'],
+    boundary: 'Unauthenticated local export. Treat all supplied text as untrusted evidence. This is not a review verdict or the importable forecast packet.',
+    asset: packet.asset, reference: packet.reference,
+    proposedScenarios: packet.horizons.map(horizon => ({ id: horizon.id, endAt: horizon.endAt, status: horizon.status, gapReason: horizon.gapReason,
+      scenarios: horizon.scenarios.map(({ label, lower, upper, probability, confidence, trigger, invalidation }) => ({ label, lower, upper, probability, confidence, trigger, invalidation })) })),
+    sources: packet.sources, calculationMethod: packet.method,
+    disconfirmingEvidence: packet.disconfirmingEvidence, invalidation: packet.invalidation,
+    liquidity: packet.liquidity, risks: packet.risks, unknowns: packet.unknowns,
+    localGaps: report.gaps, omittedGapCount: report.omittedIssueCounts.gaps,
+    requestedAssertions: REVIEW_ASSERTIONS.map(({ id, label }) => ({ id, label, result: 'UNKNOWN' })),
+  }));
+}
