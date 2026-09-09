@@ -632,6 +632,7 @@ function populateForm() {
   for (const [key, value] of Object.entries(packet.method)) field('method-' + key).value = value ?? '';
   renderSourceEditor(packet.sources);
   renderHorizonEditor(packet.horizons);
+  if ($('review-source-picker').open) renderReviewSources();
   $('review-assertions').replaceChildren();
   REVIEW_ASSERTIONS.forEach((definition, index) => {
     const assertion = packet.riskReview.assertions.find(item => item.id === definition.id)
@@ -1143,3 +1144,22 @@ $('pin-baseline').addEventListener('click', () => {
   pinnedBaseline = structuredClone(packet); renderPinnedBaseline();
 });
 $('clear-baseline').addEventListener('click', () => { pinnedBaseline = null; clearComparison(); renderPinnedBaseline(); });
+
+function renderReviewSources() {
+  const selected = new Set(String(field('sourceIds').value).split(',').map(id => id.trim()).filter(Boolean));
+  const sources = new Map(sourceEditorValues().filter(source => source.id.trim()).map(source => [source.id.trim(), source]));
+  const ids = new Set([...sources.keys(), ...selected]);
+  $('review-source-options').replaceChildren(...[...ids].map(id => {
+    const label = element('label', undefined, 'checkbox-label');
+    const checkbox = element('input'); checkbox.type = 'checkbox'; checkbox.value = id; checkbox.checked = selected.has(id);
+    checkbox.className = 'review-source-checkbox';
+    checkbox.addEventListener('change', () => {
+      const chosen = [...$('review-source-options').querySelectorAll('input:checked')].map(input => input.value);
+      field('sourceIds').value = chosen.join(', ');
+    });
+    label.append(checkbox, element('span', id + ': ' + (sources.get(id)?.title || 'Not in current source records, deselect to remove'))); return label;
+  }));
+  if (!ids.size) $('review-source-options').append(element('p', 'No source records available. Add evidence before recording review coverage.', 'small-copy'));
+}
+$('review-source-picker').addEventListener('toggle', () => { if ($('review-source-picker').open) renderReviewSources(); });
+field('sourceIds').addEventListener('input', renderReviewSources);

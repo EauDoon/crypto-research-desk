@@ -227,6 +227,10 @@
             <label>Reviewed source IDs (comma separated)<input name="sourceIds" autocomplete="off"></label>
             <label class="span-two">Review notes<textarea name="reviewNotes" rows="3" maxlength="5000"></textarea></label>
           </div>
+          <details id="review-source-picker"><summary>Select sources actually reviewed</summary>
+            <p class="small-copy">Check only sources included in the actual review. This records a self-reported assertion, not evidence verification. Reopen this list after editing source records.</p>
+            <div id="review-source-options"></div>
+          </details>
           <div id="review-assertions"></div>
         </fieldset>
       </form>

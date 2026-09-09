@@ -119,3 +119,5 @@ Revision comparisons preserve source identity across reordering. A changed claim
 **Pin current packet as baseline** preserves one immutable snapshot in page memory and compares subsequent same-asset edits automatically. Importing a different asset or quote currency clears it. Forget pinned baseline removes it; reloading also forgets it. This does not change the open packet or store another browser draft.
 
 Use **Edit this source** beside a source record to open its exact claim field. Saving retains the current evidence filter, updates the record, resets any previous review, and returns keyboard focus to the rebuilt row action when that row remains visible.
+
+The review editor includes **Select sources actually reviewed**. Its checkboxes update the existing comma-separated reviewed source IDs, including the ability to remove IDs whose source was deleted. Coverage is a self-reported assertion. Selecting records never authenticates a reviewer or verifies their contents, and material source edits still require a separate new review.
