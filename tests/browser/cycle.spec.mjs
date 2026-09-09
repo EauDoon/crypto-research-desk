@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { examplePacket } from '../../web/example.js';
+import { blankPacket } from '../../web/packet.js';
 import AxeBuilder from '@axe-core/playwright';
 import { navigate } from './navigation.mjs';
 const NOW = new Date('2026-08-20T10:00:00Z');
@@ -95,6 +96,29 @@ test('receipt checks distinguish tampered claims and clear results when research
   await expect(page.locator('#receipt-result')).toContainText('Packet digest: MATCH. Recorded local checks: MISMATCH');
   await page.locator('#renew-packet').click(); await page.locator('#close-editor').click();
   await expect(page.locator('#receipt-result')).toHaveText('');
+});
+
+test('repeated renewal clears partial pending review and undo never restores it', async ({ page }) => {
+  page.on('dialog', dialog => dialog.accept());
+  await page.locator('#renew-packet').click();
+  await page.locator('[name="reviewer"]').fill('Partial reviewer');
+  await page.locator('[name="sourceIds"]').fill('example-upgrade');
+  await page.locator('[name="reviewNotes"]').fill('Unfinished review notes');
+  await page.locator('[name="assertion-0-evidence"]').fill('Partial assertion evidence');
+  await page.getByRole('button', { name: 'Save details', exact: true }).click();
+  const partial = JSON.parse(await exported(page, '#export-json'));
+  expect(partial.riskReview.status).toBe('pending');
+  expect(partial.riskReview.reviewer).toBe('Partial reviewer');
+  expect(partial.riskReview.sourceIds).toEqual(['example-upgrade']);
+  expect(partial.riskReview.assertions[0].evidence).toBe('Partial assertion evidence');
+  await page.locator('#renew-packet').click(); await page.locator('#close-editor').click();
+  const renewed = JSON.parse(await exported(page, '#export-json'));
+  expect(renewed.riskReview).toEqual(blankPacket().riskReview);
+  expect({ ...renewed, riskReview: null }).toEqual({ ...partial, riskReview: null });
+  await page.locator('#undo-edit').click();
+  const undone = JSON.parse(await exported(page, '#export-json'));
+  expect(undone.riskReview).toEqual(blankPacket().riskReview);
+  expect({ ...undone, riskReview: null }).toEqual({ ...partial, riskReview: null });
 });
 test('late receipt checks cannot report success over a replacement packet', async ({ page }) => {
   const receipt = await exported(page, '#export-receipt');

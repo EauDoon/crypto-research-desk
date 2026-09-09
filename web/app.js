@@ -1220,9 +1220,9 @@ $('renew-packet').addEventListener('click', () => {
   if (!confirmReplacement()) return;
   try {
     const draft = renewResearchPacket(packet);
-    // The existing local-edit path records undo and resets the unchanged prior
-    // review itself, so renewal cannot supply a new review with new inputs.
-    draft.riskReview = structuredClone(packet.riskReview);
+    // Research edits must carry the prior review into the guarded reset path.
+    // When research is already renewed, retain the renewal helper's blank review.
+    if (researchChanged(draft)) draft.riskReview = structuredClone(packet.riskReview);
     applyPacket(draft, 'Renewal draft', true);
     openEditor('details');
     setText('editor-help', 'Renewal preserves dated sources and research as unverified starting material. Supply a new reference and newly supported scenarios. Old probabilities and review were cleared; undo can restore previous research inputs.');
