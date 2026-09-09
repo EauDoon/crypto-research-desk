@@ -102,7 +102,7 @@ The repair queue opens the exact field associated with a missing input. It is a 
 
 The all-horizon overview follows the existing chart gate. Reference sensitivity holds the recorded thresholds fixed and computes (threshold / hypothetical price - 1) * 100. It does not change the packet, reference cutoff, probabilities, or submitted review. Invalid or numerically overflowing inputs are rejected; incomplete or elapsed research packets cannot use sensitivity. Refreshing a packet clears stale comparison and sensitivity results.
 
-Paste an earlier packet into the comparison panel to inspect up to 80 changed fields for the same symbol and quote currency. Both packets pass structural validation before comparison. Source and scenario arrays are compared by position, long values are abbreviated on screen, and the count identifies omitted differences. The comparison does not decide which evidence is correct. Clear comparison removes the pasted copy from the panel. It is never stored by the app.
+Paste an earlier packet into the comparison panel to inspect up to 80 changed fields for the same symbol and quote currency. Both packets pass structural validation before comparison. Sources and review assertions are matched by ID, reviewed-source order is ignored, scenario arrays remain positional, long values are abbreviated on screen, and the count identifies omitted differences. The comparison does not decide which evidence is correct. Clear comparison removes the pasted copy from the panel. It is never stored by the app.
 
 Undo retains up to ten saved edits in page memory. It restores research inputs and always resets the review to pending. Loading, importing, or creating a packet clears the undo history. Reloading closes the memory-only history; optional browser saving still stores only the current draft.
 
@@ -113,3 +113,23 @@ Undo retains up to ten saved edits in page memory. It restores research inputs a
 - **Check receipt** hashes the packet snapshot captured when clicked. Reproduce its SHA-256 using UTF-8 bytes of JSON.stringify(parsedPacket), preserving key order and adding no whitespace or newline. Save the matching packet JSON as well. The receipt records its check time, gap counts, warnings, and gate state. A digest detects changes; it does not authenticate a reviewer, verify sources, or establish forecast accuracy. The browser must provide Web Crypto for this optional export.
 
 All tools preserve the schema-version-1 packet, the five research functions, the independent risk gate, and the research-only authority boundary. They add no network requests or persistent storage keys.
+
+Revision comparisons preserve source identity across reordering. A changed claim appears under its source ID; added or removed records retain their complete submitted values in the comparison result. Matching identifiers does not establish that evidence is correct.
+
+**Pin current packet as baseline** preserves one immutable snapshot in page memory and compares subsequent same-asset edits automatically. Importing a different asset or quote currency clears it. Forget pinned baseline removes it; reloading also forgets it. This does not change the open packet or store another browser draft.
+
+Use **Edit this source** beside a source record to open its exact claim field. Saving retains the current evidence filter, updates the record, resets any previous review, and returns keyboard focus to the rebuilt row action when that row remains visible.
+
+The review editor includes **Select sources actually reviewed**. Its checkboxes update the existing comma-separated reviewed source IDs, including the ability to remove IDs whose source was deleted. Coverage is a self-reported assertion. Selecting records never authenticates a reviewer or verifies their contents, and material source edits still require a separate new review.
+
+**Inspect source-origin concentration** counts exact hostnames and flags matching excerpts after whitespace normalization. Counts describe supplied records only. Subdomains are separate hosts, shared ownership is not detected, and neither multiple hosts nor primary labels establish independent or verified evidence.
+
+**Export complete evidence CSV** includes all dated source records, raw URLs, claims, excerpts, packet kind and cutoff, and clearly self-reported review coverage. Screen filters never remove exported records. Standard CSV quoting preserves line breaks and quotations; formula-leading text is apostrophe-prefixed for spreadsheet safety. A blank packet exports column headers only.
+
+**Check a saved receipt** accepts the bounded receipt JSON and separately compares the packet digest and the complete recorded check result at its original check time. The current chart gate is reevaluated independently. A matching hash with altered eligibility or gap counts is not a matching check record. Neither kind of match authenticates the receipt or verifies sources. Packet changes clear the result, and late asynchronous checks cannot overwrite a newer view.
+
+**Export packet bundle** packages a frozen packet and its matching check receipt into one JSON file. The regular Import JSON picker accepts this format, checks its exact fields, packet digest and recorded local checks, then reapplies current packet validation. Changed or oversized bundles leave the open packet untouched. A bundle is portable integrity evidence, not a signature, authenticated approval, or proof of current source accuracy; old research horizons can remain elapsed after import. Raw packet import/export stays compatible.
+
+**Plan manual research monitoring** groups matching submitted triggers while retaining every horizon, deadline, scenario and invalidation context. Export its spreadsheet-safe worksheet for manual follow-up. It runs no alerts or market checks. Both the display and export follow the existing chart gate; blocked packets export four WITHHELD rows without scenario triggers.
+
+**Start renewal draft** carries forward source records, their original dates, asset identity, and research notes as unverified starting material. It clears the common reference price/cutoff, every forecast scenario, and the prior review. All four horizons remain incomplete until newly supported inputs are provided. The packet kind remains unchanged, so fictional examples never silently become research. Session undo can restore earlier research inputs, while keeping review pending.

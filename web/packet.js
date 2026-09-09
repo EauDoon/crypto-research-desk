@@ -688,18 +688,13 @@ export function horizonOverview(packet, now = Date.now()) {
 export function exportScenarioCsv(packet, now = Date.now()) {
   const report = validatePacket(packet, now);
   if (!report.valid) throw new Error('CSV export requires a structurally valid packet.');
-  const cell = value => {
-    let text = String(value ?? 'UNKNOWN');
-    if (/^[\s]*[=+@-]/.test(text)) text = "'" + text;
-    return '"' + text.replaceAll('"', '""') + '"';
-  };
   const rows = [['kind', 'asset', 'quote_currency', 'reference_price', 'reference_cutoff', 'horizon', 'end_at', 'gate', 'scenario', 'lower_inclusive', 'upper_exclusive', 'probability_percent', 'trigger', 'invalidation']];
   for (const horizon of packet.horizons) {
     const prefix = [packet.kind, packet.asset.symbol, packet.asset.quoteCurrency, packet.reference.price, packet.reference.capturedAt, horizon.id, horizon.endAt];
     if (!report.chartEligible) rows.push([...prefix, 'WITHHELD', '', '', '', '', '', '']);
     else for (const scenario of horizon.scenarios) rows.push([...prefix, 'SUBMITTED_UNAUTHENTICATED', scenario.label, scenario.lower, scenario.upper === null ? 'UNBOUNDED' : scenario.upper, scenario.probability, scenario.trigger, scenario.invalidation]);
   }
-  return rows.map(row => row.map(cell).join(',')).join('\r\n') + '\r\n';
+  return csvRows(rows);
 }
 
 export function comparePackets(previous, current, now = Date.now()) {
@@ -707,6 +702,13 @@ export function comparePackets(previous, current, now = Date.now()) {
   if (!previous.asset.symbol || previous.asset.symbol !== current.asset.symbol || previous.asset.quoteCurrency !== current.asset.quoteCurrency) throw new Error('Compare the same named asset and quote currency.');
   const changes = []; let total = 0;
   const walk = (left, right, path) => {
+    if (path === 'sources' || path === 'riskReview.assertions') {
+      const before = new Map(left.map(item => [item.id, item]));
+      const after = new Map(right.map(item => [item.id, item]));
+      for (const id of new Set([...before.keys(), ...after.keys()])) walk(before.get(id), after.get(id), path + '[' + id + ']');
+      return;
+    }
+    if (path === 'riskReview.sourceIds') { left = [...left].sort(); right = [...right].sort(); }
     if (left !== null && right !== null && typeof left === 'object' && typeof right === 'object' && Array.isArray(left) === Array.isArray(right)) {
       for (const key of new Set([...Object.keys(left), ...Object.keys(right)])) walk(left[key], right[key], path ? path + (Array.isArray(right) ? '[' + key + ']' : '.' + key) : key);
     } else if (left !== right) {
@@ -776,4 +778,96 @@ export async function validationReceipt(packet, now = Date.now()) {
     gapCount: report.gapCount, warningCount: report.warningCount,
     gaps: report.gaps, warnings: report.warnings, omittedIssueCounts: report.omittedIssueCounts,
     limitation: 'Local structural checks only. This digest detects byte changes; it is not a signature, authenticated review, source verification, or evidence of forecast accuracy.' };
+}
+
+export function sourceOriginAudit(packet, now = Date.now()) {
+  if (!validatePacket(packet, now).valid) throw new Error('Source audit requires a structurally valid packet.');
+  const hosts = new Map(), excerpts = new Map();
+  for (const source of packet.sources) {
+    const host = new URL(safeSourceUrl(source.url)).hostname;
+    const item = hosts.get(host) ?? { host, count: 0, primaryCount: 0 };
+    item.count++; if (source.type === 'primary') item.primaryCount++; hosts.set(host, item);
+    const excerpt = source.excerpt.trim().replace(/\s+/g, ' ');
+    if (excerpt) excerpts.set(excerpt, [...(excerpts.get(excerpt) ?? []), source.id]);
+  }
+  return {
+    hosts: [...hosts.values()].map(item => ({ ...item, sharePercent: item.count / packet.sources.length * 100 })).sort((a, b) => b.count - a.count || (a.host < b.host ? -1 : a.host > b.host ? 1 : 0)),
+    repeatedExcerpts: [...excerpts.values()].filter(ids => ids.length > 1),
+  };
+}
+
+function csvRows(rows) {
+  const cell = value => {
+    let text = String(value ?? 'UNKNOWN');
+    if (/^[\s]*[=+@-]/.test(text)) text = "'" + text;
+    return '"' + text.replaceAll('"', '""') + '"';
+  };
+  return rows.map(row => row.map(cell).join(',')).join('\r\n') + '\r\n';
+}
+
+export function exportEvidenceCsv(packet, now = Date.now()) {
+  if (!validatePacket(packet, now).valid) throw new Error('Evidence CSV requires a structurally valid packet.');
+  const reviewed = new Set(packet.riskReview.sourceIds);
+  const rows = [['kind', 'asset', 'reference_cutoff', 'source_id', 'title', 'url', 'type_as_recorded', 'published_at', 'captured_at', 'claim', 'excerpt', 'listed_in_submitted_review']];
+  for (const source of packet.sources) rows.push([packet.kind, packet.asset.symbol, packet.reference.capturedAt,
+    source.id, source.title, source.url, source.type, source.publishedAt, source.capturedAt, source.claim, source.excerpt, reviewed.has(source.id) ? 'SELF_REPORTED_YES' : 'NOT_LISTED']);
+  return csvRows(rows);
+}
+
+export async function verifyReceipt(text, packet, now = Date.now()) {
+  if (typeof text !== 'string' || new TextEncoder().encode(text).length > 65536) throw new Error('Receipt JSON must be at most 64 KiB.');
+  const receipt = parsePacket(text);
+  if (!receipt || receipt.format !== 'crypto-research-check-receipt.v1' || receipt.researchOnly !== true
+    || typeof receipt.packetSha256 !== 'string' || !/^[a-f0-9]{64}$/.test(receipt.packetSha256)
+    || timestamp(receipt.checkedAt) === null || timestamp(receipt.checkedAt) > now + 300000) throw new Error('Supply a supported, dated research check receipt.');
+  if (!validatePacket(packet, now).valid) throw new Error('The current packet must be structurally valid.');
+  const snapshot = JSON.parse(JSON.stringify(packet));
+  const current = await validationReceipt(snapshot, now);
+  const expected = validatePacket(snapshot, timestamp(receipt.checkedAt)).valid ? await validationReceipt(snapshot, timestamp(receipt.checkedAt)) : null;
+  const keys = Object.keys(current);
+  if (Object.keys(receipt).length !== keys.length || keys.some(key => !Object.hasOwn(receipt, key))) throw new Error('Receipt fields do not match the supported format.');
+  const ordered = value => Array.isArray(value) ? value.map(ordered) : value !== null && typeof value === 'object'
+    ? Object.fromEntries(Object.keys(value).sort().map(key => [key, ordered(value[key])])) : value;
+  return { digestMatches: receipt.packetSha256 === current.packetSha256,
+    recordMatches: expected !== null && JSON.stringify(ordered(receipt)) === JSON.stringify(ordered(expected)),
+    checkedAt: receipt.checkedAt, currentChartEligible: validatePacket(snapshot, now).chartEligible };
+}
+
+export async function exportResearchBundle(packet, now = Date.now()) {
+  if (!validatePacket(packet, now).valid) throw new Error('Bundle export requires a structurally valid packet.');
+  const snapshot = JSON.parse(JSON.stringify(packet));
+  const receipt = await validationReceipt(snapshot, now);
+  const text = JSON.stringify({ format: 'crypto-research-bundle.v1', packet: snapshot, receipt }) + '\n';
+  if (new TextEncoder().encode(text).length > MAX_JSON_INPUT_BYTES) throw new Error('Bundle exceeds 320 KiB. Export the packet and receipt separately.');
+  return text;
+}
+export async function readResearchBundle(text, now = Date.now()) {
+  const bundle = parsePacket(text);
+  if (!bundle || bundle.format !== 'crypto-research-bundle.v1' || Object.keys(bundle).length !== 3
+    || !Object.hasOwn(bundle, 'packet') || !Object.hasOwn(bundle, 'receipt')) throw new Error('Unsupported research bundle format.');
+  const result = await verifyReceipt(JSON.stringify(bundle.receipt), bundle.packet, now);
+  if (!result.digestMatches || !result.recordMatches) throw new Error('Bundle packet or recorded checks do not match its receipt. The open packet is unchanged.');
+  return bundle.packet;
+}
+
+export function monitoringChecklist(packet, now = Date.now()) {
+  const report = validatePacket(packet, now);
+  if (!report.valid) throw new Error('Monitoring requires a structurally valid packet.');
+  return { eligible: report.chartEligible, rows: packet.horizons.flatMap(horizon => report.chartEligible
+    ? horizon.scenarios.map(scenario => ({ horizon: horizon.id, endAt: horizon.endAt, scenario: scenario.label, trigger: scenario.trigger, invalidation: scenario.invalidation }))
+    : [{ horizon: horizon.id, endAt: horizon.endAt, scenario: 'WITHHELD', trigger: '', invalidation: '' }]) };
+}
+export function exportMonitoringCsv(packet, now = Date.now()) {
+  const checklist = monitoringChecklist(packet, now);
+  return csvRows([['kind', 'asset', 'reference_cutoff', 'horizon', 'deadline', 'submitted_scenario', 'observe_manually', 'invalidation'],
+    ...checklist.rows.map(row => [packet.kind, packet.asset.symbol, packet.reference.capturedAt, row.horizon, row.endAt, row.scenario, row.trigger, row.invalidation])]);
+}
+
+export function renewResearchPacket(packet, now = Date.now()) {
+  if (!validatePacket(packet, now).valid) throw new Error('Renewal requires a structurally valid packet.');
+  const draft = JSON.parse(JSON.stringify(packet)), blank = blankPacket();
+  draft.reference.price = null; draft.reference.capturedAt = '';
+  draft.horizons = blank.horizons.map(horizon => ({ ...horizon, gapReason: 'Renewal requires fresh evidence and newly supported scenarios.' }));
+  draft.riskReview = blank.riskReview;
+  return draft;
 }

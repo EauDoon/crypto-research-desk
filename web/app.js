@@ -1,6 +1,6 @@
 import {
   MAX_PACKET_BYTES, MAX_JSON_INPUT_BYTES, HORIZONS, SCENARIOS, REVIEW_ASSERTIONS, parsePacket, validatePacket, blankPacket,
-  timestamp, endAt, formatDate, formatPrice, safeSourceUrl, intervalLabel, returnLabel, chartThresholds, exportMarkdown, repairQueue, evidenceAudit, sourceMatches, horizonOverview, exportScenarioCsv, comparePackets, riskHandoff, restoreResearchDraft, referenceSensitivity, validationReceipt,
+  timestamp, endAt, formatDate, formatPrice, safeSourceUrl, intervalLabel, returnLabel, chartThresholds, exportMarkdown, repairQueue, evidenceAudit, sourceMatches, horizonOverview, exportScenarioCsv, comparePackets, riskHandoff, restoreResearchDraft, referenceSensitivity, validationReceipt, sourceOriginAudit, exportEvidenceCsv, verifyReceipt, exportResearchBundle, readResearchBundle, monitoringChecklist, exportMonitoringCsv, renewResearchPacket,
 } from './packet.js';
 import { examplePacket } from './example.js';
 
@@ -11,6 +11,8 @@ let activeHorizon = '12h';
 let origin = 'Synthetic example';
 let dirty = false;
 let undoHistory = [];
+let pinnedBaseline = null;
+let receiptCheckSequence = 0;
 let editorMode = 'details';
 let editorInitial = '';
 let importSequence = 0;
@@ -303,7 +305,15 @@ function renderSources() {
     heading.append(title, element('span', source.type.toUpperCase(), 'tag'),
       element('span', new URL(sourceUrl).hostname, 'source-host'));
     const details = element('details'); details.append(element('summary', 'Supplied excerpt (' + source.id + ')'), element('blockquote', source.excerpt));
-    content.append(heading, element('p', source.claim), details);
+    const editSource = element('button', 'Edit this source', 'button small subtle');
+    editSource.type = 'button'; editSource.id = 'edit-source-' + source.id;
+    editSource.setAttribute('aria-label', 'Edit source ' + source.id);
+    editSource.addEventListener('click', () => {
+      openEditor('details');
+      const target = field('source-' + index + '-claim');
+      target.focus({ preventScroll: true }); revealEditorTarget(target);
+    });
+    content.append(heading, element('p', source.claim), details, editSource);
     const dates = element('dl', undefined, 'source-dates');
     for (const [key, label] of [['publishedAt', 'Published'], ['capturedAt', 'Captured']]) {
       const item = element('div'); item.append(element('dt', label), element('dd', formatDate(source[key]))); dates.append(item);
@@ -315,8 +325,9 @@ function render(updateContent = true, now = Date.now()) {
   $('undo-edit').disabled = undoHistory.length === 0;
   $('undo-edit').textContent = 'Undo saved edit' + (undoHistory.length ? ' (' + undoHistory.length + ')' : '');
   renderRepairs(now);
-  renderEvidenceAudit();
+  renderEvidenceAudit(now);
   renderOverview(now);
+  renderMonitoring(now);
   if (!validatePacket(packet, now).chartEligible) clearSensitivity();
   const report = validatePacket(packet, now);
   lastValidation = validationSignature(report);
@@ -457,7 +468,10 @@ function applyPacket(candidate, label, localEdit = false, restoring = false) {
   if (restoring) dirty = true;
   packet = candidate; origin = label;
   clearComparison();
+  if (pinnedBaseline && (pinnedBaseline.asset.symbol !== packet.asset.symbol || pinnedBaseline.asset.quoteCurrency !== packet.asset.quoteCurrency)) pinnedBaseline = null;
+  renderPinnedBaseline();
   clearSensitivity();
+  clearReceiptCheck();
   render(true, now); saveLocally();
   return { reviewReset, report };
 }
@@ -621,6 +635,7 @@ function populateForm() {
   for (const [key, value] of Object.entries(packet.method)) field('method-' + key).value = value ?? '';
   renderSourceEditor(packet.sources);
   renderHorizonEditor(packet.horizons);
+  if ($('review-source-picker').open) renderReviewSources();
   $('review-assertions').replaceChildren();
   REVIEW_ASSERTIONS.forEach((definition, index) => {
     const assertion = packet.riskReview.assertions.find(item => item.id === definition.id)
@@ -723,7 +738,8 @@ async function importFile(file) {
     let imported;
     try { imported = new TextDecoder('utf-8', { fatal: true }).decode(await file.arrayBuffer()); }
     catch { throw new Error('The packet must be valid UTF-8 JSON without replacement-decoded bytes.'); }
-    const candidate = parsePacket(imported);
+    const parsed = parsePacket(imported);
+    const candidate = parsed?.format === 'crypto-research-bundle.v1' ? await readResearchBundle(imported) : parsed;
     const report = validatePacket(candidate);
     if (!report.valid) throw validationError(report);
     if (sequence !== importSequence || !confirmReplacement()) return;
@@ -790,7 +806,10 @@ $('horizon-editor-list').addEventListener('change', event => {
 });
 $('close-editor').addEventListener('click', closeEditor);
 editor.addEventListener('cancel', closeEditor);
-editor.addEventListener('close', () => { if (editorOpener?.isConnected) editorOpener.focus({ preventScroll: true }); });
+editor.addEventListener('close', () => {
+  const opener = editorOpener?.isConnected ? editorOpener : editorOpener?.id ? $(editorOpener.id) : null;
+  (opener?.getClientRects().length ? opener : $('edit-details')).focus({ preventScroll: true });
+});
 editor.addEventListener('input', event => { if (event.target.matches?.('[aria-invalid="true"]')) clearEditorError(); });
 editor.addEventListener('change', event => { if (event.target.matches?.('[aria-invalid="true"]')) clearEditorError(); });
 form.addEventListener('submit', event => {
@@ -1029,7 +1048,12 @@ function renderRepairs(now) {
   if (!queue.length) $('repair-list').append(element('li', 'No structural repairs recorded. Source truth and reviewer identity still require human verification.'));
 }
 
-function renderEvidenceAudit() {
+function renderEvidenceAudit(now = Date.now()) {
+  const origins = sourceOriginAudit(packet, now);
+  listInto('source-origin-audit', [
+    ...origins.hosts.map(item => item.host + ': ' + item.count + ' of ' + packet.sources.length + ' records (' + item.sharePercent.toFixed(1) + '%); ' + item.primaryCount + ' labeled primary'),
+    ...origins.repeatedExcerpts.map(ids => 'Matching excerpt after whitespace normalization: ' + ids.join(', ')),
+  ], 'No source records to inspect.');
   const audit = evidenceAudit(packet);
   listInto('evidence-audit', audit.map(item => item.id + ': ' + item.type + '; ' +
     (item.ageHours === null ? 'UNKNOWN capture age' : item.ageHours.toFixed(2) + ' hours before cutoff') +
@@ -1066,13 +1090,17 @@ function clearComparison() {
   $('comparison-json').value = ''; $('comparison-results').replaceChildren(); $('comparison-status').textContent = '';
 }
 $('clear-comparison').addEventListener('click', clearComparison);
-$('compare-packets').addEventListener('click', () => {
+function showComparison(previous) {
   try {
-    const result = comparePackets(parsePacket($('comparison-json').value), packet);
+    const result = comparePackets(previous, packet);
     const summary = value => JSON.stringify(value).slice(0, 240);
     listInto('comparison-results', result.changes.map(item => item.path + ': ' + summary(item.previous) + ' → ' + summary(item.current)), 'No submitted fields changed.');
-    setText('comparison-status', result.total + ' changed fields; ' + result.omitted + ' omitted. Long values are shortened. Source arrays are compared by position. Open raw JSON for full evidence.');
+    setText('comparison-status', result.total + ' changed fields; ' + result.omitted + ' omitted. Long values are shortened. Sources and review assertions are matched by ID. Open raw JSON for full evidence.');
   } catch (error) { $('comparison-results').replaceChildren(); setText('comparison-status', error.message); }
+}
+$('compare-packets').addEventListener('click', () => {
+  try { showComparison(parsePacket($('comparison-json').value)); }
+  catch (error) { $('comparison-results').replaceChildren(); setText('comparison-status', error.message); }
 });
 
 $('export-risk-handoff').addEventListener('click', () => {
@@ -1113,4 +1141,92 @@ $('export-receipt').addEventListener('click', async () => {
     announce('Check receipt prepared for the packet snapshot at click time. Export matching packet JSON to reproduce its SHA-256.');
   } catch (error) { announce('Check receipt unavailable: ' + error.message, true); }
   finally { button.disabled = false; }
+});
+
+function renderPinnedBaseline() {
+  $('clear-baseline').disabled = !pinnedBaseline;
+  setText('baseline-status', pinnedBaseline ? 'Pinned ' + pinnedBaseline.asset.symbol + ' at ' + (pinnedBaseline.reference.capturedAt || 'UNKNOWN cutoff') + '. Local edits compare automatically; reload forgets this snapshot.' : 'No baseline pinned. A pinned snapshot stays in page memory only.');
+  if (pinnedBaseline) showComparison(pinnedBaseline);
+}
+$('pin-baseline').addEventListener('click', () => {
+  if (!packet.asset.symbol) { announce('Name the asset before pinning a comparison baseline.', true); return; }
+  pinnedBaseline = structuredClone(packet); renderPinnedBaseline();
+});
+$('clear-baseline').addEventListener('click', () => { pinnedBaseline = null; clearComparison(); renderPinnedBaseline(); });
+
+function renderReviewSources() {
+  const selected = new Set(String(field('sourceIds').value).split(',').map(id => id.trim()).filter(Boolean));
+  const sources = new Map(sourceEditorValues().filter(source => source.id.trim()).map(source => [source.id.trim(), source]));
+  const ids = new Set([...sources.keys(), ...selected]);
+  $('review-source-options').replaceChildren(...[...ids].map(id => {
+    const label = element('label', undefined, 'checkbox-label');
+    const checkbox = element('input'); checkbox.type = 'checkbox'; checkbox.value = id; checkbox.checked = selected.has(id);
+    checkbox.className = 'review-source-checkbox';
+    checkbox.addEventListener('change', () => {
+      const chosen = [...$('review-source-options').querySelectorAll('input:checked')].map(input => input.value);
+      field('sourceIds').value = chosen.join(', ');
+    });
+    label.append(checkbox, element('span', id + ': ' + (sources.get(id)?.title || 'Not in current source records, deselect to remove'))); return label;
+  }));
+  if (!ids.size) $('review-source-options').append(element('p', 'No source records available. Add evidence before recording review coverage.', 'small-copy'));
+}
+$('review-source-picker').addEventListener('toggle', () => { if ($('review-source-picker').open) renderReviewSources(); });
+field('sourceIds').addEventListener('input', renderReviewSources);
+
+$('export-evidence-csv').addEventListener('click', () => {
+  try { download(exportEvidenceCsv(packet), 'text/csv; charset=utf-8', 'Evidence.csv'); announce('Complete evidence CSV prepared. Filters do not remove records; review coverage remains self-reported.'); }
+  catch (error) { announce(error.message, true); }
+});
+
+function clearReceiptCheck() {
+  receiptCheckSequence++; $('receipt-json').value = ''; $('receipt-result').textContent = ''; $('verify-receipt').disabled = false;
+}
+$('receipt-json').addEventListener('input', () => { receiptCheckSequence++; $('receipt-result').textContent = ''; $('verify-receipt').disabled = false; });
+$('verify-receipt').addEventListener('click', async () => {
+  const sequence = ++receiptCheckSequence; $('verify-receipt').disabled = true;
+  try {
+    const result = await verifyReceipt($('receipt-json').value, structuredClone(packet));
+    if (sequence !== receiptCheckSequence) return;
+    setText('receipt-result', 'Packet digest: ' + (result.digestMatches ? 'MATCH' : 'MISMATCH') + '. Recorded local checks: ' + (result.recordMatches ? 'MATCH' : 'MISMATCH') + '. Current chart gate: ' + (result.currentChartEligible ? 'eligible, unauthenticated' : 'withheld') + '. This is not authentication.');
+  } catch (error) { if (sequence === receiptCheckSequence) setText('receipt-result', error.message); }
+  finally { if (sequence === receiptCheckSequence) $('verify-receipt').disabled = false; }
+});
+
+$('export-bundle').addEventListener('click', async () => {
+  const button = $('export-bundle'); button.disabled = true; const snapshot = structuredClone(packet);
+  try { download(await exportResearchBundle(snapshot), 'application/json; charset=utf-8', '', (snapshot.asset.symbol || 'Unnamed') + ' Research Bundle.json'); announce('Packet and matching check receipt exported together. Import JSON accepts this bundle and rechecks its contents locally.'); }
+  catch (error) { announce(error.message, true); }
+  finally { button.disabled = false; }
+});
+
+function renderMonitoring(now) {
+  const checklist = monitoringChecklist(packet, now);
+  if (!checklist.eligible) { listInto('monitoring-checklist', [], 'Monitoring scenarios are WITHHELD by the current packet gate.'); return; }
+  const groups = new Map();
+  for (const row of checklist.rows) groups.set(row.trigger, [...(groups.get(row.trigger) ?? []), row]);
+  $('monitoring-checklist').replaceChildren(...[...groups].map(([trigger, rows]) => {
+    const item = element('li'); item.append(element('strong', trigger));
+    const contexts = element('ul');
+    for (const row of rows) contexts.append(element('li', row.horizon + ' ' + row.scenario + ', ending ' + formatDate(row.endAt) + '. Invalidation: ' + row.invalidation));
+    item.append(contexts); return item;
+  }));
+}
+$('export-monitoring').addEventListener('click', () => {
+  try { download(exportMonitoringCsv(packet), 'text/csv; charset=utf-8', 'Manual Monitoring.csv'); announce('Manual monitoring worksheet prepared. Nothing runs in the background.'); }
+  catch (error) { announce(error.message, true); }
+});
+
+$('renew-packet').addEventListener('click', () => {
+  if (!confirmReplacement()) return;
+  try {
+    const draft = renewResearchPacket(packet);
+    // Research edits must carry the prior review into the guarded reset path.
+    // When research is already renewed, retain the renewal helper's blank review.
+    if (researchChanged(draft)) draft.riskReview = structuredClone(packet.riskReview);
+    applyPacket(draft, 'Renewal draft', true);
+    openEditor('details');
+    setText('editor-help', 'Renewal preserves dated sources and research as unverified starting material. Supply a new reference and newly supported scenarios. Old probabilities and review were cleared; undo can restore previous research inputs.');
+    const target = field('price'); target.focus({ preventScroll: true }); revealEditorTarget(target);
+    announce('Renewal draft created. All four forecasts are incomplete and the review is pending. Carried-forward evidence has not been refreshed.');
+  } catch (error) { announce(error.message, true); }
 });

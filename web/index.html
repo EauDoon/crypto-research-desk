@@ -67,8 +67,8 @@
           <div><dt>Probability basis</dt><dd id="probability-basis"></dd></div>
         </dl>
         <div class="packet-toolbar">
-          <div class="actions"><button id="edit-details" class="button small" type="button">Edit details</button><button id="undo-edit" class="button small subtle" type="button" disabled>Undo saved edit</button><button id="edit-json" class="button small subtle" type="button">Edit full packet</button></div>
-          <div class="actions"><button id="copy-json" class="button small subtle" type="button">Copy JSON</button><button id="export-json" class="button small subtle" type="button">Export JSON</button><button id="export-receipt" class="button small subtle" type="button">Export check receipt</button><button id="export-csv" class="button small subtle" type="button">Export scenario CSV</button><button id="export-brief" class="button small subtle" type="button">Export brief</button><button id="print-packet" class="button small subtle" type="button">Print / PDF</button></div>
+          <div class="actions"><button id="edit-details" class="button small" type="button">Edit details</button><button id="renew-packet" class="button small subtle" type="button">Start renewal draft</button><button id="undo-edit" class="button small subtle" type="button" disabled>Undo saved edit</button><button id="edit-json" class="button small subtle" type="button">Edit full packet</button></div>
+          <div class="actions"><button id="copy-json" class="button small subtle" type="button">Copy JSON</button><button id="export-json" class="button small subtle" type="button">Export JSON</button><button id="export-bundle" class="button small subtle" type="button">Export packet bundle</button><button id="export-receipt" class="button small subtle" type="button">Export check receipt</button><button id="export-csv" class="button small subtle" type="button">Export scenario CSV</button><button id="export-brief" class="button small subtle" type="button">Export brief</button><button id="print-packet" class="button small subtle" type="button">Print / PDF</button></div>
         </div>
       </section>
       <div class="workspace-grid requires-app">
@@ -94,6 +94,12 @@
             <p class="eyebrow">LOCAL CHECKS</p><h2 id="gate-heading">Packet structure</h2>
             <div id="structure-status" class="structure-status"></div>
             <p class="small-copy">A structural check does not verify a source, authenticate a reviewer, or establish forecast accuracy.</p>
+            <details><summary>Check a saved receipt</summary>
+              <p class="small-copy">Compare a receipt with this packet. Matching bytes and recorded local checks do not authenticate a reviewer or verify sources.</p>
+              <label for="receipt-json">Check receipt JSON</label><textarea id="receipt-json" rows="4" maxlength="65536" spellcheck="false" autocomplete="off"></textarea>
+              <button id="verify-receipt" class="button small" type="button">Check receipt against packet</button>
+              <p id="receipt-result" role="status" class="small-copy"></p>
+            </details>
             <ul id="gate-checks" class="gate-checks"></ul>
             <details id="gap-details" class="gap-details"><summary id="gap-summary"></summary><ul id="gap-list"></ul></details>
           </section>
@@ -133,12 +139,18 @@
           <button id="calculate-sensitivity" class="button small" type="button">Calculate threshold distances</button>
           <p id="sensitivity-status" role="status"></p><ul id="sensitivity-results" class="text-list"></ul>
         </details>
+        <details><summary>Plan manual research monitoring</summary>
+          <p class="small-copy">Review submitted triggers and invalidations across horizons. This is a manual worksheet; no alerts, market checks, orders, or probability updates run in the background.</p>
+          <button id="export-monitoring" class="button small subtle" type="button">Export monitoring worksheet</button>
+          <ul id="monitoring-checklist" class="text-list"></ul>
+        </details>
         <div id="horizon-tabs" class="horizon-tabs" role="tablist" aria-label="Forecast horizons"></div>
         <div id="horizon-panels"></div>
       </section>
       <section id="evidence" class="panel evidence-section requires-app" aria-labelledby="evidence-heading">
         <div class="section-heading"><div><p class="eyebrow">THE SOURCE RECORD</p><h2 id="evidence-heading">Evidence, with its dates.</h2></div><span id="source-count" class="tag"></span></div>
         <p class="section-description">These are supplied claims and excerpts. Source pages open only when you choose a link; the app does not retrieve or verify them.</p>
+        <button id="export-evidence-csv" class="button small subtle" type="button">Export complete evidence CSV</button>
         <div class="source-controls">
           <label for="source-search">Search evidence<input id="source-search" type="search" maxlength="200" placeholder="Title, claim, excerpt, or source ID"></label>
           <label for="source-type">Source type<select id="source-type"><option value="all">All sources</option><option value="primary">Primary</option><option value="secondary">Secondary</option></select></label>
@@ -147,6 +159,10 @@
         <details><summary>Source recency and review coverage</summary>
           <p class="small-copy">Age is measured at the packet cutoff. A recent capture does not establish accuracy or current relevance. Review coverage is self-reported.</p>
           <ul id="evidence-audit" class="text-list"></ul>
+        </details>
+        <details><summary>Inspect source-origin concentration</summary>
+          <p class="small-copy">Exact hostnames are counted separately. Several hosts can share an owner; several records can repeat one claim. These counts do not establish independent evidence.</p>
+          <ul id="source-origin-audit" class="text-list"></ul>
         </details>
         <div id="source-list"></div>
       </section>
@@ -158,6 +174,8 @@
         <h2 id="compare-heading">Compare a previous research packet</h2>
         <p class="small-copy">Paste previous JSON for the same asset and quote currency. Comparison is local, shows raw submitted changes, and never resolves evidence conflicts or grants clearance.</p>
         <details><summary>Open packet comparison</summary>
+          <div class="actions"><button id="pin-baseline" class="button small" type="button">Pin current packet as baseline</button><button id="clear-baseline" class="button small subtle" type="button" disabled>Forget pinned baseline</button></div>
+          <p id="baseline-status" class="small-copy">No baseline pinned. A pinned snapshot stays in page memory only.</p>
           <label for="comparison-json">Previous packet JSON</label><textarea id="comparison-json" rows="6" maxlength="327680" spellcheck="false" autocomplete="off"></textarea>
           <div class="actions"><button id="compare-packets" class="button small" type="button">Compare with current packet</button><button id="clear-comparison" class="button small subtle" type="button">Clear comparison</button></div>
           <p id="comparison-status" role="status"></p><ul id="comparison-results" class="text-list"></ul>
@@ -225,6 +243,10 @@
             <label>Reviewed source IDs (comma separated)<input name="sourceIds" autocomplete="off"></label>
             <label class="span-two">Review notes<textarea name="reviewNotes" rows="3" maxlength="5000"></textarea></label>
           </div>
+          <details id="review-source-picker"><summary>Select sources actually reviewed</summary>
+            <p class="small-copy">Check only sources included in the actual review. This records a self-reported assertion, not evidence verification. Reopen this list after editing source records.</p>
+            <div id="review-source-options"></div>
+          </details>
           <div id="review-assertions"></div>
         </fieldset>
       </form>
