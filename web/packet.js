@@ -713,3 +713,19 @@ export function referenceSensitivity(packet, hypotheticalPrice, now = Date.now()
     return { id: item.id, label: item.label, bearDistance, bullDistance };
   });
 }
+
+export async function validationReceipt(packet, now = Date.now()) {
+  const report = validatePacket(packet, now);
+  if (!report.valid) throw new Error('A check receipt requires a structurally valid packet.');
+  const serialized = JSON.stringify(packet);
+  const bytes = new TextEncoder().encode(serialized);
+  const digest = await crypto.subtle.digest('SHA-256', bytes);
+  return { format: 'crypto-research-check-receipt.v1', researchOnly: true,
+    checkedAt: new Date(now).toISOString(), packetSha256: [...new Uint8Array(digest)].map(value => value.toString(16).padStart(2, '0')).join(''),
+    hashInput: 'UTF-8 bytes of JSON.stringify(packet), preserving object key order, with no whitespace or trailing newline',
+    packetBytes: bytes.length, kind: packet.kind, asset: packet.asset.symbol, referenceCutoff: packet.reference.capturedAt,
+    structurallyValid: report.valid, complete: report.complete, chartEligible: report.chartEligible,
+    gapCount: report.gapCount, warningCount: report.warningCount,
+    gaps: report.gaps, warnings: report.warnings, omittedIssueCounts: report.omittedIssueCounts,
+    limitation: 'Local structural checks only. This digest detects byte changes; it is not a signature, authenticated review, source verification, or evidence of forecast accuracy.' };
+}

@@ -1,6 +1,6 @@
 import {
   MAX_PACKET_BYTES, MAX_JSON_INPUT_BYTES, HORIZONS, SCENARIOS, REVIEW_ASSERTIONS, parsePacket, validatePacket, blankPacket,
-  timestamp, endAt, formatDate, formatPrice, safeSourceUrl, intervalLabel, returnLabel, chartThresholds, exportMarkdown, repairQueue, evidenceAudit, sourceMatches, horizonOverview, exportScenarioCsv, comparePackets, riskHandoff, restoreResearchDraft, referenceSensitivity,
+  timestamp, endAt, formatDate, formatPrice, safeSourceUrl, intervalLabel, returnLabel, chartThresholds, exportMarkdown, repairQueue, evidenceAudit, sourceMatches, horizonOverview, exportScenarioCsv, comparePackets, riskHandoff, restoreResearchDraft, referenceSensitivity, validationReceipt,
 } from './packet.js';
 import { examplePacket } from './example.js';
 
@@ -1099,4 +1099,15 @@ $('calculate-sensitivity').addEventListener('click', () => {
     listInto('sensitivity-results', rows.map(item => item.label + ': bear ceiling ' + percent(item.bearDistance) + '; bull floor ' + percent(item.bullDistance)), 'No eligible thresholds.');
     setText('sensitivity-status', 'Hypothetical arithmetic only. Original packet, probabilities, and review are unchanged.');
   } catch (error) { $('sensitivity-results').replaceChildren(); setText('sensitivity-status', error.message); }
+});
+
+$('export-receipt').addEventListener('click', async () => {
+  const button = $('export-receipt'); button.disabled = true;
+  const snapshot = structuredClone(packet);
+  try {
+    const receipt = await validationReceipt(snapshot);
+    download(JSON.stringify(receipt, null, 2) + '\n', 'application/json; charset=utf-8', '', snapshot.asset.symbol + ' Research Check Receipt.json');
+    announce('Check receipt prepared for the packet snapshot at click time. Export matching packet JSON to reproduce its SHA-256.');
+  } catch (error) { announce('Check receipt unavailable: ' + error.message, true); }
+  finally { button.disabled = false; }
 });

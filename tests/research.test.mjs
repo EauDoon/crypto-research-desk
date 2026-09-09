@@ -87,3 +87,16 @@ test('sensitivity computes fixed-boundary distances without mutating forecasts',
   packet.riskReview.status = 'pending';
   assert.throws(() => research.referenceSensitivity(packet, 100, NOW), /withheld/);
 });
+
+test('validation receipt binds exact packet bytes and records incomplete gates honestly', async () => {
+  const packet = examplePacket();
+  const receipt = await research.validationReceipt(packet, NOW);
+  const { createHash } = await import('node:crypto');
+  assert.equal(receipt.packetSha256, createHash('sha256').update(JSON.stringify(packet)).digest('hex'));
+  assert.equal(receipt.packetBytes, Buffer.byteLength(JSON.stringify(packet)));
+  packet.thesis = 'Changed';
+  assert.notEqual((await research.validationReceipt(packet, NOW)).packetSha256, receipt.packetSha256);
+  const incomplete = await research.validationReceipt(research.blankPacket(), NOW);
+  assert.equal(incomplete.chartEligible, false);
+  assert(incomplete.gapCount > 0);
+});
