@@ -146,6 +146,15 @@
         <section id="method" class="panel" aria-labelledby="method-heading"><p class="eyebrow">REPRODUCIBILITY</p><h2 id="method-heading">Method and limits</h2><dl id="method-list" class="method-list"></dl></section>
         <section class="panel" aria-labelledby="unknowns-heading"><p class="eyebrow">WHAT COULD CHANGE THE VIEW</p><h2 id="unknowns-heading">Risk and uncertainty</h2><h3>Major risks</h3><ul id="risk-list" class="text-list"></ul><h3>Unresolved unknowns</h3><ul id="unknown-list" class="text-list"></ul></section>
       </div>
+      <section class="panel requires-app" aria-labelledby="compare-heading">
+        <h2 id="compare-heading">Compare a previous research packet</h2>
+        <p class="small-copy">Paste previous JSON for the same asset and quote currency. Comparison is local, shows raw submitted changes, and never resolves evidence conflicts or grants clearance.</p>
+        <details><summary>Open packet comparison</summary>
+          <label for="comparison-json">Previous packet JSON</label><textarea id="comparison-json" rows="6" maxlength="327680" spellcheck="false" autocomplete="off"></textarea>
+          <div class="actions"><button id="compare-packets" class="button small" type="button">Compare with current packet</button><button id="clear-comparison" class="button small subtle" type="button">Clear comparison</button></div>
+          <p id="comparison-status" role="status"></p><ul id="comparison-results" class="text-list"></ul>
+        </details>
+      </section>
       <section id="guide" class="panel guide-section" aria-labelledby="guide-heading">
         <div><p class="eyebrow">FIELD GUIDE</p><h2 id="guide-heading">From research packet to review.</h2><p>This workbench supports the project's named-ticker forecast contract. It does not conduct research or replace the five specialist functions.</p></div>
         <ol class="guide-steps"><li><strong>Prepare the record.</strong><span>Use dated public evidence, one exact reference price, and all four horizons. Leave unsupported forecasts incomplete.</span></li><li><strong>Inspect the gaps.</strong><span>Import schema version 1 JSON or start a blank packet. Edit details covers routine packet inputs; Edit full packet shows the exact JSON.</span></li><li><strong>Record an actual review.</strong><span>Only record a disposition after independent risk review. Editing research inputs resets an existing local review record.</span></li><li><strong>Export the result.</strong><span>JSON preserves the packet. The brief includes validation gaps. Print / PDF includes the chart when its input and review requirements are met.</span></li></ol>

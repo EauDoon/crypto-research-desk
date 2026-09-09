@@ -44,3 +44,13 @@ test('CSV retains provenance, escapes formula text and withholds gated values', 
   assert(!withheld.includes('SUM'));
   assert.equal(withheld.trim().split('\r\n').length, 5);
 });
+
+test('comparison rejects malformed and unrelated packets and bounds differences', () => {
+  const previous = examplePacket(), current = examplePacket();
+  current.thesis = 'Updated thesis';
+  assert.equal(research.comparePackets(previous, current, NOW).changes[0].path, 'thesis');
+  current.asset.symbol = 'OTHER';
+  assert.throws(() => research.comparePackets(previous, current, NOW), /same named asset/);
+  assert.throws(() => research.comparePackets({}, current, NOW), /structurally valid/);
+  assert.equal(research.comparePackets(previous, previous, NOW).total, 0);
+});

@@ -368,3 +368,5 @@ fieldset > p { margin-bottom: 18px; }
 .source-controls input, .source-controls select { display: block; width: 100%; }
 .source-filtered { display: none; }
 @media print { .source-controls { display: none; } .source-filtered { display: grid; } }
+
+#comparison-json { width: 100%; max-width: 100%; } #comparison-results { overflow-wrap: anywhere; }

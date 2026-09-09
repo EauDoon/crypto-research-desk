@@ -660,3 +660,19 @@ export function exportScenarioCsv(packet, now = Date.now()) {
   }
   return rows.map(row => row.map(cell).join(',')).join('\r\n') + '\r\n';
 }
+
+export function comparePackets(previous, current, now = Date.now()) {
+  if (!validatePacket(previous, now).valid || !validatePacket(current, now).valid) throw new Error('Both packets must be structurally valid.');
+  if (!previous.asset.symbol || previous.asset.symbol !== current.asset.symbol || previous.asset.quoteCurrency !== current.asset.quoteCurrency) throw new Error('Compare the same named asset and quote currency.');
+  const changes = []; let total = 0;
+  const walk = (left, right, path) => {
+    if (left !== null && right !== null && typeof left === 'object' && typeof right === 'object' && Array.isArray(left) === Array.isArray(right)) {
+      for (const key of new Set([...Object.keys(left), ...Object.keys(right)])) walk(left[key], right[key], path ? path + (Array.isArray(right) ? '[' + key + ']' : '.' + key) : key);
+    } else if (left !== right) {
+      total++;
+      if (changes.length < 80) changes.push({ path, previous: left ?? null, current: right ?? null });
+    }
+  };
+  walk(previous, current, '');
+  return { changes, total, omitted: total - changes.length };
+}

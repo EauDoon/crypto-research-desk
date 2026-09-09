@@ -1,6 +1,6 @@
 import {
   MAX_PACKET_BYTES, MAX_JSON_INPUT_BYTES, HORIZONS, SCENARIOS, REVIEW_ASSERTIONS, parsePacket, validatePacket, blankPacket,
-  timestamp, endAt, formatDate, formatPrice, safeSourceUrl, intervalLabel, returnLabel, chartThresholds, exportMarkdown, repairQueue, evidenceAudit, sourceMatches, horizonOverview, exportScenarioCsv,
+  timestamp, endAt, formatDate, formatPrice, safeSourceUrl, intervalLabel, returnLabel, chartThresholds, exportMarkdown, repairQueue, evidenceAudit, sourceMatches, horizonOverview, exportScenarioCsv, comparePackets,
 } from './packet.js';
 import { examplePacket } from './example.js';
 
@@ -445,6 +445,7 @@ function applyPacket(candidate, label, localEdit = false) {
   $('app-error').hidden = true;
   dirty = localEdit ? dirty || JSON.stringify(canonical(candidate)) !== JSON.stringify(canonical(packet)) : false;
   packet = candidate; origin = label;
+  clearComparison();
   render(true, now); saveLocally();
   return { reviewReset, report };
 }
@@ -1044,4 +1045,17 @@ $('export-csv').addEventListener('click', () => {
     download(exportScenarioCsv(packet), 'text/csv; charset=utf-8', 'Scenario Research.csv');
     announce('Scenario CSV prepared with packet cutoff, research labels, and gate status.');
   } catch (error) { announce(error.message, true); }
+});
+
+function clearComparison() {
+  $('comparison-json').value = ''; $('comparison-results').replaceChildren(); $('comparison-status').textContent = '';
+}
+$('clear-comparison').addEventListener('click', clearComparison);
+$('compare-packets').addEventListener('click', () => {
+  try {
+    const result = comparePackets(parsePacket($('comparison-json').value), packet);
+    const summary = value => JSON.stringify(value).slice(0, 240);
+    listInto('comparison-results', result.changes.map(item => item.path + ': ' + summary(item.previous) + ' → ' + summary(item.current)), 'No submitted fields changed.');
+    setText('comparison-status', result.total + ' changed fields; ' + result.omitted + ' omitted. Long values are shortened. Source arrays are compared by position. Open raw JSON for full evidence.');
+  } catch (error) { $('comparison-results').replaceChildren(); setText('comparison-status', error.message); }
 });
