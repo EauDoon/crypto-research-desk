@@ -481,7 +481,7 @@ function editableFieldForPath(path) {
   const method = /^method\.(\w+)$/.exec(path);
   if (method) return field('method-' + method[1]);
   const source = /^sources(?:\[(\d+)\])?(?:\.(\w+))?$/.exec(path);
-  if (source) return source[1] === undefined ? $('add-source')
+  if (source) return source[1] === undefined ? field('source-0-type') ?? $('add-source')
     : field('source-' + source[1] + '-' + (source[2] ?? 'id'));
   const horizon = /^horizons(?:\[(\d+)\])?(?:\.(status|gapReason|endAt))?$/.exec(path);
   if (horizon) return horizon[2] === 'endAt' ? field('capturedAt')
@@ -1018,7 +1018,10 @@ function renderRepairs(now) {
     button.type = 'button';
     button.addEventListener('click', () => {
       openEditor('details');
-      const target = editableFieldForPath(item.path);
+      const elapsedHorizon = /^horizons\[\d+\]$/.test(item.path) && item.message === 'This forecast horizon has elapsed. Refresh the packet.';
+      const target = elapsedHorizon ? field('capturedAt') : editableFieldForPath(item.path);
+      if (elapsedHorizon) setText('editor-help', 'Refresh the reference price, capture time, and supporting research together. Changing the cutoff alone does not refresh evidence or recalibrate probabilities. Saving research edits resets the review.');
+      if (item.path === 'sources' && packet.sources.length) setText('editor-help', 'Inspect the existing source record and replace it with actual primary evidence when needed. Changing the source type label alone does not verify evidence. Saving research edits resets the review.');
       if (target) { target.focus({ preventScroll: true }); revealEditorTarget(target); }
     });
     li.append(button); return li;

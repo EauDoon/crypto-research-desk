@@ -136,3 +136,56 @@ test('internationalized source imports remain valid while encoded controls fail 
     expect(JSON.parse(await downloadText(page, '#export-json'))).toEqual(packet);
   }
 });
+
+test('elapsed horizon repairs focus the cutoff and preserve the review gate after refresh', async ({ page }) => {
+  await page.clock.setSystemTime(new Date('2026-08-20T22:00:00Z'));
+  const packet = examplePacket(); packet.kind = 'research';
+  packet.sources[0].url = 'https://www.iana.org/domains/reserved'; packet.sources[1].url = 'https://www.rfc-editor.org/rfc/rfc2606';
+  await page.locator('#packet-file').setInputFiles({ name: 'expired.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(packet)) });
+  await page.locator('.repair-action').filter({ hasText: 'horizons[0]: This forecast horizon has elapsed' }).click();
+  const cutoff = page.locator('[name="capturedAt"]');
+  await expect(cutoff).toBeFocused(); await expect(cutoff).toBeEnabled();
+  await expect(page.locator('#editor-help')).toContainText('Changing the cutoff alone does not refresh evidence');
+  await cutoff.fill('2026-08-20T21:30:00Z');
+  await page.locator('[name="price"]').fill('101');
+  await page.locator('[name="thesis"]').fill('Synthetic test of refreshed reference inputs, no real research conducted.');
+  await page.getByRole('button', { name: 'Save details', exact: true }).click();
+  await expect(page.locator('.repair-action').filter({ hasText: 'has elapsed' })).toHaveCount(0);
+  await expect(page.locator('#review-status')).toHaveText('Pending review');
+  await expect(page.locator('#chart-area svg')).toHaveCount(0);
+  const updated = JSON.parse(await downloadText(page, '#export-json'));
+  expect(updated.horizons[0].endAt).toBe('2026-08-21T09:30:00.000Z');
+});
+
+test('primary evidence repair at the source limit focuses an editable source record', async ({ page }) => {
+  const packet = examplePacket();
+  packet.sources = Array.from({ length: 32 }, (_, index) => ({ ...packet.sources[0], id: 'source' + index, type: 'secondary', title: 'Synthetic secondary ' + index, url: 'https://example.com/secondary/' + index }));
+  packet.riskReview.sourceIds = packet.sources.map(source => source.id);
+  await page.locator('#packet-file').setInputFiles({ name: 'sources.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(packet)) });
+  await page.locator('.repair-action').filter({ hasText: 'sources: No primary source' }).click();
+  const sourceType = page.locator('[name="source-0-type"]');
+  await expect(sourceType).toBeFocused(); await expect(sourceType).toBeEnabled();
+  await expect(page.locator('#add-source')).toBeDisabled();
+  await expect(page.locator('#editor-help')).toContainText('Changing the source type label alone does not verify evidence');
+  await sourceType.selectOption('primary');
+  await page.locator('[name="source-0-url"]').fill('https://example.com/primary-announcement');
+  await page.locator('[name="source-0-title"]').fill('Synthetic direct announcement');
+  await page.locator('[name="source-0-claim"]').fill('A fictional primary announcement is supplied for interface testing only.');
+  await page.locator('[name="source-0-excerpt"]').fill('Synthetic source excerpt, no real evidence verification is claimed.');
+  await page.getByRole('button', { name: 'Save details', exact: true }).click();
+  await expect(page.locator('.repair-action').filter({ hasText: 'No primary source' })).toHaveCount(0);
+  await expect(page.locator('#review-status')).toHaveText('Pending review');
+  await expect(page.locator('#chart-area svg')).toHaveCount(0);
+  const updated = JSON.parse(await downloadText(page, '#export-json'));
+  expect(updated.sources).toHaveLength(32); expect(updated.sources[0].type).toBe('primary');
+});
+
+test('ordinary missing-source and incomplete-horizon repairs keep their relevant controls', async ({ page }) => {
+  await page.locator('#new-packet').click(); await page.locator('#close-editor').click();
+  await page.locator('.repair-action').filter({ hasText: 'sources: No dated evidence' }).click();
+  await expect(page.locator('#add-source')).toBeFocused(); await expect(page.locator('#add-source')).toBeEnabled();
+  await page.locator('#close-editor').click();
+  await page.locator('.repair-action').filter({ hasText: 'horizons[0]: Forecast is INCOMPLETE' }).click();
+  await expect(page.locator('[name="horizon-0-status"]')).toBeFocused();
+  await expect(page.locator('[name="horizon-0-status"]')).toBeEnabled();
+});
