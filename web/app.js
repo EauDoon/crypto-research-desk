@@ -1,6 +1,6 @@
 import {
   MAX_PACKET_BYTES, MAX_JSON_INPUT_BYTES, HORIZONS, SCENARIOS, REVIEW_ASSERTIONS, parsePacket, validatePacket, blankPacket,
-  timestamp, endAt, formatDate, formatPrice, safeSourceUrl, intervalLabel, returnLabel, chartThresholds, exportMarkdown, repairQueue, evidenceAudit, sourceMatches, horizonOverview,
+  timestamp, endAt, formatDate, formatPrice, safeSourceUrl, intervalLabel, returnLabel, chartThresholds, exportMarkdown, repairQueue, evidenceAudit, sourceMatches, horizonOverview, exportScenarioCsv,
 } from './packet.js';
 import { examplePacket } from './example.js';
 
@@ -1038,3 +1038,10 @@ function renderOverview(now) {
   }
   table.append(body); $('horizon-overview').replaceChildren(table);
 }
+
+$('export-csv').addEventListener('click', () => {
+  try {
+    download(exportScenarioCsv(packet), 'text/csv; charset=utf-8', 'Scenario Research.csv');
+    announce('Scenario CSV prepared with packet cutoff, research labels, and gate status.');
+  } catch (error) { announce(error.message, true); }
+});

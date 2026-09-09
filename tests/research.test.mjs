@@ -31,3 +31,16 @@ test('overview follows independent risk and elapsed research gates', () => {
   assert(research.horizonOverview(packet, NOW).every(item => item.bearCeiling === null));
   assert.equal(research.horizonOverview(research.blankPacket(), NOW)[0].timing, 'UNKNOWN');
 });
+
+test('CSV retains provenance, escapes formula text and withholds gated values', () => {
+  const packet = examplePacket(); packet.horizons[0].scenarios[0].trigger = '=SUM(1,2)';
+  const csv = research.exportScenarioCsv(packet, NOW);
+  assert(csv.includes("'=SUM(1,2)"));
+  assert(csv.includes('UNBOUNDED'));
+  assert(csv.includes(packet.reference.capturedAt));
+  packet.riskReview.status = 'pending';
+  const withheld = research.exportScenarioCsv(packet, NOW);
+  assert(withheld.includes('WITHHELD'));
+  assert(!withheld.includes('SUM'));
+  assert.equal(withheld.trim().split('\r\n').length, 5);
+});

@@ -643,3 +643,20 @@ export function horizonOverview(packet, now = Date.now()) {
       baseProbability: visible ? horizon.scenarios[1].probability : null };
   });
 }
+
+export function exportScenarioCsv(packet, now = Date.now()) {
+  const report = validatePacket(packet, now);
+  if (!report.valid) throw new Error('CSV export requires a structurally valid packet.');
+  const cell = value => {
+    let text = String(value ?? 'UNKNOWN');
+    if (/^[\s]*[=+@-]/.test(text)) text = "'" + text;
+    return '"' + text.replaceAll('"', '""') + '"';
+  };
+  const rows = [['kind', 'asset', 'quote_currency', 'reference_price', 'reference_cutoff', 'horizon', 'end_at', 'gate', 'scenario', 'lower_inclusive', 'upper_exclusive', 'probability_percent', 'trigger', 'invalidation']];
+  for (const horizon of packet.horizons) {
+    const prefix = [packet.kind, packet.asset.symbol, packet.asset.quoteCurrency, packet.reference.price, packet.reference.capturedAt, horizon.id, horizon.endAt];
+    if (!report.chartEligible) rows.push([...prefix, 'WITHHELD', '', '', '', '', '', '']);
+    else for (const scenario of horizon.scenarios) rows.push([...prefix, 'SUBMITTED_UNAUTHENTICATED', scenario.label, scenario.lower, scenario.upper === null ? 'UNBOUNDED' : scenario.upper, scenario.probability, scenario.trigger, scenario.invalidation]);
+  }
+  return rows.map(row => row.map(cell).join(',')).join('\r\n') + '\r\n';
+}
