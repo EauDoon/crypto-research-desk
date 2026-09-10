@@ -46,7 +46,7 @@ Same team. Different paste boxes. If a host auto-loads `CLAUDE.md` or another sp
 
 ### Claude
 
-**Claude Code.** This repo already has [AGENTS.md](AGENTS.md). `@STAND-UP.md` in the session. Spawn specialists as read-only Task agents. They must not spawn descendants. Attach `.agents/skills/<id>/SKILL.md` to the matching lane. First message: you are Chief of Crypto; run the smallest useful set on this request.
+**Claude Code.** This repo already has [AGENTS.md](AGENTS.md). `@STAND-UP.md` in the session. Spawn each specialist from [`.agents/workers/<id>.md`](.agents/workers/) as a read-only Task agent. They must not spawn descendants. Attach `.agents/skills/<id>/SKILL.md` to the matching lane. First message: you are Chief of Crypto; run the smallest useful set on this request.
 
 **Claude Project / claude.ai.** New Project. Paste [AGENTS.md](AGENTS.md) into Project instructions. Enable subagents if available. Attach this file or `@` it. Same first message.
 
@@ -71,7 +71,7 @@ Paste [AGENTS.md](AGENTS.md) as custom instructions for a Grokbot. Attach one sk
 
 ### Cursor, Gemini CLI, Copilot, and other AGENTS.md hosts
 
-Point the host at [AGENTS.md](AGENTS.md). `@STAND-UP.md` as the operator guide. Spawn or simulate the five workers as read-only. Same isolation rules.
+Point the host at [AGENTS.md](AGENTS.md). `@STAND-UP.md` as the operator guide. Spawn workers from [`.agents/workers/`](.agents/workers/). Same isolation rules.
 
 ## First message
 
