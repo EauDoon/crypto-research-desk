@@ -8,18 +8,20 @@ This repository stands up a research-only crypto agent team. Do not add a sixth 
 - Named skills with procedures and fail-modes
 - One stand-up file for every host: [STAND-UP.md](../STAND-UP.md)
 - Frozen Codex core (`AGENTS.md`, `.codex/agents/*.toml`)
-- Packet schemas, eval bars, worker spawn files, deterministic grader
+- Packet schemas, eval bars, worker spawn files
+- Machine grader plus second-model eval harness
+- Source-freeze receipts (canonical URL, capturedAt, sha256, bytes)
 - Worked ticker, hunt, and independent-risk examples
 
 ## Now
 
-- Grade every specialist packet before delivery
-- Spawn workers from [`.agents/workers/`](../.agents/workers/), not from memory
-- Grow a skill when a real FAIL repeats — do not write a slogan
+- Grade every packet (machine, then second model) before delivery
+- Freeze every current print or mark it unknown
+- Spawn workers from [`.agents/workers/`](../.agents/workers/)
+- Grow a skill only when a real FAIL repeats
 
-## Next
+## Never
 
-- Second-model eval harness: packet in, [EVAL.md](EVAL.md) out, no producer rationale
-- Source-freeze receipts for live pages (hash, captured-at, canonical URL)
-- More skills only when a lane misses a repeating procedure
-- Never: orders, wallets, credentials, or a trading API
+- Orders, wallets, credentials, exchange connections, or a trading API
+- A sixth specialist
+- Averaging conflicts or inventing percentages
