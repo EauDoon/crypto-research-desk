@@ -121,12 +121,15 @@ The desk cannot place trades, connect accounts, handle credentials, sign transac
 | Path | Purpose |
 | --- | --- |
 | [AGENTS.md](AGENTS.md) | Frozen operating charter. Do not treat this as a sixth specialist. |
+| [CLAUDE.md](CLAUDE.md) | Claude Code stand-up. Auto-read. You are Chief of Crypto. |
+| [TEAM.md](TEAM.md) | One-page team map. |
 | [.codex/agents](.codex/agents) | Frozen Codex specialist TOMLs. Do not add extra files in that folder. |
 | [.agents/skills](.agents/skills) | Umbrella skill plus one folder per named procedure. Grow these. |
 | [adapters/](adapters/) | Claude, ChatGPT, and Grok stand-up packs. Paste and run. |
 | [schemas/](schemas/) | Specialist packet JSON schemas. |
-| [examples/](examples/) | Requests and packet shapes. |
+| [examples/](examples/) | Requests, packet shapes, and a worked named-ticker run. |
 | [docs/STAND-UP.md](docs/STAND-UP.md) | Host-by-host stand-up. |
+| [docs/SKILLS.md](docs/SKILLS.md) | Skill catalog. |
 | [docs/EVAL.md](docs/EVAL.md) | Quality bar for each lane. |
 | [docs/ADDING-SKILLS.md](docs/ADDING-SKILLS.md) | How a lane grows a skill. |
 
