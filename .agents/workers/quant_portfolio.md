@@ -90,6 +90,17 @@ Convert each range to a return vs the frozen reference. No EV without payoffs.
 Do not:
 - A 'target' that is the probability-weighted midpoint
 
+### Input freeze (`input-freeze`)
+Refuse to calculate on unfrozen current prints.
+
+1. Check that every current input used in a governing calc has a freeze receipt.
+2. If a required freeze is missing, return an incomplete data-gap table.
+3. Do not backfill a hash after the number is already in the brief.
+
+Do not:
+- Computing 12h percentages from an unfrozen ticker
+- Inventing a hash to complete the bundle
+
 
 ## Spawn
 
