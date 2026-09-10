@@ -68,12 +68,12 @@ Each agent should accumulate more relevant skills over time. A skill has an id, 
 
 Current stacks (grow these, do not flatten them into one prompt):
 
-- **Chief** — routing, conflict-ledger, research-states, delivery-gate, ledger-hygiene, incomplete-honest
-- **Market regime** — macro-liquidity, derivatives-structure, breadth-and-cycle, scenario-tables, four-horizon-anchor, etf-stablecoin-pulse, liquidation-crowding
+- **Chief** — routing, conflict-ledger, research-states, delivery-gate, ledger-hygiene, incomplete-honest, cutoff-freeze, retrieved-as-data, eval-before-delivery
+- **Market regime** — macro-liquidity, derivatives-structure, breadth-and-cycle, scenario-tables, four-horizon-anchor, etf-stablecoin-pulse, liquidation-crowding, source-freeze
 - **Fundamentals** — token-mechanics, value-capture, on-chain-evidence, defi-protocol-risk, catalyst-dating, unlock-and-float, competitive-set
 - **Scout** — catalyst-hunt, narrative-vs-evidence, candidate-screen, recommended-state, liquidity-gate, crowding-filter
-- **Quant** — consistency-ledger, scenario-math, reproducibility-bundle, mandate-gap, sensitivity-table, implied-return-math
-- **Risk** — independent-gate, assertion-ledger, downside-challenge, forecast-gate, source-quality, liquidity-failure
+- **Quant** — consistency-ledger, scenario-math, reproducibility-bundle, mandate-gap, sensitivity-table, implied-return-math, input-freeze
+- **Risk** — independent-gate, assertion-ledger, downside-challenge, forecast-gate, source-quality, liquidity-failure, freeze-or-unknown
 
 When you add a skill, add it to the agent definition **and** to the exported pack. Runtime prompts should name the skills they must apply.
 
@@ -120,8 +120,8 @@ The desk cannot place trades, connect accounts, handle credentials, sign transac
 | [.codex/agents](.codex/agents) | Frozen Codex specialist TOMLs. Do not add extra files in that folder. |
 | [.agents/workers](.agents/workers) | Spawn file per specialist. Attach this, do not rewrite the role. |
 | [.agents/skills](.agents/skills) | Umbrella skill plus one folder per named procedure. Grow these. |
-| [schemas/](schemas/) | Specialist packet JSON schemas. |
-| [examples/](examples/) | Requests, packet shapes, and worked runs. |
+| [schemas/](schemas/) | Specialist packet JSON schemas, including freeze receipts. |
+| [examples/](examples/) | Requests, packet shapes, freeze receipts, and worked runs. |
 | [docs/SKILLS.md](docs/SKILLS.md) | Skill catalog. |
 | [docs/EVAL.md](docs/EVAL.md) | Quality bar for each lane. |
 | [docs/ROADMAP.md](docs/ROADMAP.md) | What is built and what is next. |
