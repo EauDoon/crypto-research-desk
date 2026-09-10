@@ -118,11 +118,13 @@ The desk cannot place trades, connect accounts, handle credentials, sign transac
 | [AGENTS.md](AGENTS.md) | Frozen operating charter. Codex loads this. Do not treat it as a sixth specialist. |
 | [STAND-UP.md](STAND-UP.md) | The one stand-up file. Claude, Codex, ChatGPT, Grok, Cursor, Gemini. |
 | [.codex/agents](.codex/agents) | Frozen Codex specialist TOMLs. Do not add extra files in that folder. |
+| [.agents/workers](.agents/workers) | Spawn file per specialist. Attach this, do not rewrite the role. |
 | [.agents/skills](.agents/skills) | Umbrella skill plus one folder per named procedure. Grow these. |
 | [schemas/](schemas/) | Specialist packet JSON schemas. |
-| [examples/](examples/) | Requests, packet shapes, and a worked named-ticker run. |
+| [examples/](examples/) | Requests, packet shapes, and worked runs. |
 | [docs/SKILLS.md](docs/SKILLS.md) | Skill catalog. |
 | [docs/EVAL.md](docs/EVAL.md) | Quality bar for each lane. |
+| [docs/ROADMAP.md](docs/ROADMAP.md) | What is built and what is next. |
 | [docs/ADDING-SKILLS.md](docs/ADDING-SKILLS.md) | How a lane grows a skill. |
 
 The frozen research core is byte-verified. Add skills, schemas, and examples around it. Do not silently rewrite the verified files.
