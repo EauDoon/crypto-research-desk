@@ -1,0 +1,85 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "description": "Independent risk packet. Producer rationale withheld.",
+  "required": [
+    "verdict",
+    "delivery",
+    "notes",
+    "assertions"
+  ],
+  "properties": {
+    "verdict": {
+      "enum": [
+        "PASS",
+        "WARN",
+        "FAIL",
+        "UNKNOWN"
+      ]
+    },
+    "delivery": {
+      "enum": [
+        "deliver",
+        "deliver_with_warning",
+        "repair",
+        "withhold"
+      ]
+    },
+    "notes": {
+      "type": "string"
+    },
+    "unknowns": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "assertions": {
+      "type": "array",
+      "minItems": 5,
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "result",
+          "evidence",
+          "severity",
+          "repair"
+        ],
+        "properties": {
+          "id": {
+            "enum": [
+              "authority",
+              "evidence",
+              "scenarios",
+              "liquidity",
+              "invalidation"
+            ]
+          },
+          "result": {
+            "enum": [
+              "PASS",
+              "WARN",
+              "FAIL",
+              "UNKNOWN"
+            ]
+          },
+          "evidence": {
+            "type": "string"
+          },
+          "severity": {
+            "enum": [
+              "low",
+              "medium",
+              "high"
+            ]
+          },
+          "repair": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

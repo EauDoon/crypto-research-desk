@@ -115,3 +115,19 @@ Until the Capital Principal fills universe, horizons, exclusions, base currency,
 ## Safety boundary
 
 The desk cannot place trades, connect accounts, handle credentials, sign transactions, or transfer assets. Stop at a decision-ready research packet. The Capital Principal owns every external action.
+
+## Repository map
+
+| Path | Purpose |
+| --- | --- |
+| [AGENTS.md](AGENTS.md) | Frozen operating charter. Do not treat this as a sixth specialist. |
+| [.codex/agents](.codex/agents) | Frozen Codex specialist TOMLs. Do not add extra files in that folder. |
+| [.agents/skills](.agents/skills) | Umbrella skill plus one folder per named procedure. Grow these. |
+| [adapters/](adapters/) | Claude, ChatGPT, and Grok stand-up packs. Paste and run. |
+| [schemas/](schemas/) | Specialist packet JSON schemas. |
+| [examples/](examples/) | Requests and packet shapes. |
+| [docs/STAND-UP.md](docs/STAND-UP.md) | Host-by-host stand-up. |
+| [docs/EVAL.md](docs/EVAL.md) | Quality bar for each lane. |
+| [docs/ADDING-SKILLS.md](docs/ADDING-SKILLS.md) | How a lane grows a skill. |
+
+The frozen research core is byte-verified. Add skills, adapters, schemas, and examples around it. Do not silently rewrite the verified files.

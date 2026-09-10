@@ -1,0 +1,121 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "description": "Fundamentals and on-chain diligence packet.",
+  "required": [
+    "summary",
+    "cutoff",
+    "thesis",
+    "facts",
+    "unknowns",
+    "sources"
+  ],
+  "properties": {
+    "summary": {
+      "type": "string"
+    },
+    "name": {
+      "type": "string"
+    },
+    "cutoff": {
+      "type": "string"
+    },
+    "thesis": {
+      "type": "string"
+    },
+    "disconfirmingEvidence": {
+      "type": "string"
+    },
+    "invalidation": {
+      "type": "string"
+    },
+    "liquidity": {
+      "type": "string"
+    },
+    "facts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "claim",
+          "kind"
+        ],
+        "properties": {
+          "claim": {
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "fact",
+              "calculation",
+              "assumption",
+              "inference",
+              "forecast",
+              "judgment"
+            ]
+          },
+          "source": {
+            "type": "string"
+          },
+          "asOf": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "risks": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "unknowns": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "sources": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "title",
+          "url",
+          "type",
+          "capturedAt",
+          "claim",
+          "excerpt"
+        ],
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string",
+            "format": "uri"
+          },
+          "type": {
+            "enum": [
+              "primary",
+              "secondary"
+            ]
+          },
+          "publishedAt": {
+            "type": "string"
+          },
+          "capturedAt": {
+            "type": "string"
+          },
+          "claim": {
+            "type": "string"
+          },
+          "excerpt": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

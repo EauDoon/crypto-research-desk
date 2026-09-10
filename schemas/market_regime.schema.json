@@ -1,0 +1,182 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "description": "Market regime evidence packet.",
+  "required": [
+    "summary",
+    "classification",
+    "cutoff",
+    "facts",
+    "unknowns",
+    "sources"
+  ],
+  "properties": {
+    "summary": {
+      "type": "string"
+    },
+    "classification": {
+      "enum": [
+        "expansion",
+        "transition",
+        "distribution",
+        "contraction",
+        "unknown"
+      ]
+    },
+    "cutoff": {
+      "type": "string"
+    },
+    "facts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "claim",
+          "kind"
+        ],
+        "properties": {
+          "claim": {
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "fact",
+              "calculation",
+              "assumption",
+              "inference",
+              "forecast",
+              "judgment"
+            ]
+          },
+          "source": {
+            "type": "string"
+          },
+          "asOf": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "scenarios": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "horizons": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id"
+        ],
+        "properties": {
+          "id": {
+            "enum": [
+              "12h",
+              "24h",
+              "3d",
+              "7d"
+            ]
+          },
+          "bearUpper": {
+            "type": "number"
+          },
+          "bullLower": {
+            "type": "number"
+          },
+          "probabilities": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            },
+            "minItems": 3,
+            "maxItems": 3
+          },
+          "drivers": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "triggers": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "invalidations": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "confidence": {
+            "enum": [
+              "low",
+              "medium",
+              "high"
+            ]
+          },
+          "incomplete": {
+            "type": "boolean"
+          },
+          "gapReason": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "unknowns": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "sources": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "title",
+          "url",
+          "type",
+          "capturedAt",
+          "claim",
+          "excerpt"
+        ],
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string",
+            "format": "uri"
+          },
+          "type": {
+            "enum": [
+              "primary",
+              "secondary"
+            ]
+          },
+          "publishedAt": {
+            "type": "string"
+          },
+          "capturedAt": {
+            "type": "string"
+          },
+          "claim": {
+            "type": "string"
+          },
+          "excerpt": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "method": {
+      "type": "object"
+    }
+  }
+}

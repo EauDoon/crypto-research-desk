@@ -1,0 +1,133 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "description": "Opportunity scout candidate queue. recommendedState only.",
+  "required": [
+    "summary",
+    "cutoff",
+    "candidates",
+    "unknowns",
+    "sources"
+  ],
+  "properties": {
+    "summary": {
+      "type": "string"
+    },
+    "cutoff": {
+      "type": "string"
+    },
+    "candidates": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "asset",
+          "recommendedState",
+          "thesis",
+          "catalyst"
+        ],
+        "properties": {
+          "asset": {
+            "type": "string"
+          },
+          "recommendedState": {
+            "enum": [
+              "reject",
+              "monitor",
+              "deep_dive",
+              "invalidated"
+            ]
+          },
+          "thesis": {
+            "type": "string"
+          },
+          "catalyst": {
+            "type": "string"
+          },
+          "quarantineReason": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "facts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "claim",
+          "kind"
+        ],
+        "properties": {
+          "claim": {
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "fact",
+              "calculation",
+              "assumption",
+              "inference",
+              "forecast",
+              "judgment"
+            ]
+          },
+          "source": {
+            "type": "string"
+          },
+          "asOf": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "unknowns": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "sources": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "title",
+          "url",
+          "type",
+          "capturedAt",
+          "claim",
+          "excerpt"
+        ],
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string",
+            "format": "uri"
+          },
+          "type": {
+            "enum": [
+              "primary",
+              "secondary"
+            ]
+          },
+          "publishedAt": {
+            "type": "string"
+          },
+          "capturedAt": {
+            "type": "string"
+          },
+          "claim": {
+            "type": "string"
+          },
+          "excerpt": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}
