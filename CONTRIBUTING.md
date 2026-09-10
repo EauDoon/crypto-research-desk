@@ -11,6 +11,7 @@ This repository is a stand-up kit. Prefer a new **skill** over a sixth specialis
 3. Attach the skill to exactly one lane.
 4. Add a pass/fail line in [docs/EVAL.md](docs/EVAL.md).
 5. Keep specialists read-only. Never teach orders, wallets, or credentials.
+6. Do not add host-specific stand-up files. Host notes belong in [STAND-UP.md](STAND-UP.md).
 
 ## Local setup
 

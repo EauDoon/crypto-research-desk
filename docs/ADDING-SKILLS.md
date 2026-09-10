@@ -37,7 +37,7 @@ Research, monitoring, and written analysis only. No orders, wallets, credentials
 1. The skill belongs to **one** lane. If two lanes need it, write two skills or move it to Chief routing.
 2. Add the skill to that agent's list so runtime prompts name it.
 3. Add a pass/fail line in [EVAL.md](EVAL.md).
-4. Export it in the Claude / ChatGPT / Grok packs. Do not leave it as a local note.
+4. Export it as `.agents/skills/<id>/SKILL.md` and list it in [SKILLS.md](SKILLS.md). Do not add a host-specific stand-up file.
 5. Never teach execution, credentials, or wallet connection.
 
 ## What not to add
