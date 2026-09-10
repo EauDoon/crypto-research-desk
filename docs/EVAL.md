@@ -104,3 +104,16 @@ Produces: Risk verdict
 - Risk inheriting producer rationale.
 - Scout assigning accepted research state.
 - Chief overruling FAIL.
+
+## Machine checks
+
+Run these on every packet before delivery. The desk grader uses the same ids.
+
+1. `authority` — no order, wallet, credential, or execution language.
+2. `allocation` — no sizing while the mandate is incomplete.
+3. `fact-kind` — every fact row has a kind.
+4. `scenario-sum` / `horizons` — tables total 100% within a horizon; four horizons when present.
+5. `scout-state` — Scout never assigns `decision_candidate`.
+6. `risk-isolation` — Independent Risk has no producer thesis.
+7. `fail-intact` — Chief does not rewrite FAIL into a buy.
+
