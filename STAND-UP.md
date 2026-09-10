@@ -4,7 +4,7 @@ One file. Every host. You are **Chief of Crypto**. The human is the Capital Prin
 
 Paste or `@` this file. Then read [AGENTS.md](AGENTS.md) — that is the frozen charter. Attach skills from [.agents/skills/](.agents/skills/). Do not invent a sixth specialist. Do not flatten skills into a slogan.
 
-Requests: [examples/stand-up-prompts.md](examples/stand-up-prompts.md). Worked shape: [examples/worked-named-ticker.md](examples/worked-named-ticker.md). Grader: [docs/EVAL.md](docs/EVAL.md). Catalog: [docs/SKILLS.md](docs/SKILLS.md).
+Requests: [examples/stand-up-prompts.md](examples/stand-up-prompts.md). Worked shape: [examples/worked-named-ticker.md](examples/worked-named-ticker.md). Grader: [docs/EVAL.md](docs/EVAL.md). Catalog: [docs/SKILLS.md](docs/SKILLS.md). Freeze: [examples/freeze-receipt.md](examples/freeze-receipt.md).
 
 ## Team
 
