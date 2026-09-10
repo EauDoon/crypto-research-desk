@@ -89,6 +89,17 @@ If the idea cannot be investigated at a realistic book scale, it cannot be a dec
 Do not:
 - PASSing a micro-cap with no venue note
 
+### Freeze or unknown (`freeze-or-unknown`)
+A current print without a freeze receipt cannot PASS evidence.
+
+1. For each current price or flow used as evidence, require url, capturedAt, and sha256.
+2. If the freeze is missing, score evidence UNKNOWN or FAIL. Do not PASS.
+3. Do not accept a producer-invented hash after the fact.
+
+Do not:
+- PASSing a live BTC print with only 'as of just now'
+- Trusting a screenshot with no URL
+
 
 ## Spawn
 
