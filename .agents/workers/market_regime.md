@@ -106,6 +106,17 @@ Do not:
 - A squeeze-setup dressed as research
 - Liquidation figures without a time
 
+### Source freeze (`source-freeze`)
+Hash, captured-at, and canonical URL for every current print.
+
+1. For each current price, flow, or aggregate: canonical URL, capture time, sha256, byte length.
+2. Prefer the official or primary page. Record the API URL actually fetched.
+3. If the response cannot be frozen, mark the series unknown and do not govern with it.
+
+Do not:
+- Citing a live print with only a clock time
+- Hashing a search snippet instead of the opened page
+
 
 ## Spawn
 
