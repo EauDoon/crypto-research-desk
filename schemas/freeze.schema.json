@@ -1,0 +1,38 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "url",
+    "canonicalUrl",
+    "capturedAt",
+    "sha256",
+    "bytes"
+  ],
+  "properties": {
+    "url": {
+      "type": "string"
+    },
+    "canonicalUrl": {
+      "type": "string"
+    },
+    "capturedAt": {
+      "type": "string"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "bytes": {
+      "type": "number"
+    },
+    "contentType": {
+      "type": "string"
+    },
+    "etag": {
+      "type": "string"
+    },
+    "note": {
+      "type": "string"
+    }
+  }
+}
