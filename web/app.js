@@ -1,6 +1,7 @@
 import {
   MAX_PACKET_BYTES, MAX_JSON_INPUT_BYTES, HORIZONS, SCENARIOS, REVIEW_ASSERTIONS, parsePacket, validatePacket, blankPacket,
   timestamp, endAt, formatDate, formatPrice, safeSourceUrl, intervalLabel, returnLabel, chartThresholds, exportMarkdown, repairQueue, evidenceAudit, sourceMatches, horizonOverview, exportScenarioCsv, comparePackets, riskHandoff, restoreResearchDraft, referenceSensitivity, validationReceipt, sourceOriginAudit, exportEvidenceCsv, verifyReceipt, exportResearchBundle, readResearchBundle, monitoringChecklist, exportMonitoringCsv, renewResearchPacket,
+  repairWorksheet, evidenceChronology, evidenceAgeCheck, filterEvidence, sourceCitation, classifyHypotheticalPrice, intervalProbabilityBounds, comparisonWorksheet, exportRiskWorksheetCsv,
 } from './packet.js';
 import { examplePacket } from './example.js';
 
@@ -12,6 +13,8 @@ let origin = 'Synthetic example';
 let dirty = false;
 let undoHistory = [];
 let pinnedBaseline = null;
+let comparisonBaseline = null;
+let baselineImportSequence = 0;
 let receiptCheckSequence = 0;
 let editorMode = 'details';
 let editorInitial = '';
@@ -283,14 +286,15 @@ function refreshHorizonLabels(now = Date.now()) {
   }
 }
 function renderSources() {
-  const count = packet.sources.filter(source => sourceMatches(source, $('source-search').value, $('source-type').value)).length;
+  const visible = new Set(filterEvidence(packet, $('source-search').value, $('source-type').value, $('source-coverage').value).map(source => source.id));
+  const count = visible.size;
   setText('source-results', count + ' of ' + packet.sources.length + ' sources match. Exports and printing retain all sources.');
   $('source-list').replaceChildren();
   setText('source-count', packet.sources.length + ' SOURCE RECORD' + (packet.sources.length === 1 ? '' : 'S'));
   if (!packet.sources.length) $('source-list').append(element('p', 'UNKNOWN. No source records have been supplied.', 'small-copy'));
   for (const [index, source] of packet.sources.entries()) {
     const article = element('article', undefined, 'source-item'), content = element('div');
-    article.classList.toggle('source-filtered', !sourceMatches(source, $('source-search').value, $('source-type').value));
+    article.classList.toggle('source-filtered', !visible.has(source.id));
     const heading = element('div', undefined, 'source-title');
     const sourceUrl = safeSourceUrl(source.url);
     const link = element('a', source.title + ' ↗');
@@ -313,7 +317,15 @@ function renderSources() {
       const target = field('source-' + index + '-claim');
       target.focus({ preventScroll: true }); revealEditorTarget(target);
     });
-    content.append(heading, element('p', source.claim), details, editSource);
+    const copyCitation = element('button', 'Copy source citation', 'button small subtle');
+    copyCitation.type = 'button'; copyCitation.setAttribute('aria-label', 'Copy citation for ' + source.id);
+    copyCitation.addEventListener('click', async () => {
+      copyCitation.disabled = true;
+      try { await navigator.clipboard.writeText(sourceCitation(packet, source.id)); announce('Source citation copied with raw dates, claim, excerpt and research provenance.'); }
+      catch { announce('Clipboard unavailable. Export complete evidence CSV to retain this source and its provenance.', true); }
+      finally { copyCitation.disabled = false; }
+    });
+    content.append(heading, element('p', source.claim), details, editSource, copyCitation);
     const dates = element('dl', undefined, 'source-dates');
     for (const [key, label] of [['publishedAt', 'Published'], ['capturedAt', 'Captured']]) {
       const item = element('div'); item.append(element('dt', label), element('dd', formatDate(source[key]))); dates.append(item);
@@ -457,6 +469,7 @@ function applyPacket(candidate, label, localEdit = false, restoring = false) {
   const report = validatePacket(candidate, now);
   if (!report.valid) throw validationError(report);
   importSequence++;
+  baselineImportSequence++;
   $('app-error').hidden = true;
   dirty = localEdit ? dirty || JSON.stringify(canonical(candidate)) !== JSON.stringify(canonical(packet)) : false;
   if (!restoring) {
@@ -482,6 +495,7 @@ function confirmReplacement() {
   return !meaningful || window.confirm('Replace the open research packet? Export a copy first if you need to keep it.');
 }
 function field(name) { return form.elements.namedItem(name); }
+function numericInput(id) { return parsePacket('{"value":' + $(id).value + '}').value; }
 function editableFieldForPath(path) {
   const fields = {
     'asset.symbol': 'symbol', 'asset.name': 'name', 'asset.quoteCurrency': 'quoteCurrency', 'asset.venue': 'venue',
@@ -1009,7 +1023,7 @@ try {
     : 'Saving is locked to protect the unreadable draft. Download its raw data before clearing it.');
   announce('The saved draft could not be loaded. It was not deleted or overwritten. A synthetic example is shown; local saving is locked.', true);
 }
-render(); updateNavigation();
+renderPinnedBaseline(); render(); updateNavigation();
 document.documentElement.classList.toggle('page-margin-identity', supportsPageMarginIdentity());
 $('startup-status').hidden = true;
 document.documentElement.classList.remove('app-unavailable');
@@ -1048,7 +1062,15 @@ function renderRepairs(now) {
   if (!queue.length) $('repair-list').append(element('li', 'No structural repairs recorded. Source truth and reviewer identity still require human verification.'));
 }
 
+$('export-repairs').addEventListener('click', () => {
+  try { download(JSON.stringify(repairWorksheet(packet), null, 2) + '\n', 'application/json; charset=utf-8', 'Repair Worksheet.json'); announce('Repair worksheet exported with exact field paths and any omitted issue counts.'); }
+  catch (error) { announce(error.message, true); }
+});
+
 function renderEvidenceAudit(now = Date.now()) {
+  renderEvidenceAge(now);
+  listInto('evidence-chronology', evidenceChronology(packet, now).map(item =>
+    formatDate(item.at) + ': ' + item.sourceId + ' ' + (item.event === 'publishedAt' ? 'published' : 'captured') + ' (' + item.title + ')'), 'No source events recorded.');
   const origins = sourceOriginAudit(packet, now);
   listInto('source-origin-audit', [
     ...origins.hosts.map(item => item.host + ': ' + item.count + ' of ' + packet.sources.length + ' records (' + item.sharePercent.toFixed(1) + '%); ' + item.primaryCount + ' labeled primary'),
@@ -1062,7 +1084,16 @@ function renderEvidenceAudit(now = Date.now()) {
 }
 
 $('source-search').addEventListener('input', renderSources);
+function renderEvidenceAge(now = Date.now()) {
+  try {
+    if (!$('evidence-age-limit').value.trim()) throw new Error('Use a capture-age limit above 0 and no greater than 87600 hours.');
+    listInto('evidence-age-results', evidenceAgeCheck(packet, numericInput('evidence-age-limit'), now).map(item =>
+      item.id + ': ' + item.status + (item.ageHours === null ? '' : ' (' + item.ageHours.toFixed(2) + ' hours before cutoff)')), 'No sources to check.');
+  } catch (error) { listInto('evidence-age-results', [error.message], ''); }
+}
+$('evidence-age-limit').addEventListener('input', () => renderEvidenceAge());
 $('source-type').addEventListener('change', renderSources);
+$('source-coverage').addEventListener('change', renderSources);
 
 function renderOverview(now) {
   const table = element('table'), head = element('thead'), tr = element('tr');
@@ -1087,20 +1118,34 @@ $('export-csv').addEventListener('click', () => {
 });
 
 function clearComparison() {
+  comparisonBaseline = null; $('export-comparison').disabled = true;
   $('comparison-json').value = ''; $('comparison-results').replaceChildren(); $('comparison-status').textContent = '';
 }
 $('clear-comparison').addEventListener('click', clearComparison);
 function showComparison(previous) {
+  comparisonBaseline = null; $('export-comparison').disabled = true;
   try {
     const result = comparePackets(previous, packet);
+    comparisonBaseline = structuredClone(previous); $('export-comparison').disabled = false;
     const summary = value => JSON.stringify(value).slice(0, 240);
     listInto('comparison-results', result.changes.map(item => item.path + ': ' + summary(item.previous) + ' → ' + summary(item.current)), 'No submitted fields changed.');
     setText('comparison-status', result.total + ' changed fields; ' + result.omitted + ' omitted. Long values are shortened. Sources and review assertions are matched by ID. Open raw JSON for full evidence.');
   } catch (error) { $('comparison-results').replaceChildren(); setText('comparison-status', error.message); }
 }
 $('compare-packets').addEventListener('click', () => {
+  comparisonBaseline = null; $('export-comparison').disabled = true;
   try { showComparison(parsePacket($('comparison-json').value)); }
   catch (error) { $('comparison-results').replaceChildren(); setText('comparison-status', error.message); }
+});
+$('comparison-json').addEventListener('input', () => {
+  comparisonBaseline = null; $('export-comparison').disabled = true; $('comparison-results').replaceChildren(); $('comparison-status').textContent = '';
+});
+$('export-comparison').addEventListener('click', () => {
+  try {
+    if (!comparisonBaseline) throw new Error('Compare a valid previous packet before exporting.');
+    download(JSON.stringify(comparisonWorksheet(comparisonBaseline, packet), null, 2) + '\n', 'application/json; charset=utf-8', 'Comparison Worksheet.json');
+    announce('Comparison worksheet exported with both full packets and explicit change-list omission counts.');
+  } catch (error) { announce(error.message, true); }
 });
 
 $('export-risk-handoff').addEventListener('click', () => {
@@ -1108,6 +1153,10 @@ $('export-risk-handoff').addEventListener('click', () => {
     download(JSON.stringify(riskHandoff(packet), null, 2) + '\n', 'application/json; charset=utf-8', 'Independent Review Handoff.json');
     announce('Incomplete risk handoff prepared. Attach the mandate, run ledger, and conflict receipts before independent review.');
   } catch (error) { announce(error.message, true); }
+});
+$('export-risk-worksheet').addEventListener('click', () => {
+  try { download(exportRiskWorksheetCsv(packet), 'text/csv; charset=utf-8', 'Submitted Risk Worksheet.csv'); announce('Submitted assertion worksheet exported. Non-PASS assertions appear first by severity. Reviewer identity and evidence remain unverified.'); }
+  catch (error) { announce(error.message, true); }
 });
 
 $('undo-edit').addEventListener('click', () => {
@@ -1121,11 +1170,33 @@ $('undo-edit').addEventListener('click', () => {
 });
 
 function clearSensitivity() {
+  $('probability-lower').value = ''; $('probability-upper').value = ''; $('probability-results').replaceChildren(); $('probability-status').textContent = '';
+  $('classification-price').value = ''; $('classification-results').replaceChildren(); $('classification-status').textContent = '';
   $('sensitivity-price').value = ''; $('sensitivity-status').textContent = ''; $('sensitivity-results').replaceChildren();
 }
+$('classification-price').addEventListener('input', () => { $('classification-results').replaceChildren(); $('classification-status').textContent = ''; });
+for (const id of ['probability-lower', 'probability-upper']) $(id).addEventListener('input', () => { $('probability-results').replaceChildren(); $('probability-status').textContent = ''; });
+$('calculate-probability-bounds').addEventListener('click', () => {
+  try {
+    if (!$('probability-lower').value.trim()) throw new Error('Enter the included lower price. Leave only the upper price blank for an unbounded interval.');
+    const lower = numericInput('probability-lower'), upper = $('probability-upper').value.trim() ? numericInput('probability-upper') : null;
+    listInto('probability-results', intervalProbabilityBounds(packet, lower, upper).map(row =>
+      row.horizon + ': ' + row.minimumPercent + '% to ' + row.maximumPercent + '%'), 'No eligible scenarios.');
+    setText('probability-status', 'Bounds for [' + formatPrice(lower) + ', ' + (upper === null ? 'unbounded' : formatPrice(upper)) + ') ' + packet.asset.quoteCurrency + '. Submitted interval masses only; no distribution within a scenario is assumed.');
+  } catch (error) { $('probability-results').replaceChildren(); setText('probability-status', error.message); }
+});
+$('classify-price').addEventListener('click', () => {
+  try {
+    if (!$('classification-price').value.trim()) throw new Error('Enter a hypothetical price, including 0 when intended.');
+    const price = numericInput('classification-price');
+    listInto('classification-results', classifyHypotheticalPrice(packet, price).map(row =>
+      row.horizon + ': ' + row.scenario + ', ' + row.range + '; submitted interval probability ' + row.intervalProbability + '%'), 'No eligible scenarios.');
+    setText('classification-status', 'Hypothetical price ' + formatPrice(price) + ' ' + packet.asset.quoteCurrency + '. Probabilities describe whole intervals, not this exact price. Research and review are unchanged.');
+  } catch (error) { $('classification-results').replaceChildren(); setText('classification-status', error.message); }
+});
 $('calculate-sensitivity').addEventListener('click', () => {
   try {
-    const rows = referenceSensitivity(packet, Number($('sensitivity-price').value));
+    const rows = referenceSensitivity(packet, numericInput('sensitivity-price'));
     const percent = value => (Math.abs(value) > 1e8 ? value.toExponential(3) : value.toFixed(3)) + '%';
     listInto('sensitivity-results', rows.map(item => item.label + ': bear ceiling ' + percent(item.bearDistance) + '; bull floor ' + percent(item.bullDistance)), 'No eligible thresholds.');
     setText('sensitivity-status', 'Hypothetical arithmetic only. Original packet, probabilities, and review are unchanged.');
@@ -1145,14 +1216,37 @@ $('export-receipt').addEventListener('click', async () => {
 
 function renderPinnedBaseline() {
   $('clear-baseline').disabled = !pinnedBaseline;
+  $('export-baseline').disabled = !pinnedBaseline;
   setText('baseline-status', pinnedBaseline ? 'Pinned ' + pinnedBaseline.asset.symbol + ' at ' + (pinnedBaseline.reference.capturedAt || 'UNKNOWN cutoff') + '. Local edits compare automatically; reload forgets this snapshot.' : 'No baseline pinned. A pinned snapshot stays in page memory only.');
   if (pinnedBaseline) showComparison(pinnedBaseline);
 }
 $('pin-baseline').addEventListener('click', () => {
+  baselineImportSequence++;
   if (!packet.asset.symbol) { announce('Name the asset before pinning a comparison baseline.', true); return; }
   pinnedBaseline = structuredClone(packet); renderPinnedBaseline();
 });
-$('clear-baseline').addEventListener('click', () => { pinnedBaseline = null; clearComparison(); renderPinnedBaseline(); });
+$('clear-baseline').addEventListener('click', () => { baselineImportSequence++; pinnedBaseline = null; clearComparison(); renderPinnedBaseline(); });
+$('export-baseline').addEventListener('click', () => {
+  if (!pinnedBaseline) return;
+  download(JSON.stringify(pinnedBaseline, null, 2) + '\n', 'application/json; charset=utf-8', '', pinnedBaseline.asset.symbol + ' Comparison Baseline.json');
+  announce('Pinned baseline exported as standard packet JSON. Import it as a baseline to compare without replacing the open packet.');
+});
+$('import-baseline').addEventListener('click', () => $('baseline-file').click());
+$('baseline-file').addEventListener('change', async event => {
+  const sequence = ++baselineImportSequence, file = event.target.files?.[0];
+  if (!file) return;
+  try {
+    if (file.size > MAX_JSON_INPUT_BYTES) throw new Error('Baseline JSON must be no larger than 320 KiB.');
+    const text = new TextDecoder('utf-8', { fatal: true }).decode(await file.arrayBuffer());
+    const parsed = parsePacket(text);
+    const candidate = parsed.format === 'crypto-research-bundle.v1' ? await readResearchBundle(text) : parsed;
+    if (sequence !== baselineImportSequence) return;
+    comparePackets(candidate, packet);
+    pinnedBaseline = structuredClone(candidate); clearComparison(); renderPinnedBaseline();
+    announce('Comparison baseline imported locally. The open packet and its submitted review were not replaced.');
+  } catch (error) { if (sequence === baselineImportSequence) announce('Baseline import failed: ' + error.message + ' The prior baseline and open packet remain unchanged.', true); }
+  finally { if ($('baseline-file').files?.[0] === file) $('baseline-file').value = ''; }
+});
 
 function renderReviewSources() {
   const selected = new Set(String(field('sourceIds').value).split(',').map(id => id.trim()).filter(Boolean));

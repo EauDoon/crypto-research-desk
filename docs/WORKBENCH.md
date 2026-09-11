@@ -133,3 +133,24 @@ The review editor includes **Select sources actually reviewed**. Its checkboxes 
 **Plan manual research monitoring** groups matching submitted triggers while retaining every horizon, deadline, scenario and invalidation context. Export its spreadsheet-safe worksheet for manual follow-up. It runs no alerts or market checks. Both the display and export follow the existing chart gate; blocked packets export four WITHHELD rows without scenario triggers.
 
 **Start renewal draft** carries forward source records, their original dates, asset identity, and research notes as unverified starting material. It clears the common reference price/cutoff, every forecast scenario, and the prior review. All four horizons remain incomplete until newly supported inputs are provided. The packet kind remains unchanged, so fictional examples never silently become research. Session undo can restore earlier research inputs, while keeping review pending.
+# Research workflow worksheets
+
+Export submitted risk worksheet preserves all submitted assertions, repair text, severity, review-source IDs, cutoff and unauthenticated reviewer alias. Non-PASS assertions appear before PASS, ordered by severity. Pending reviews remain pending and UNKNOWN remains UNKNOWN. CSV cells neutralize spreadsheet formulas. This worksheet contains the submitted review and is separate from the rationale-stripped independent review handoff.
+
+Export pinned baseline downloads standard packet JSON. Import comparison baseline accepts packet JSON or a verified research bundle for the same named asset and quote currency, preserving the open packet and prior baseline on failure. Baselines stay memory-only until explicitly exported. Concurrent packet replacement or a newer pin/forget action cancels an in-flight baseline import. Startup restores control availability from current memory, including browsers that retain dynamic button states across reloads.
+
+Export comparison worksheet captures the currently displayed valid same-asset comparison, full previous/current packets, both current-time gates, and unshortened values for up to 80 changes. Explicit omission counts and both full snapshots preserve larger comparisons. Editing the comparison input invalidates the export until compared again. This report is not a packet-import format or a conflict-resolution receipt.
+
+Calculate probability bounds uses a half-open requested price interval. The minimum sums probability mass in fully contained scenarios; the maximum sums all intersecting scenarios. A partial overlap never assumes uniform probability density. A blank upper bound means unbounded. Results stay separate by horizon, respect the current chart gate, and never modify submitted probabilities or certify calibration.
+
+Locate hypothetical price classifies one manually entered price across four eligible submitted horizons. Scenario ranges include their lower bound and exclude their upper bound. Reported probabilities belong to the entire matching interval, never an exact price. Empty input is rejected, 0 is accepted, and a changed packet or blocked gate clears results. Numeric controls use the packet's strict parser and reject values that would lose decimal precision, including a value that would round across a scenario boundary.
+
+Copy source citation puts one complete plain-text source record on the clipboard, including asset, cutoff, URL, raw dates, type as recorded, claim, excerpt, and synthetic/unverified labeling. It does not open the source. If clipboard access is denied, use the complete evidence CSV export.
+
+Evidence cards can be filtered by listed or unlisted submitted review coverage, together with source type and literal text search. Coverage is self-reported. Editing research clears review coverage through the existing reset path. CSV and print still contain all evidence records.
+
+The capture-age limit flags sources older than a chosen number of hours at the packet cutoff, with equality inside the limit. Missing capture/cutoff stays UNKNOWN. The default 24 hours is an editable inspection aid, not a market-data freshness policy or review clearance; it resets on reload.
+
+Evidence chronology separates publication from capture and sorts by actual instants, independent of source-card filters. Missing dates remain UNKNOWN at the end. The order is a record audit, not an event-verification claim.
+
+Export repair worksheet downloads the current local check gaps with exact editable paths, cutoff, check time, gate and explicit omission counts. It works for incomplete drafts. It does not verify sources or reviewer identity, and does not change the packet.

@@ -655,6 +655,17 @@ export function repairQueue(packet, now = Date.now()) {
     ...report.gaps.map(item => ({ ...item, severity: 'gap' }))];
 }
 
+export function repairWorksheet(packet, now = Date.now()) {
+  const report = validatePacket(packet, now);
+  if (!report.valid) throw new Error('Repair export requires a structurally valid packet.');
+  const items = repairQueue(packet, now);
+  return { format: 'crypto-research-repairs.v1', researchOnly: true, kind: packet.kind,
+    asset: packet.asset.symbol, referenceCutoff: packet.reference.capturedAt,
+    checkedAt: new Date(now).toISOString(), chartEligible: report.chartEligible,
+    total: report.errorCount + report.gapCount, omitted: report.omittedIssueCounts.errors + report.omittedIssueCounts.gaps,
+    items, limits: 'Local checks only. Source truth and reviewer identity are not authenticated.' };
+}
+
 export function evidenceAudit(packet) {
   const cutoff = timestamp(packet.reference.capturedAt);
   const reviewed = new Set(packet.riskReview.sourceIds.map(id => id.trim()));
@@ -666,9 +677,33 @@ export function evidenceAudit(packet) {
   });
 }
 
+export function evidenceChronology(packet, now = Date.now()) {
+  if (!validatePacket(packet, now).valid) throw new Error('Chronology requires a structurally valid packet.');
+  return packet.sources.flatMap(source => ['publishedAt', 'capturedAt'].map(event => ({
+    sourceId: source.id, title: source.title, event, at: source[event],
+  }))).sort((left, right) => (timestamp(left.at) ?? Infinity) - (timestamp(right.at) ?? Infinity)
+    || left.sourceId.localeCompare(right.sourceId) || left.event.localeCompare(right.event));
+}
+
+export function evidenceAgeCheck(packet, maximumHours, now = Date.now()) {
+  if (!validatePacket(packet, now).valid) throw new Error('Evidence age checks require a structurally valid packet.');
+  if (typeof maximumHours !== 'number' || !Number.isFinite(maximumHours) || maximumHours <= 0 || maximumHours > 87600) throw new Error('Use a capture-age limit above 0 and no greater than 87600 hours.');
+  return evidenceAudit(packet).map(item => ({ ...item, maximumHours,
+    status: item.ageHours === null ? 'UNKNOWN' : item.ageHours > maximumHours ? 'EXCEEDS_LIMIT' : 'WITHIN_LIMIT',
+  }));
+}
+
 export function sourceMatches(source, query = '', type = 'all') {
   const text = [source.id, source.title, source.claim, source.excerpt, source.url].join(' ').toLowerCase();
   return (type === 'all' || source.type === type) && text.includes(query.trim().slice(0, 200).toLowerCase());
+}
+
+export function filterEvidence(packet, query = '', type = 'all', coverage = 'all', now = Date.now()) {
+  if (!validatePacket(packet, now).valid) throw new Error('Evidence filtering requires a structurally valid packet.');
+  if (!['all', 'listed', 'unlisted'].includes(coverage)) throw new Error('Choose all, listed, or unlisted review coverage.');
+  const listed = new Set(packet.riskReview.sourceIds);
+  return packet.sources.filter(source => sourceMatches(source, query, type)
+    && (coverage === 'all' || listed.has(source.id) === (coverage === 'listed')));
 }
 
 export function horizonOverview(packet, now = Date.now()) {
@@ -720,6 +755,14 @@ export function comparePackets(previous, current, now = Date.now()) {
   return { changes, total, omitted: total - changes.length };
 }
 
+export function comparisonWorksheet(previous, current, now = Date.now()) {
+  const differences = comparePackets(previous, current, now);
+  return { format: 'crypto-research-comparison.v1', researchOnly: true, checkedAt: new Date(now).toISOString(),
+    differences, previous: JSON.parse(JSON.stringify(previous)), current: JSON.parse(JSON.stringify(current)),
+    previousChartEligible: validatePacket(previous, now).chartEligible, currentChartEligible: validatePacket(current, now).chartEligible,
+    limits: 'Raw submitted changes only. Both complete packets are included even when the displayed change list is truncated. No conflict resolution, authentication or clearance is implied.' };
+}
+
 export function riskHandoff(packet, now = Date.now()) {
   const report = validatePacket(packet, now);
   if (!report.valid) throw new Error('A risk handoff requires a structurally valid packet.');
@@ -760,6 +803,31 @@ export function referenceSensitivity(packet, hypotheticalPrice, now = Date.now()
     const bullDistance = (item.bullFloor / hypotheticalPrice - 1) * 100;
     if (!Number.isFinite(bearDistance) || !Number.isFinite(bullDistance)) throw new Error('Hypothetical price is too small for reliable arithmetic.');
     return { id: item.id, label: item.label, bearDistance, bullDistance };
+  });
+}
+
+export function classifyHypotheticalPrice(packet, price, now = Date.now()) {
+  if (!validatePacket(packet, now).chartEligible) throw new Error('Scenario classification is withheld by the current packet gate.');
+  if (!finitePrice(price)) throw new Error('Use a finite hypothetical price from 0 to 1 trillion.');
+  return packet.horizons.map(horizon => {
+    const scenario = horizon.scenarios.find(row => price >= row.lower && (row.upper === null || price < row.upper));
+    return { horizon: horizon.id, endAt: horizon.endAt, scenario: scenario.label,
+      range: intervalLabel(scenario), intervalProbability: scenario.probability };
+  });
+}
+
+export function intervalProbabilityBounds(packet, lower, upper, now = Date.now()) {
+  if (!validatePacket(packet, now).chartEligible) throw new Error('Probability bounds are withheld by the current packet gate.');
+  if (!finitePrice(lower) || (upper !== null && (!finitePrice(upper) || upper <= lower))) throw new Error('Use a nonnegative lower price and a greater upper price, or leave the upper bound unbounded.');
+  const ceiling = upper ?? Infinity;
+  return packet.horizons.map(horizon => {
+    let minimum = 0, maximum = 0;
+    for (const scenario of horizon.scenarios) {
+      const end = scenario.upper ?? Infinity, mass = Math.round(scenario.probability * 100);
+      if (scenario.lower >= lower && end <= ceiling) minimum += mass;
+      if (scenario.lower < ceiling && end > lower) maximum += mass;
+    }
+    return { horizon: horizon.id, minimumPercent: minimum / 100, maximumPercent: maximum / 100 };
   });
 }
 
@@ -814,6 +882,17 @@ export function exportEvidenceCsv(packet, now = Date.now()) {
   return csvRows(rows);
 }
 
+export function sourceCitation(packet, sourceId, now = Date.now()) {
+  if (!validatePacket(packet, now).valid) throw new Error('Citation copying requires a structurally valid packet.');
+  const source = packet.sources.find(item => item.id === sourceId);
+  if (!source) throw new Error('Choose a source in the open packet.');
+  return ['RESEARCH ONLY | ' + packet.kind.toUpperCase() + ' | supplied, unverified evidence',
+    'Asset: ' + (packet.asset.symbol || 'UNKNOWN') + ' | Reference cutoff: ' + (packet.reference.capturedAt || 'UNKNOWN'),
+    'Source: ' + source.id + ' | ' + source.title, 'URL: ' + source.url, 'Type as recorded: ' + source.type,
+    'Published: ' + (source.publishedAt || 'UNKNOWN'), 'Captured: ' + (source.capturedAt || 'UNKNOWN'),
+    'Claim: ' + (source.claim || 'UNKNOWN'), 'Supplied excerpt: ' + (source.excerpt || 'UNKNOWN')].join('\n') + '\n';
+}
+
 export async function verifyReceipt(text, packet, now = Date.now()) {
   if (typeof text !== 'string' || new TextEncoder().encode(text).length > 65536) throw new Error('Receipt JSON must be at most 64 KiB.');
   const receipt = parsePacket(text);
@@ -861,6 +940,18 @@ export function exportMonitoringCsv(packet, now = Date.now()) {
   const checklist = monitoringChecklist(packet, now);
   return csvRows([['kind', 'asset', 'reference_cutoff', 'horizon', 'deadline', 'submitted_scenario', 'observe_manually', 'invalidation'],
     ...checklist.rows.map(row => [packet.kind, packet.asset.symbol, packet.reference.capturedAt, row.horizon, row.endAt, row.scenario, row.trigger, row.invalidation])]);
+}
+
+export function exportRiskWorksheetCsv(packet, now = Date.now()) {
+  if (!validatePacket(packet, now).valid) throw new Error('Risk worksheet export requires a structurally valid packet.');
+  const severity = { high: 0, medium: 1, low: 2 }, review = packet.riskReview;
+  const assertions = [...review.assertions].sort((left, right) =>
+    Number(left.result === 'PASS') - Number(right.result === 'PASS') || severity[left.severity] - severity[right.severity]
+    || left.id.localeCompare(right.id));
+  return csvRows([['authority', 'kind', 'asset', 'reference_cutoff', 'submitted_disposition', 'reviewer_alias_unverified',
+    'reviewed_at', 'assertion_id', 'submitted_result', 'severity', 'submitted_evidence', 'repair', 'submitted_source_ids'],
+    ...assertions.map(row => ['RESEARCH_ONLY', packet.kind, packet.asset.symbol, packet.reference.capturedAt,
+      review.status, review.reviewer, review.reviewedAt, row.id, row.result, row.severity, row.evidence, row.repair, review.sourceIds.join('; ')])]);
 }
 
 export function renewResearchPacket(packet, now = Date.now()) {

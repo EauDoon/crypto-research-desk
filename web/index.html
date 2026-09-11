@@ -109,6 +109,7 @@
             <dl class="review-facts"><div><dt>Reviewer alias</dt><dd id="reviewer"></dd></div><div><dt>Recorded at</dt><dd id="reviewed-at"></dd></div></dl>
             <p id="review-notes" class="small-copy"></p>
             <button id="export-risk-handoff" class="button small subtle" type="button">Export independent review handoff</button>
+            <button id="export-risk-worksheet" class="button small subtle" type="button">Export submitted risk worksheet</button>
             <p class="small-copy">A separate JSON handoff excludes the producer thesis and scenario rationale. The mandate, run ledger, and conflict ledger must be supplied separately.</p>
             <details class="gap-details"><summary>Submitted review assertions</summary><div id="assertion-record"></div></details>
             <p class="review-caveat">Self-reported. Identity, independence, and approval authority are not authenticated.</p>
@@ -125,6 +126,7 @@
       <section class="panel requires-app" aria-labelledby="repair-heading">
         <h2 id="repair-heading">Research repair queue</h2>
         <p class="small-copy">Open a field to resolve missing inputs. These checks never grant research clearance.</p>
+        <button id="export-repairs" class="button small subtle" type="button">Export repair worksheet</button>
         <ul id="repair-list" class="text-list"></ul>
       </section>
       <section id="scenarios" class="panel scenarios-section requires-app" aria-labelledby="scenarios-heading">
@@ -138,6 +140,20 @@
           <label for="sensitivity-price">Hypothetical reference price</label><input id="sensitivity-price" type="number" min="0" max="1000000000000" step="any">
           <button id="calculate-sensitivity" class="button small" type="button">Calculate threshold distances</button>
           <p id="sensitivity-status" role="status"></p><ul id="sensitivity-results" class="text-list"></ul>
+        </details>
+        <details><summary>Explore submitted scenario intervals</summary>
+          <p class="small-copy">Locate a hypothetical price in each submitted horizon. Lower bounds are included; upper bounds are excluded. This is not an observed outcome, price forecast, or trade instruction.</p>
+          <div class="source-controls"><label for="classification-price">Hypothetical price in quote currency<input id="classification-price" type="number" min="0" max="1000000000000" step="any"></label></div>
+          <button id="classify-price" class="button small" type="button">Locate hypothetical price</button>
+          <p id="classification-status" role="status" class="small-copy"></p>
+          <ul id="classification-results" class="text-list"></ul>
+          <h3>Bound a price-range probability</h3>
+          <p class="small-copy">A partially intersected scenario may contribute none or all of its submitted probability. The minimum counts fully contained scenarios; the maximum counts all intersecting scenarios. These are bounds on supplied judgments, not calibrated likelihoods.</p>
+          <div class="source-controls"><label for="probability-lower">Included lower price<input id="probability-lower" type="number" min="0" max="1000000000000" step="any"></label>
+          <label for="probability-upper">Excluded upper price (blank means unbounded)<input id="probability-upper" type="number" min="0" max="1000000000000" step="any"></label></div>
+          <button id="calculate-probability-bounds" class="button small" type="button">Calculate probability bounds</button>
+          <p id="probability-status" role="status" class="small-copy"></p>
+          <ul id="probability-results" class="text-list"></ul>
         </details>
         <details><summary>Plan manual research monitoring</summary>
           <p class="small-copy">Review submitted triggers and invalidations across horizons. This is a manual worksheet; no alerts, market checks, orders, or probability updates run in the background.</p>
@@ -154,11 +170,19 @@
         <div class="source-controls">
           <label for="source-search">Search evidence<input id="source-search" type="search" maxlength="200" placeholder="Title, claim, excerpt, or source ID"></label>
           <label for="source-type">Source type<select id="source-type"><option value="all">All sources</option><option value="primary">Primary</option><option value="secondary">Secondary</option></select></label>
+          <label for="source-coverage">Submitted review coverage<select id="source-coverage"><option value="all">All coverage</option><option value="listed">Listed in review</option><option value="unlisted">Not listed in review</option></select></label>
           <p id="source-results" role="status" class="small-copy"></p>
         </div>
         <details><summary>Source recency and review coverage</summary>
           <p class="small-copy">Age is measured at the packet cutoff. A recent capture does not establish accuracy or current relevance. Review coverage is self-reported.</p>
           <ul id="evidence-audit" class="text-list"></ul>
+          <div class="source-controls"><label for="evidence-age-limit">Capture-age limit at cutoff (hours)<input id="evidence-age-limit" type="number" min="0.01" max="87600" step="any" value="24"></label></div>
+          <p class="small-copy">This user-selected limit only flags records for manual inspection. It does not establish freshness or change the review gate. Reload resets it to 24 hours.</p>
+          <ul id="evidence-age-results" class="text-list" aria-live="polite"></ul>
+        </details>
+        <details><summary>Inspect evidence chronology</summary>
+          <p class="small-copy">Publication and capture are distinct events, ordered by their recorded instants. Missing dates appear last as UNKNOWN. Nothing is fetched or verified.</p>
+          <ol id="evidence-chronology" class="text-list"></ol>
         </details>
         <details><summary>Inspect source-origin concentration</summary>
           <p class="small-copy">Exact hostnames are counted separately. Several hosts can share an owner; several records can repeat one claim. These counts do not establish independent evidence.</p>
@@ -176,8 +200,11 @@
         <details><summary>Open packet comparison</summary>
           <div class="actions"><button id="pin-baseline" class="button small" type="button">Pin current packet as baseline</button><button id="clear-baseline" class="button small subtle" type="button" disabled>Forget pinned baseline</button></div>
           <p id="baseline-status" class="small-copy">No baseline pinned. A pinned snapshot stays in page memory only.</p>
+          <div class="actions"><button id="export-baseline" class="button small subtle" type="button" disabled>Export pinned baseline</button><button id="import-baseline" class="button small subtle" type="button">Import comparison baseline</button></div>
+          <input id="baseline-file" class="visually-hidden" type="file" accept=".json,application/json" tabindex="-1" aria-label="Choose a comparison baseline JSON file">
           <label for="comparison-json">Previous packet JSON</label><textarea id="comparison-json" rows="6" maxlength="327680" spellcheck="false" autocomplete="off"></textarea>
           <div class="actions"><button id="compare-packets" class="button small" type="button">Compare with current packet</button><button id="clear-comparison" class="button small subtle" type="button">Clear comparison</button></div>
+          <button id="export-comparison" class="button small subtle" type="button" disabled>Export comparison worksheet</button>
           <p id="comparison-status" role="status"></p><ul id="comparison-results" class="text-list"></ul>
         </details>
       </section>
