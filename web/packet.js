@@ -698,6 +698,14 @@ export function sourceMatches(source, query = '', type = 'all') {
   return (type === 'all' || source.type === type) && text.includes(query.trim().slice(0, 200).toLowerCase());
 }
 
+export function filterEvidence(packet, query = '', type = 'all', coverage = 'all', now = Date.now()) {
+  if (!validatePacket(packet, now).valid) throw new Error('Evidence filtering requires a structurally valid packet.');
+  if (!['all', 'listed', 'unlisted'].includes(coverage)) throw new Error('Choose all, listed, or unlisted review coverage.');
+  const listed = new Set(packet.riskReview.sourceIds);
+  return packet.sources.filter(source => sourceMatches(source, query, type)
+    && (coverage === 'all' || listed.has(source.id) === (coverage === 'listed')));
+}
+
 export function horizonOverview(packet, now = Date.now()) {
   const report = validatePacket(packet, now);
   return HORIZONS.map((definition, index) => {

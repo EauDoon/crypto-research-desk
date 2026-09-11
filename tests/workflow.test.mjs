@@ -4,6 +4,16 @@ import * as research from '../web/packet.js';
 import { examplePacket } from '../web/example.js';
 const NOW = Date.parse('2026-08-20T10:00:00Z');
 
+test('evidence filters intersect literal search, source type and self-reported coverage', () => {
+  const packet = examplePacket(); packet.riskReview = research.blankPacket().riskReview;
+  packet.riskReview.sourceIds = [packet.sources[0].id];
+  assert.equal(research.filterEvidence(packet, '', 'all', 'unlisted', NOW)[0].id, packet.sources[1].id);
+  assert.equal(research.filterEvidence(packet, 'upgrade', 'primary', 'listed', NOW).length, 1);
+  assert.equal(research.filterEvidence(packet, 'upgrade', 'primary', 'unlisted', NOW).length, 0);
+  assert.equal(research.filterEvidence(packet, '', 'all', 'all', NOW).length, 2);
+  assert.throws(() => research.filterEvidence(packet, '', 'all', 'verified', NOW), /coverage/);
+});
+
 test('capture-age policy preserves exact boundary and unknown dates without changing clearance', () => {
   const packet = examplePacket(), before = JSON.stringify(packet);
   assert.equal(research.evidenceAgeCheck(packet, 0.5, NOW)[0].status, 'WITHIN_LIMIT');

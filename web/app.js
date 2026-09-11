@@ -1,7 +1,7 @@
 import {
   MAX_PACKET_BYTES, MAX_JSON_INPUT_BYTES, HORIZONS, SCENARIOS, REVIEW_ASSERTIONS, parsePacket, validatePacket, blankPacket,
   timestamp, endAt, formatDate, formatPrice, safeSourceUrl, intervalLabel, returnLabel, chartThresholds, exportMarkdown, repairQueue, evidenceAudit, sourceMatches, horizonOverview, exportScenarioCsv, comparePackets, riskHandoff, restoreResearchDraft, referenceSensitivity, validationReceipt, sourceOriginAudit, exportEvidenceCsv, verifyReceipt, exportResearchBundle, readResearchBundle, monitoringChecklist, exportMonitoringCsv, renewResearchPacket,
-  repairWorksheet, evidenceChronology, evidenceAgeCheck,
+  repairWorksheet, evidenceChronology, evidenceAgeCheck, filterEvidence,
 } from './packet.js';
 import { examplePacket } from './example.js';
 
@@ -284,14 +284,15 @@ function refreshHorizonLabels(now = Date.now()) {
   }
 }
 function renderSources() {
-  const count = packet.sources.filter(source => sourceMatches(source, $('source-search').value, $('source-type').value)).length;
+  const visible = new Set(filterEvidence(packet, $('source-search').value, $('source-type').value, $('source-coverage').value).map(source => source.id));
+  const count = visible.size;
   setText('source-results', count + ' of ' + packet.sources.length + ' sources match. Exports and printing retain all sources.');
   $('source-list').replaceChildren();
   setText('source-count', packet.sources.length + ' SOURCE RECORD' + (packet.sources.length === 1 ? '' : 'S'));
   if (!packet.sources.length) $('source-list').append(element('p', 'UNKNOWN. No source records have been supplied.', 'small-copy'));
   for (const [index, source] of packet.sources.entries()) {
     const article = element('article', undefined, 'source-item'), content = element('div');
-    article.classList.toggle('source-filtered', !sourceMatches(source, $('source-search').value, $('source-type').value));
+    article.classList.toggle('source-filtered', !visible.has(source.id));
     const heading = element('div', undefined, 'source-title');
     const sourceUrl = safeSourceUrl(source.url);
     const link = element('a', source.title + ' ↗');
@@ -1079,6 +1080,7 @@ function renderEvidenceAge(now = Date.now()) {
 }
 $('evidence-age-limit').addEventListener('input', () => renderEvidenceAge());
 $('source-type').addEventListener('change', renderSources);
+$('source-coverage').addEventListener('change', renderSources);
 
 function renderOverview(now) {
   const table = element('table'), head = element('thead'), tr = element('tr');

@@ -36,3 +36,15 @@ test('evidence-age policy errors recover and do not modify the packet gate', asy
   await expect(page.locator('#evidence-age-results')).toContainText('WITHIN_LIMIT');
   await expect(page.locator('#structure-status')).toHaveText('Structure complete');
 });
+
+test('coverage filtering exposes unlisted sources after edits and preserves raw exports', async ({ page }) => {
+  await page.locator('#source-coverage').selectOption('unlisted');
+  await expect(page.locator('#source-results')).toContainText('0 of 2');
+  expect(await exported(page, '#export-evidence-csv')).toContain('example-upgrade');
+  await page.locator('#edit-details').click();
+  await page.locator('[name="thesis"]').fill('Changed research requires a new review.');
+  await page.getByRole('button', { name: 'Save details', exact: true }).click();
+  await expect(page.locator('#source-results')).toContainText('2 of 2');
+  await page.locator('#source-search').fill('upgrade');
+  await expect(page.locator('#source-results')).toContainText('1 of 2');
+});
