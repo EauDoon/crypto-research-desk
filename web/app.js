@@ -1,7 +1,7 @@
 import {
   MAX_PACKET_BYTES, MAX_JSON_INPUT_BYTES, HORIZONS, SCENARIOS, REVIEW_ASSERTIONS, parsePacket, validatePacket, blankPacket,
   timestamp, endAt, formatDate, formatPrice, safeSourceUrl, intervalLabel, returnLabel, chartThresholds, exportMarkdown, repairQueue, evidenceAudit, sourceMatches, horizonOverview, exportScenarioCsv, comparePackets, riskHandoff, restoreResearchDraft, referenceSensitivity, validationReceipt, sourceOriginAudit, exportEvidenceCsv, verifyReceipt, exportResearchBundle, readResearchBundle, monitoringChecklist, exportMonitoringCsv, renewResearchPacket,
-  repairWorksheet, evidenceChronology, evidenceAgeCheck, filterEvidence, sourceCitation,
+  repairWorksheet, evidenceChronology, evidenceAgeCheck, filterEvidence, sourceCitation, classifyHypotheticalPrice,
 } from './packet.js';
 import { examplePacket } from './example.js';
 
@@ -1147,8 +1147,19 @@ $('undo-edit').addEventListener('click', () => {
 });
 
 function clearSensitivity() {
+  $('classification-price').value = ''; $('classification-results').replaceChildren(); $('classification-status').textContent = '';
   $('sensitivity-price').value = ''; $('sensitivity-status').textContent = ''; $('sensitivity-results').replaceChildren();
 }
+$('classification-price').addEventListener('input', () => { $('classification-results').replaceChildren(); $('classification-status').textContent = ''; });
+$('classify-price').addEventListener('click', () => {
+  try {
+    if (!$('classification-price').value.trim()) throw new Error('Enter a hypothetical price, including 0 when intended.');
+    const price = Number($('classification-price').value);
+    listInto('classification-results', classifyHypotheticalPrice(packet, price).map(row =>
+      row.horizon + ': ' + row.scenario + ', ' + row.range + '; submitted interval probability ' + row.intervalProbability + '%'), 'No eligible scenarios.');
+    setText('classification-status', 'Hypothetical price ' + formatPrice(price) + ' ' + packet.asset.quoteCurrency + '. Probabilities describe whole intervals, not this exact price. Research and review are unchanged.');
+  } catch (error) { $('classification-results').replaceChildren(); setText('classification-status', error.message); }
+});
 $('calculate-sensitivity').addEventListener('click', () => {
   try {
     const rows = referenceSensitivity(packet, Number($('sensitivity-price').value));

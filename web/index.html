@@ -140,6 +140,13 @@
           <button id="calculate-sensitivity" class="button small" type="button">Calculate threshold distances</button>
           <p id="sensitivity-status" role="status"></p><ul id="sensitivity-results" class="text-list"></ul>
         </details>
+        <details><summary>Explore submitted scenario intervals</summary>
+          <p class="small-copy">Locate a hypothetical price in each submitted horizon. Lower bounds are included; upper bounds are excluded. This is not an observed outcome, price forecast, or trade instruction.</p>
+          <label for="classification-price">Hypothetical price in quote currency<input id="classification-price" type="number" min="0" max="1000000000000" step="any"></label>
+          <button id="classify-price" class="button small" type="button">Locate hypothetical price</button>
+          <p id="classification-status" role="status" class="small-copy"></p>
+          <ul id="classification-results" class="text-list"></ul>
+        </details>
         <details><summary>Plan manual research monitoring</summary>
           <p class="small-copy">Review submitted triggers and invalidations across horizons. This is a manual worksheet; no alerts, market checks, orders, or probability updates run in the background.</p>
           <button id="export-monitoring" class="button small subtle" type="button">Export monitoring worksheet</button>

@@ -798,6 +798,16 @@ export function referenceSensitivity(packet, hypotheticalPrice, now = Date.now()
   });
 }
 
+export function classifyHypotheticalPrice(packet, price, now = Date.now()) {
+  if (!validatePacket(packet, now).chartEligible) throw new Error('Scenario classification is withheld by the current packet gate.');
+  if (!finitePrice(price)) throw new Error('Use a finite hypothetical price from 0 to 1 trillion.');
+  return packet.horizons.map(horizon => {
+    const scenario = horizon.scenarios.find(row => price >= row.lower && (row.upper === null || price < row.upper));
+    return { horizon: horizon.id, endAt: horizon.endAt, scenario: scenario.label,
+      range: intervalLabel(scenario), intervalProbability: scenario.probability };
+  });
+}
+
 export async function validationReceipt(packet, now = Date.now()) {
   const report = validatePacket(packet, now);
   if (!report.valid) throw new Error('A check receipt requires a structurally valid packet.');

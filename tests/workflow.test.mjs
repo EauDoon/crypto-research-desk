@@ -4,6 +4,18 @@ import * as research from '../web/packet.js';
 import { examplePacket } from '../web/example.js';
 const NOW = Date.parse('2026-08-20T10:00:00Z');
 
+test('hypothetical prices use half-open boundaries and never mutate or bypass review', () => {
+  const packet = examplePacket(), before = JSON.stringify(packet), [bear, base] = packet.horizons[0].scenarios;
+  assert.equal(research.classifyHypotheticalPrice(packet, 0, NOW)[0].scenario, 'Bear');
+  assert.equal(research.classifyHypotheticalPrice(packet, bear.upper, NOW)[0].scenario, 'Base');
+  assert.equal(research.classifyHypotheticalPrice(packet, base.upper, NOW)[0].scenario, 'Bull');
+  assert.equal(research.classifyHypotheticalPrice(packet, 1e12, NOW).length, 4);
+  for (const price of [-1, NaN, Infinity, '100', 1e12 + 1]) assert.throws(() => research.classifyHypotheticalPrice(packet, price, NOW), /hypothetical price/);
+  assert.equal(JSON.stringify(packet), before);
+  packet.riskReview.status = 'pending';
+  assert.throws(() => research.classifyHypotheticalPrice(packet, 100, NOW), /withheld/);
+});
+
 test('source citations retain full provenance, multiline excerpts and unknowns', () => {
   const packet = examplePacket(); packet.sources[0].excerpt = 'Original line\nSecond line'; packet.sources[0].publishedAt = '';
   const citation = research.sourceCitation(packet, packet.sources[0].id, NOW);

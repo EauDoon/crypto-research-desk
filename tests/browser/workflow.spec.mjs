@@ -67,3 +67,20 @@ test('citation copy places full source provenance on the browser clipboard', asy
   expect(copied).toContain('RESEARCH ONLY | SYNTHETIC');
   expect(copied).toContain(examplePacket().sources[0].excerpt);
 });
+
+test('hypothetical classification has keyboard, empty-input, edit and gate recovery', async ({ page }) => {
+  await page.getByText('Explore submitted scenario intervals', { exact: true }).click();
+  await page.locator('#classify-price').click();
+  await expect(page.locator('#classification-status')).toContainText('Enter a hypothetical price');
+  await page.locator('#classification-price').fill('94');
+  await page.locator('#classify-price').focus(); await page.keyboard.press('Enter');
+  await expect(page.locator('#classification-results')).toContainText('12h: Base');
+  await page.locator('#classification-price').fill('106');
+  await expect(page.locator('#classification-results')).toBeEmpty();
+  await page.locator('#classify-price').click();
+  await expect(page.locator('#classification-results')).toContainText('12h: Bull');
+  await page.locator('#new-packet').click(); await page.locator('#close-editor').click();
+  await expect(page.locator('#classification-results')).toBeEmpty();
+  await page.locator('#classification-price').fill('100'); await page.locator('#classify-price').click();
+  await expect(page.locator('#classification-status')).toContainText('withheld');
+});

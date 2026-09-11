@@ -135,6 +135,8 @@ The review editor includes **Select sources actually reviewed**. Its checkboxes 
 **Start renewal draft** carries forward source records, their original dates, asset identity, and research notes as unverified starting material. It clears the common reference price/cutoff, every forecast scenario, and the prior review. All four horizons remain incomplete until newly supported inputs are provided. The packet kind remains unchanged, so fictional examples never silently become research. Session undo can restore earlier research inputs, while keeping review pending.
 # Research workflow worksheets
 
+Locate hypothetical price classifies one manually entered price across four eligible submitted horizons. Scenario ranges include their lower bound and exclude their upper bound. Reported probabilities belong to the entire matching interval, never an exact price. Empty input is rejected, 0 is accepted, and a changed packet or blocked gate clears results.
+
 Copy source citation puts one complete plain-text source record on the clipboard, including asset, cutoff, URL, raw dates, type as recorded, claim, excerpt, and synthetic/unverified labeling. It does not open the source. If clipboard access is denied, use the complete evidence CSV export.
 
 Evidence cards can be filtered by listed or unlisted submitted review coverage, together with source type and literal text search. Coverage is self-reported. Editing research clears review coverage through the existing reset path. CSV and print still contain all evidence records.
