@@ -655,6 +655,17 @@ export function repairQueue(packet, now = Date.now()) {
     ...report.gaps.map(item => ({ ...item, severity: 'gap' }))];
 }
 
+export function repairWorksheet(packet, now = Date.now()) {
+  const report = validatePacket(packet, now);
+  if (!report.valid) throw new Error('Repair export requires a structurally valid packet.');
+  const items = repairQueue(packet, now);
+  return { format: 'crypto-research-repairs.v1', researchOnly: true, kind: packet.kind,
+    asset: packet.asset.symbol, referenceCutoff: packet.reference.capturedAt,
+    checkedAt: new Date(now).toISOString(), chartEligible: report.chartEligible,
+    total: report.errorCount + report.gapCount, omitted: report.omittedIssueCounts.errors + report.omittedIssueCounts.gaps,
+    items, limits: 'Local checks only. Source truth and reviewer identity are not authenticated.' };
+}
+
 export function evidenceAudit(packet) {
   const cutoff = timestamp(packet.reference.capturedAt);
   const reviewed = new Set(packet.riskReview.sourceIds.map(id => id.trim()));

@@ -133,3 +133,6 @@ The review editor includes **Select sources actually reviewed**. Its checkboxes 
 **Plan manual research monitoring** groups matching submitted triggers while retaining every horizon, deadline, scenario and invalidation context. Export its spreadsheet-safe worksheet for manual follow-up. It runs no alerts or market checks. Both the display and export follow the existing chart gate; blocked packets export four WITHHELD rows without scenario triggers.
 
 **Start renewal draft** carries forward source records, their original dates, asset identity, and research notes as unverified starting material. It clears the common reference price/cutoff, every forecast scenario, and the prior review. All four horizons remain incomplete until newly supported inputs are provided. The packet kind remains unchanged, so fictional examples never silently become research. Session undo can restore earlier research inputs, while keeping review pending.
+# Research workflow worksheets
+
+Export repair worksheet downloads the current local check gaps with exact editable paths, cutoff, check time, gate and explicit omission counts. It works for incomplete drafts. It does not verify sources or reviewer identity, and does not change the packet.

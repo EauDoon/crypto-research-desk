@@ -1,6 +1,7 @@
 import {
   MAX_PACKET_BYTES, MAX_JSON_INPUT_BYTES, HORIZONS, SCENARIOS, REVIEW_ASSERTIONS, parsePacket, validatePacket, blankPacket,
   timestamp, endAt, formatDate, formatPrice, safeSourceUrl, intervalLabel, returnLabel, chartThresholds, exportMarkdown, repairQueue, evidenceAudit, sourceMatches, horizonOverview, exportScenarioCsv, comparePackets, riskHandoff, restoreResearchDraft, referenceSensitivity, validationReceipt, sourceOriginAudit, exportEvidenceCsv, verifyReceipt, exportResearchBundle, readResearchBundle, monitoringChecklist, exportMonitoringCsv, renewResearchPacket,
+  repairWorksheet,
 } from './packet.js';
 import { examplePacket } from './example.js';
 
@@ -1047,6 +1048,11 @@ function renderRepairs(now) {
   }));
   if (!queue.length) $('repair-list').append(element('li', 'No structural repairs recorded. Source truth and reviewer identity still require human verification.'));
 }
+
+$('export-repairs').addEventListener('click', () => {
+  try { download(JSON.stringify(repairWorksheet(packet), null, 2) + '\n', 'application/json; charset=utf-8', 'Repair Worksheet.json'); announce('Repair worksheet exported with exact field paths and any omitted issue counts.'); }
+  catch (error) { announce(error.message, true); }
+});
 
 function renderEvidenceAudit(now = Date.now()) {
   const origins = sourceOriginAudit(packet, now);
