@@ -109,3 +109,35 @@ test('comparison export tracks the displayed baseline and disables stale or inva
   await page.locator('#comparison-json').fill(JSON.stringify(previous)); await page.locator('#compare-packets').click();
   await expect(page.locator('#export-comparison')).toBeEnabled();
 });
+
+test('baseline portability survives reload without replacing the open packet and retains prior data on failure', async ({ page }) => {
+  await page.getByText('Open packet comparison', { exact: true }).click();
+  await page.locator('#pin-baseline').click();
+  const baselineText = await exported(page, '#export-baseline');
+  await page.reload(); await page.getByText('Open packet comparison', { exact: true }).click();
+  await expect(page.locator('#export-baseline')).toBeDisabled();
+  const previous = JSON.parse(baselineText); previous.thesis = 'Portable baseline thesis';
+  await page.locator('#baseline-file').setInputFiles({ name: 'baseline.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(previous)) });
+  await expect(page.locator('#comparison-results')).toContainText('Portable baseline thesis');
+  await expect(page.locator('#thesis')).toHaveText(examplePacket().thesis);
+  await page.locator('#baseline-file').setInputFiles({ name: 'bad.json', mimeType: 'application/json', buffer: Buffer.from('{') });
+  await expect(page.locator('#app-error')).toContainText('prior baseline and open packet remain unchanged');
+  expect(JSON.parse(await exported(page, '#export-baseline')).thesis).toBe('Portable baseline thesis');
+  previous.asset.symbol = 'OTHER';
+  await page.locator('#baseline-file').setInputFiles({ name: 'other.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(previous)) });
+  await expect(page.locator('#app-error')).toContainText('same named asset');
+  await expect(page.locator('#asset-symbol')).toHaveText('DEMO');
+});
+
+test('a delayed baseline import cannot replace a newer explicit pinned baseline', async ({ page }) => {
+  await page.getByText('Open packet comparison', { exact: true }).click();
+  await page.evaluate(() => {
+    const original = File.prototype.arrayBuffer;
+    File.prototype.arrayBuffer = async function () { await new Promise(resolve => { window.releaseBaselineRead = resolve; }); return original.call(this); };
+  });
+  const previous = examplePacket(); previous.thesis = 'Stale delayed baseline';
+  await page.locator('#baseline-file').setInputFiles({ name: 'slow.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(previous)) });
+  await page.locator('#pin-baseline').click();
+  await page.evaluate(() => window.releaseBaselineRead());
+  expect(JSON.parse(await exported(page, '#export-baseline')).thesis).toBe(examplePacket().thesis);
+});

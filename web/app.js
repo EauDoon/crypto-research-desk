@@ -14,6 +14,7 @@ let dirty = false;
 let undoHistory = [];
 let pinnedBaseline = null;
 let comparisonBaseline = null;
+let baselineImportSequence = 0;
 let receiptCheckSequence = 0;
 let editorMode = 'details';
 let editorInitial = '';
@@ -468,6 +469,7 @@ function applyPacket(candidate, label, localEdit = false, restoring = false) {
   const report = validatePacket(candidate, now);
   if (!report.valid) throw validationError(report);
   importSequence++;
+  baselineImportSequence++;
   $('app-error').hidden = true;
   dirty = localEdit ? dirty || JSON.stringify(canonical(candidate)) !== JSON.stringify(canonical(packet)) : false;
   if (!restoring) {
@@ -1208,14 +1210,37 @@ $('export-receipt').addEventListener('click', async () => {
 
 function renderPinnedBaseline() {
   $('clear-baseline').disabled = !pinnedBaseline;
+  $('export-baseline').disabled = !pinnedBaseline;
   setText('baseline-status', pinnedBaseline ? 'Pinned ' + pinnedBaseline.asset.symbol + ' at ' + (pinnedBaseline.reference.capturedAt || 'UNKNOWN cutoff') + '. Local edits compare automatically; reload forgets this snapshot.' : 'No baseline pinned. A pinned snapshot stays in page memory only.');
   if (pinnedBaseline) showComparison(pinnedBaseline);
 }
 $('pin-baseline').addEventListener('click', () => {
+  baselineImportSequence++;
   if (!packet.asset.symbol) { announce('Name the asset before pinning a comparison baseline.', true); return; }
   pinnedBaseline = structuredClone(packet); renderPinnedBaseline();
 });
-$('clear-baseline').addEventListener('click', () => { pinnedBaseline = null; clearComparison(); renderPinnedBaseline(); });
+$('clear-baseline').addEventListener('click', () => { baselineImportSequence++; pinnedBaseline = null; clearComparison(); renderPinnedBaseline(); });
+$('export-baseline').addEventListener('click', () => {
+  if (!pinnedBaseline) return;
+  download(JSON.stringify(pinnedBaseline, null, 2) + '\n', 'application/json; charset=utf-8', '', pinnedBaseline.asset.symbol + ' Comparison Baseline.json');
+  announce('Pinned baseline exported as standard packet JSON. Import it as a baseline to compare without replacing the open packet.');
+});
+$('import-baseline').addEventListener('click', () => $('baseline-file').click());
+$('baseline-file').addEventListener('change', async event => {
+  const sequence = ++baselineImportSequence, file = event.target.files?.[0];
+  if (!file) return;
+  try {
+    if (file.size > MAX_JSON_INPUT_BYTES) throw new Error('Baseline JSON must be no larger than 320 KiB.');
+    const text = new TextDecoder('utf-8', { fatal: true }).decode(await file.arrayBuffer());
+    const parsed = parsePacket(text);
+    const candidate = parsed.format === 'crypto-research-bundle.v1' ? await readResearchBundle(text) : parsed;
+    if (sequence !== baselineImportSequence) return;
+    comparePackets(candidate, packet);
+    pinnedBaseline = structuredClone(candidate); clearComparison(); renderPinnedBaseline();
+    announce('Comparison baseline imported locally. The open packet and its submitted review were not replaced.');
+  } catch (error) { if (sequence === baselineImportSequence) announce('Baseline import failed: ' + error.message + ' The prior baseline and open packet remain unchanged.', true); }
+  finally { if (sequence === baselineImportSequence) $('baseline-file').value = ''; }
+});
 
 function renderReviewSources() {
   const selected = new Set(String(field('sourceIds').value).split(',').map(id => id.trim()).filter(Boolean));
