@@ -495,6 +495,7 @@ function confirmReplacement() {
   return !meaningful || window.confirm('Replace the open research packet? Export a copy first if you need to keep it.');
 }
 function field(name) { return form.elements.namedItem(name); }
+function numericInput(id) { return parsePacket('{"value":' + $(id).value + '}').value; }
 function editableFieldForPath(path) {
   const fields = {
     'asset.symbol': 'symbol', 'asset.name': 'name', 'asset.quoteCurrency': 'quoteCurrency', 'asset.venue': 'venue',
@@ -1022,7 +1023,7 @@ try {
     : 'Saving is locked to protect the unreadable draft. Download its raw data before clearing it.');
   announce('The saved draft could not be loaded. It was not deleted or overwritten. A synthetic example is shown; local saving is locked.', true);
 }
-render(); updateNavigation();
+renderPinnedBaseline(); render(); updateNavigation();
 document.documentElement.classList.toggle('page-margin-identity', supportsPageMarginIdentity());
 $('startup-status').hidden = true;
 document.documentElement.classList.remove('app-unavailable');
@@ -1085,7 +1086,8 @@ function renderEvidenceAudit(now = Date.now()) {
 $('source-search').addEventListener('input', renderSources);
 function renderEvidenceAge(now = Date.now()) {
   try {
-    listInto('evidence-age-results', evidenceAgeCheck(packet, Number($('evidence-age-limit').value), now).map(item =>
+    if (!$('evidence-age-limit').value.trim()) throw new Error('Use a capture-age limit above 0 and no greater than 87600 hours.');
+    listInto('evidence-age-results', evidenceAgeCheck(packet, numericInput('evidence-age-limit'), now).map(item =>
       item.id + ': ' + item.status + (item.ageHours === null ? '' : ' (' + item.ageHours.toFixed(2) + ' hours before cutoff)')), 'No sources to check.');
   } catch (error) { listInto('evidence-age-results', [error.message], ''); }
 }
@@ -1177,7 +1179,7 @@ for (const id of ['probability-lower', 'probability-upper']) $(id).addEventListe
 $('calculate-probability-bounds').addEventListener('click', () => {
   try {
     if (!$('probability-lower').value.trim()) throw new Error('Enter the included lower price. Leave only the upper price blank for an unbounded interval.');
-    const lower = Number($('probability-lower').value), upper = $('probability-upper').value.trim() ? Number($('probability-upper').value) : null;
+    const lower = numericInput('probability-lower'), upper = $('probability-upper').value.trim() ? numericInput('probability-upper') : null;
     listInto('probability-results', intervalProbabilityBounds(packet, lower, upper).map(row =>
       row.horizon + ': ' + row.minimumPercent + '% to ' + row.maximumPercent + '%'), 'No eligible scenarios.');
     setText('probability-status', 'Bounds for [' + formatPrice(lower) + ', ' + (upper === null ? 'unbounded' : formatPrice(upper)) + ') ' + packet.asset.quoteCurrency + '. Submitted interval masses only; no distribution within a scenario is assumed.');
@@ -1186,7 +1188,7 @@ $('calculate-probability-bounds').addEventListener('click', () => {
 $('classify-price').addEventListener('click', () => {
   try {
     if (!$('classification-price').value.trim()) throw new Error('Enter a hypothetical price, including 0 when intended.');
-    const price = Number($('classification-price').value);
+    const price = numericInput('classification-price');
     listInto('classification-results', classifyHypotheticalPrice(packet, price).map(row =>
       row.horizon + ': ' + row.scenario + ', ' + row.range + '; submitted interval probability ' + row.intervalProbability + '%'), 'No eligible scenarios.');
     setText('classification-status', 'Hypothetical price ' + formatPrice(price) + ' ' + packet.asset.quoteCurrency + '. Probabilities describe whole intervals, not this exact price. Research and review are unchanged.');
@@ -1194,7 +1196,7 @@ $('classify-price').addEventListener('click', () => {
 });
 $('calculate-sensitivity').addEventListener('click', () => {
   try {
-    const rows = referenceSensitivity(packet, Number($('sensitivity-price').value));
+    const rows = referenceSensitivity(packet, numericInput('sensitivity-price'));
     const percent = value => (Math.abs(value) > 1e8 ? value.toExponential(3) : value.toFixed(3)) + '%';
     listInto('sensitivity-results', rows.map(item => item.label + ': bear ceiling ' + percent(item.bearDistance) + '; bull floor ' + percent(item.bullDistance)), 'No eligible thresholds.');
     setText('sensitivity-status', 'Hypothetical arithmetic only. Original packet, probabilities, and review are unchanged.');
@@ -1243,7 +1245,7 @@ $('baseline-file').addEventListener('change', async event => {
     pinnedBaseline = structuredClone(candidate); clearComparison(); renderPinnedBaseline();
     announce('Comparison baseline imported locally. The open packet and its submitted review were not replaced.');
   } catch (error) { if (sequence === baselineImportSequence) announce('Baseline import failed: ' + error.message + ' The prior baseline and open packet remain unchanged.', true); }
-  finally { if (sequence === baselineImportSequence) $('baseline-file').value = ''; }
+  finally { if ($('baseline-file').files?.[0] === file) $('baseline-file').value = ''; }
 });
 
 function renderReviewSources() {

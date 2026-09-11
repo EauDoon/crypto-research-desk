@@ -139,6 +139,7 @@ test('a delayed baseline import cannot replace a newer explicit pinned baseline'
   await page.locator('#baseline-file').setInputFiles({ name: 'slow.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(previous)) });
   await page.locator('#pin-baseline').click();
   await page.evaluate(() => window.releaseBaselineRead());
+  await expect(page.locator('#baseline-file')).toHaveValue('');
   expect(JSON.parse(await exported(page, '#export-baseline')).thesis).toBe(examplePacket().thesis);
 });
 
@@ -147,6 +148,21 @@ test('submitted risk worksheet preserves pending unknown assertions after renewa
   await page.locator('#renew-packet').click(); await page.locator('#close-editor').click();
   const csv = await exported(page, '#export-risk-worksheet');
   expect(csv).toContain('pending'); expect(csv).toContain('UNKNOWN'); expect(csv).not.toContain('deliver_with_warning');
+});
+
+test('hypothetical controls reject numbers that round across exact scenario boundaries', async ({ page }) => {
+  await page.getByText('Explore submitted scenario intervals', { exact: true }).click();
+  await page.locator('#classification-price').fill('93.99999999999999999'); await page.locator('#classify-price').click();
+  await expect(page.locator('#classification-status')).toContainText('Numeric precision would be lost');
+  await expect(page.locator('#classification-results')).toBeEmpty();
+  await page.locator('#probability-lower').fill('93.99999999999999999'); await page.locator('#probability-upper').fill('106');
+  await page.locator('#calculate-probability-bounds').click();
+  await expect(page.locator('#probability-status')).toContainText('Numeric precision would be lost');
+  await page.locator('#classification-price').fill('94'); await page.locator('#classify-price').click();
+  await expect(page.locator('#classification-results')).toContainText('12h: Base');
+  await page.getByText('Explore reference-price sensitivity', { exact: true }).click();
+  await page.locator('#sensitivity-price').fill('199.99999999999999999'); await page.locator('#calculate-sensitivity').click();
+  await expect(page.locator('#sensitivity-status')).toContainText('Numeric precision would be lost');
 });
 
 test('expanded workflow controls remain accessible at mobile and desktop widths', async ({ page }, testInfo) => {

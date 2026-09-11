@@ -143,14 +143,14 @@
         </details>
         <details><summary>Explore submitted scenario intervals</summary>
           <p class="small-copy">Locate a hypothetical price in each submitted horizon. Lower bounds are included; upper bounds are excluded. This is not an observed outcome, price forecast, or trade instruction.</p>
-          <label for="classification-price">Hypothetical price in quote currency<input id="classification-price" type="number" min="0" max="1000000000000" step="any"></label>
+          <div class="source-controls"><label for="classification-price">Hypothetical price in quote currency<input id="classification-price" type="number" min="0" max="1000000000000" step="any"></label></div>
           <button id="classify-price" class="button small" type="button">Locate hypothetical price</button>
           <p id="classification-status" role="status" class="small-copy"></p>
           <ul id="classification-results" class="text-list"></ul>
           <h3>Bound a price-range probability</h3>
           <p class="small-copy">A partially intersected scenario may contribute none or all of its submitted probability. The minimum counts fully contained scenarios; the maximum counts all intersecting scenarios. These are bounds on supplied judgments, not calibrated likelihoods.</p>
-          <label for="probability-lower">Included lower price<input id="probability-lower" type="number" min="0" max="1000000000000" step="any"></label>
-          <label for="probability-upper">Excluded upper price (blank means unbounded)<input id="probability-upper" type="number" min="0" max="1000000000000" step="any"></label>
+          <div class="source-controls"><label for="probability-lower">Included lower price<input id="probability-lower" type="number" min="0" max="1000000000000" step="any"></label>
+          <label for="probability-upper">Excluded upper price (blank means unbounded)<input id="probability-upper" type="number" min="0" max="1000000000000" step="any"></label></div>
           <button id="calculate-probability-bounds" class="button small" type="button">Calculate probability bounds</button>
           <p id="probability-status" role="status" class="small-copy"></p>
           <ul id="probability-results" class="text-list"></ul>
@@ -176,7 +176,7 @@
         <details><summary>Source recency and review coverage</summary>
           <p class="small-copy">Age is measured at the packet cutoff. A recent capture does not establish accuracy or current relevance. Review coverage is self-reported.</p>
           <ul id="evidence-audit" class="text-list"></ul>
-          <label for="evidence-age-limit">Capture-age limit at cutoff (hours)<input id="evidence-age-limit" type="number" min="0.01" max="87600" step="any" value="24"></label>
+          <div class="source-controls"><label for="evidence-age-limit">Capture-age limit at cutoff (hours)<input id="evidence-age-limit" type="number" min="0.01" max="87600" step="any" value="24"></label></div>
           <p class="small-copy">This user-selected limit only flags records for manual inspection. It does not establish freshness or change the review gate. Reload resets it to 24 hours.</p>
           <ul id="evidence-age-results" class="text-list" aria-live="polite"></ul>
         </details>
