@@ -1,7 +1,7 @@
 import {
   MAX_PACKET_BYTES, MAX_JSON_INPUT_BYTES, HORIZONS, SCENARIOS, REVIEW_ASSERTIONS, parsePacket, validatePacket, blankPacket,
   timestamp, endAt, formatDate, formatPrice, safeSourceUrl, intervalLabel, returnLabel, chartThresholds, exportMarkdown, repairQueue, evidenceAudit, sourceMatches, horizonOverview, exportScenarioCsv, comparePackets, riskHandoff, restoreResearchDraft, referenceSensitivity, validationReceipt, sourceOriginAudit, exportEvidenceCsv, verifyReceipt, exportResearchBundle, readResearchBundle, monitoringChecklist, exportMonitoringCsv, renewResearchPacket,
-  repairWorksheet,
+  repairWorksheet, evidenceChronology,
 } from './packet.js';
 import { examplePacket } from './example.js';
 
@@ -1055,6 +1055,8 @@ $('export-repairs').addEventListener('click', () => {
 });
 
 function renderEvidenceAudit(now = Date.now()) {
+  listInto('evidence-chronology', evidenceChronology(packet, now).map(item =>
+    formatDate(item.at) + ': ' + item.sourceId + ' ' + (item.event === 'publishedAt' ? 'published' : 'captured') + ' (' + item.title + ')'), 'No source events recorded.');
   const origins = sourceOriginAudit(packet, now);
   listInto('source-origin-audit', [
     ...origins.hosts.map(item => item.host + ': ' + item.count + ' of ' + packet.sources.length + ' records (' + item.sharePercent.toFixed(1) + '%); ' + item.primaryCount + ' labeled primary'),

@@ -135,4 +135,6 @@ The review editor includes **Select sources actually reviewed**. Its checkboxes 
 **Start renewal draft** carries forward source records, their original dates, asset identity, and research notes as unverified starting material. It clears the common reference price/cutoff, every forecast scenario, and the prior review. All four horizons remain incomplete until newly supported inputs are provided. The packet kind remains unchanged, so fictional examples never silently become research. Session undo can restore earlier research inputs, while keeping review pending.
 # Research workflow worksheets
 
+Evidence chronology separates publication from capture and sorts by actual instants, independent of source-card filters. Missing dates remain UNKNOWN at the end. The order is a record audit, not an event-verification claim.
+
 Export repair worksheet downloads the current local check gaps with exact editable paths, cutoff, check time, gate and explicit omission counts. It works for incomplete drafts. It does not verify sources or reviewer identity, and does not change the packet.

@@ -18,3 +18,10 @@ test('repair worksheet exports a new incomplete draft', async ({ page }) => {
   expect(sheet.items.some(item => item.path === 'reference.price')).toBe(true);
   expect(sheet.chartEligible).toBe(false);
 });
+
+test('evidence chronology remains complete when source cards are filtered', async ({ page }) => {
+  await page.getByText('Inspect evidence chronology', { exact: true }).click();
+  await page.locator('#source-search').fill('upgrade');
+  await expect(page.locator('#evidence-chronology li')).toHaveCount(4);
+  await expect(page.locator('#evidence-chronology')).toContainText('example-activity captured');
+});

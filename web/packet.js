@@ -677,6 +677,14 @@ export function evidenceAudit(packet) {
   });
 }
 
+export function evidenceChronology(packet, now = Date.now()) {
+  if (!validatePacket(packet, now).valid) throw new Error('Chronology requires a structurally valid packet.');
+  return packet.sources.flatMap(source => ['publishedAt', 'capturedAt'].map(event => ({
+    sourceId: source.id, title: source.title, event, at: source[event],
+  }))).sort((left, right) => (timestamp(left.at) ?? Infinity) - (timestamp(right.at) ?? Infinity)
+    || left.sourceId.localeCompare(right.sourceId) || left.event.localeCompare(right.event));
+}
+
 export function sourceMatches(source, query = '', type = 'all') {
   const text = [source.id, source.title, source.claim, source.excerpt, source.url].join(' ').toLowerCase();
   return (type === 'all' || source.type === type) && text.includes(query.trim().slice(0, 200).toLowerCase());
