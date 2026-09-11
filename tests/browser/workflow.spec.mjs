@@ -96,3 +96,16 @@ test('range probability bounds distinguish partial bins and recover from invalid
   await expect(page.locator('#probability-results')).toBeEmpty();
   await expect(page.locator('#probability-status')).toContainText('greater upper price');
 });
+
+test('comparison export tracks the displayed baseline and disables stale or invalid input', async ({ page }) => {
+  await page.getByText('Open packet comparison', { exact: true }).click();
+  const previous = examplePacket(); previous.thesis = 'Previous comparison text';
+  await page.locator('#comparison-json').fill(JSON.stringify(previous)); await page.locator('#compare-packets').click();
+  const sheet = JSON.parse(await exported(page, '#export-comparison'));
+  expect(sheet.previous.thesis).toBe(previous.thesis); expect(sheet.current.thesis).toBe(examplePacket().thesis);
+  await page.locator('#comparison-json').fill('malformed');
+  await expect(page.locator('#export-comparison')).toBeDisabled();
+  await page.locator('#compare-packets').click(); await expect(page.locator('#export-comparison')).toBeDisabled();
+  await page.locator('#comparison-json').fill(JSON.stringify(previous)); await page.locator('#compare-packets').click();
+  await expect(page.locator('#export-comparison')).toBeEnabled();
+});

@@ -4,6 +4,15 @@ import * as research from '../web/packet.js';
 import { examplePacket } from '../web/example.js';
 const NOW = Date.parse('2026-08-20T10:00:00Z');
 
+test('comparison worksheets preserve full independent snapshots and exact changed values', () => {
+  const previous = examplePacket(), current = examplePacket(); current.thesis = 'Changed\n' + 'detail '.repeat(500);
+  const sheet = research.comparisonWorksheet(previous, current, NOW);
+  assert.equal(sheet.differences.changes[0].current, current.thesis);
+  assert.equal(sheet.current.thesis, current.thesis); assert.equal(sheet.researchOnly, true);
+  current.thesis = 'Later change'; assert.notEqual(sheet.current.thesis, current.thesis);
+  previous.asset.symbol = 'OTHER'; assert.throws(() => research.comparisonWorksheet(previous, current, NOW), /same named asset/);
+});
+
 test('probability bounds use whole-bin mass, exact decimal arithmetic and no uniform assumption', () => {
   const packet = examplePacket(), [bear, base, bull] = packet.horizons[0].scenarios;
   assert.deepEqual(research.intervalProbabilityBounds(packet, 0, null, NOW)[0], { horizon: '12h', minimumPercent: 100, maximumPercent: 100 });

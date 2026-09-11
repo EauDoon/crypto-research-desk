@@ -755,6 +755,14 @@ export function comparePackets(previous, current, now = Date.now()) {
   return { changes, total, omitted: total - changes.length };
 }
 
+export function comparisonWorksheet(previous, current, now = Date.now()) {
+  const differences = comparePackets(previous, current, now);
+  return { format: 'crypto-research-comparison.v1', researchOnly: true, checkedAt: new Date(now).toISOString(),
+    differences, previous: JSON.parse(JSON.stringify(previous)), current: JSON.parse(JSON.stringify(current)),
+    previousChartEligible: validatePacket(previous, now).chartEligible, currentChartEligible: validatePacket(current, now).chartEligible,
+    limits: 'Raw submitted changes only. Both complete packets are included even when the displayed change list is truncated. No conflict resolution, authentication or clearance is implied.' };
+}
+
 export function riskHandoff(packet, now = Date.now()) {
   const report = validatePacket(packet, now);
   if (!report.valid) throw new Error('A risk handoff requires a structurally valid packet.');

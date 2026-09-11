@@ -1,7 +1,7 @@
 import {
   MAX_PACKET_BYTES, MAX_JSON_INPUT_BYTES, HORIZONS, SCENARIOS, REVIEW_ASSERTIONS, parsePacket, validatePacket, blankPacket,
   timestamp, endAt, formatDate, formatPrice, safeSourceUrl, intervalLabel, returnLabel, chartThresholds, exportMarkdown, repairQueue, evidenceAudit, sourceMatches, horizonOverview, exportScenarioCsv, comparePackets, riskHandoff, restoreResearchDraft, referenceSensitivity, validationReceipt, sourceOriginAudit, exportEvidenceCsv, verifyReceipt, exportResearchBundle, readResearchBundle, monitoringChecklist, exportMonitoringCsv, renewResearchPacket,
-  repairWorksheet, evidenceChronology, evidenceAgeCheck, filterEvidence, sourceCitation, classifyHypotheticalPrice, intervalProbabilityBounds,
+  repairWorksheet, evidenceChronology, evidenceAgeCheck, filterEvidence, sourceCitation, classifyHypotheticalPrice, intervalProbabilityBounds, comparisonWorksheet,
 } from './packet.js';
 import { examplePacket } from './example.js';
 
@@ -13,6 +13,7 @@ let origin = 'Synthetic example';
 let dirty = false;
 let undoHistory = [];
 let pinnedBaseline = null;
+let comparisonBaseline = null;
 let receiptCheckSequence = 0;
 let editorMode = 'details';
 let editorInitial = '';
@@ -1113,20 +1114,34 @@ $('export-csv').addEventListener('click', () => {
 });
 
 function clearComparison() {
+  comparisonBaseline = null; $('export-comparison').disabled = true;
   $('comparison-json').value = ''; $('comparison-results').replaceChildren(); $('comparison-status').textContent = '';
 }
 $('clear-comparison').addEventListener('click', clearComparison);
 function showComparison(previous) {
+  comparisonBaseline = null; $('export-comparison').disabled = true;
   try {
     const result = comparePackets(previous, packet);
+    comparisonBaseline = structuredClone(previous); $('export-comparison').disabled = false;
     const summary = value => JSON.stringify(value).slice(0, 240);
     listInto('comparison-results', result.changes.map(item => item.path + ': ' + summary(item.previous) + ' → ' + summary(item.current)), 'No submitted fields changed.');
     setText('comparison-status', result.total + ' changed fields; ' + result.omitted + ' omitted. Long values are shortened. Sources and review assertions are matched by ID. Open raw JSON for full evidence.');
   } catch (error) { $('comparison-results').replaceChildren(); setText('comparison-status', error.message); }
 }
 $('compare-packets').addEventListener('click', () => {
+  comparisonBaseline = null; $('export-comparison').disabled = true;
   try { showComparison(parsePacket($('comparison-json').value)); }
   catch (error) { $('comparison-results').replaceChildren(); setText('comparison-status', error.message); }
+});
+$('comparison-json').addEventListener('input', () => {
+  comparisonBaseline = null; $('export-comparison').disabled = true; $('comparison-results').replaceChildren(); $('comparison-status').textContent = '';
+});
+$('export-comparison').addEventListener('click', () => {
+  try {
+    if (!comparisonBaseline) throw new Error('Compare a valid previous packet before exporting.');
+    download(JSON.stringify(comparisonWorksheet(comparisonBaseline, packet), null, 2) + '\n', 'application/json; charset=utf-8', 'Comparison Worksheet.json');
+    announce('Comparison worksheet exported with both full packets and explicit change-list omission counts.');
+  } catch (error) { announce(error.message, true); }
 });
 
 $('export-risk-handoff').addEventListener('click', () => {
