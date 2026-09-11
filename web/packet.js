@@ -685,6 +685,14 @@ export function evidenceChronology(packet, now = Date.now()) {
     || left.sourceId.localeCompare(right.sourceId) || left.event.localeCompare(right.event));
 }
 
+export function evidenceAgeCheck(packet, maximumHours, now = Date.now()) {
+  if (!validatePacket(packet, now).valid) throw new Error('Evidence age checks require a structurally valid packet.');
+  if (typeof maximumHours !== 'number' || !Number.isFinite(maximumHours) || maximumHours <= 0 || maximumHours > 87600) throw new Error('Use a capture-age limit above 0 and no greater than 87600 hours.');
+  return evidenceAudit(packet).map(item => ({ ...item, maximumHours,
+    status: item.ageHours === null ? 'UNKNOWN' : item.ageHours > maximumHours ? 'EXCEEDS_LIMIT' : 'WITHIN_LIMIT',
+  }));
+}
+
 export function sourceMatches(source, query = '', type = 'all') {
   const text = [source.id, source.title, source.claim, source.excerpt, source.url].join(' ').toLowerCase();
   return (type === 'all' || source.type === type) && text.includes(query.trim().slice(0, 200).toLowerCase());

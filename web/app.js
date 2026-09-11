@@ -1,7 +1,7 @@
 import {
   MAX_PACKET_BYTES, MAX_JSON_INPUT_BYTES, HORIZONS, SCENARIOS, REVIEW_ASSERTIONS, parsePacket, validatePacket, blankPacket,
   timestamp, endAt, formatDate, formatPrice, safeSourceUrl, intervalLabel, returnLabel, chartThresholds, exportMarkdown, repairQueue, evidenceAudit, sourceMatches, horizonOverview, exportScenarioCsv, comparePackets, riskHandoff, restoreResearchDraft, referenceSensitivity, validationReceipt, sourceOriginAudit, exportEvidenceCsv, verifyReceipt, exportResearchBundle, readResearchBundle, monitoringChecklist, exportMonitoringCsv, renewResearchPacket,
-  repairWorksheet, evidenceChronology,
+  repairWorksheet, evidenceChronology, evidenceAgeCheck,
 } from './packet.js';
 import { examplePacket } from './example.js';
 
@@ -1055,6 +1055,7 @@ $('export-repairs').addEventListener('click', () => {
 });
 
 function renderEvidenceAudit(now = Date.now()) {
+  renderEvidenceAge(now);
   listInto('evidence-chronology', evidenceChronology(packet, now).map(item =>
     formatDate(item.at) + ': ' + item.sourceId + ' ' + (item.event === 'publishedAt' ? 'published' : 'captured') + ' (' + item.title + ')'), 'No source events recorded.');
   const origins = sourceOriginAudit(packet, now);
@@ -1070,6 +1071,13 @@ function renderEvidenceAudit(now = Date.now()) {
 }
 
 $('source-search').addEventListener('input', renderSources);
+function renderEvidenceAge(now = Date.now()) {
+  try {
+    listInto('evidence-age-results', evidenceAgeCheck(packet, Number($('evidence-age-limit').value), now).map(item =>
+      item.id + ': ' + item.status + (item.ageHours === null ? '' : ' (' + item.ageHours.toFixed(2) + ' hours before cutoff)')), 'No sources to check.');
+  } catch (error) { listInto('evidence-age-results', [error.message], ''); }
+}
+$('evidence-age-limit').addEventListener('input', () => renderEvidenceAge());
 $('source-type').addEventListener('change', renderSources);
 
 function renderOverview(now) {

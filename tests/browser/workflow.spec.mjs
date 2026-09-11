@@ -25,3 +25,14 @@ test('evidence chronology remains complete when source cards are filtered', asyn
   await expect(page.locator('#evidence-chronology li')).toHaveCount(4);
   await expect(page.locator('#evidence-chronology')).toContainText('example-activity captured');
 });
+
+test('evidence-age policy errors recover and do not modify the packet gate', async ({ page }) => {
+  await page.getByText('Source recency and review coverage', { exact: true }).click();
+  await page.locator('#evidence-age-limit').fill('0.1');
+  await expect(page.locator('#evidence-age-results')).toContainText('EXCEEDS_LIMIT');
+  await page.locator('#evidence-age-limit').fill('');
+  await expect(page.locator('#evidence-age-results')).toContainText('Use a capture-age limit');
+  await page.locator('#evidence-age-limit').fill('24');
+  await expect(page.locator('#evidence-age-results')).toContainText('WITHIN_LIMIT');
+  await expect(page.locator('#structure-status')).toHaveText('Structure complete');
+});

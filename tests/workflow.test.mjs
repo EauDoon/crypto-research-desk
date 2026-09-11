@@ -4,6 +4,16 @@ import * as research from '../web/packet.js';
 import { examplePacket } from '../web/example.js';
 const NOW = Date.parse('2026-08-20T10:00:00Z');
 
+test('capture-age policy preserves exact boundary and unknown dates without changing clearance', () => {
+  const packet = examplePacket(), before = JSON.stringify(packet);
+  assert.equal(research.evidenceAgeCheck(packet, 0.5, NOW)[0].status, 'WITHIN_LIMIT');
+  assert.equal(research.evidenceAgeCheck(packet, 0.49, NOW)[0].status, 'EXCEEDS_LIMIT');
+  assert.equal(JSON.stringify(packet), before);
+  packet.reference.capturedAt = '';
+  assert(research.evidenceAgeCheck(packet, 24, NOW).every(row => row.status === 'UNKNOWN'));
+  for (const value of [0, -1, NaN, Infinity, '24', 87601]) assert.throws(() => research.evidenceAgeCheck(examplePacket(), value, NOW), /capture-age limit/);
+});
+
 test('chronology orders actual instants, preserves publication and capture, and places unknowns last', () => {
   const packet = examplePacket();
   packet.sources[0].publishedAt = '';
