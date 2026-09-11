@@ -141,3 +141,22 @@ test('a delayed baseline import cannot replace a newer explicit pinned baseline'
   await page.evaluate(() => window.releaseBaselineRead());
   expect(JSON.parse(await exported(page, '#export-baseline')).thesis).toBe(examplePacket().thesis);
 });
+
+test('submitted risk worksheet preserves pending unknown assertions after renewal', async ({ page }) => {
+  expect(await exported(page, '#export-risk-worksheet')).toContain('deliver_with_warning');
+  await page.locator('#renew-packet').click(); await page.locator('#close-editor').click();
+  const csv = await exported(page, '#export-risk-worksheet');
+  expect(csv).toContain('pending'); expect(csv).toContain('UNKNOWN'); expect(csv).not.toContain('deliver_with_warning');
+});
+
+test('expanded workflow controls remain accessible at mobile and desktop widths', async ({ page }, testInfo) => {
+  await page.getByText('Explore submitted scenario intervals', { exact: true }).click();
+  await page.getByText('Source recency and review coverage', { exact: true }).click();
+  await page.getByText('Open packet comparison', { exact: true }).click();
+  for (const width of [1440, 768, 390, 320]) {
+    await page.setViewportSize({ width, height: 900 });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    expect((await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze()).violations.map(item => item.id)).toEqual([]);
+    if (testInfo.project.name === 'chromium' && [1440, 390].includes(width)) await page.screenshot({ path: '../evidence/crypto-research-desk-workflow-' + width + '.png', fullPage: true });
+  }
+});

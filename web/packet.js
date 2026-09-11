@@ -942,6 +942,18 @@ export function exportMonitoringCsv(packet, now = Date.now()) {
     ...checklist.rows.map(row => [packet.kind, packet.asset.symbol, packet.reference.capturedAt, row.horizon, row.endAt, row.scenario, row.trigger, row.invalidation])]);
 }
 
+export function exportRiskWorksheetCsv(packet, now = Date.now()) {
+  if (!validatePacket(packet, now).valid) throw new Error('Risk worksheet export requires a structurally valid packet.');
+  const severity = { high: 0, medium: 1, low: 2 }, review = packet.riskReview;
+  const assertions = [...review.assertions].sort((left, right) =>
+    Number(left.result === 'PASS') - Number(right.result === 'PASS') || severity[left.severity] - severity[right.severity]
+    || left.id.localeCompare(right.id));
+  return csvRows([['authority', 'kind', 'asset', 'reference_cutoff', 'submitted_disposition', 'reviewer_alias_unverified',
+    'reviewed_at', 'assertion_id', 'submitted_result', 'severity', 'submitted_evidence', 'repair', 'submitted_source_ids'],
+    ...assertions.map(row => ['RESEARCH_ONLY', packet.kind, packet.asset.symbol, packet.reference.capturedAt,
+      review.status, review.reviewer, review.reviewedAt, row.id, row.result, row.severity, row.evidence, row.repair, review.sourceIds.join('; ')])]);
+}
+
 export function renewResearchPacket(packet, now = Date.now()) {
   if (!validatePacket(packet, now).valid) throw new Error('Renewal requires a structurally valid packet.');
   const draft = JSON.parse(JSON.stringify(packet)), blank = blankPacket();

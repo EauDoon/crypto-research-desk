@@ -1,7 +1,7 @@
 import {
   MAX_PACKET_BYTES, MAX_JSON_INPUT_BYTES, HORIZONS, SCENARIOS, REVIEW_ASSERTIONS, parsePacket, validatePacket, blankPacket,
   timestamp, endAt, formatDate, formatPrice, safeSourceUrl, intervalLabel, returnLabel, chartThresholds, exportMarkdown, repairQueue, evidenceAudit, sourceMatches, horizonOverview, exportScenarioCsv, comparePackets, riskHandoff, restoreResearchDraft, referenceSensitivity, validationReceipt, sourceOriginAudit, exportEvidenceCsv, verifyReceipt, exportResearchBundle, readResearchBundle, monitoringChecklist, exportMonitoringCsv, renewResearchPacket,
-  repairWorksheet, evidenceChronology, evidenceAgeCheck, filterEvidence, sourceCitation, classifyHypotheticalPrice, intervalProbabilityBounds, comparisonWorksheet,
+  repairWorksheet, evidenceChronology, evidenceAgeCheck, filterEvidence, sourceCitation, classifyHypotheticalPrice, intervalProbabilityBounds, comparisonWorksheet, exportRiskWorksheetCsv,
 } from './packet.js';
 import { examplePacket } from './example.js';
 
@@ -1151,6 +1151,10 @@ $('export-risk-handoff').addEventListener('click', () => {
     download(JSON.stringify(riskHandoff(packet), null, 2) + '\n', 'application/json; charset=utf-8', 'Independent Review Handoff.json');
     announce('Incomplete risk handoff prepared. Attach the mandate, run ledger, and conflict receipts before independent review.');
   } catch (error) { announce(error.message, true); }
+});
+$('export-risk-worksheet').addEventListener('click', () => {
+  try { download(exportRiskWorksheetCsv(packet), 'text/csv; charset=utf-8', 'Submitted Risk Worksheet.csv'); announce('Submitted assertion worksheet exported. Non-PASS assertions appear first by severity. Reviewer identity and evidence remain unverified.'); }
+  catch (error) { announce(error.message, true); }
 });
 
 $('undo-edit').addEventListener('click', () => {

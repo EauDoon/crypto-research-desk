@@ -4,6 +4,18 @@ import * as research from '../web/packet.js';
 import { examplePacket } from '../web/example.js';
 const NOW = Date.parse('2026-08-20T10:00:00Z');
 
+test('risk worksheet prioritizes unresolved assertions and escapes spreadsheet values', () => {
+  const packet = examplePacket(); packet.riskReview = research.blankPacket().riskReview;
+  const assertions = packet.riskReview.assertions;
+  assertions[0].result = 'PASS'; assertions[1].severity = 'low'; assertions[2].repair = '=SUM(1,2)';
+  const before = JSON.stringify(packet), csv = research.exportRiskWorksheetCsv(packet, NOW);
+  assert(csv.includes("'=SUM(1,2)")); assert(csv.includes('pending')); assert(csv.includes('RESEARCH_ONLY'));
+  assert.equal(csv.trim().split('\r\n').length, 6);
+  assert(csv.indexOf(',"' + assertions[0].id + '",') > csv.indexOf(',"' + assertions[2].id + '",'));
+  assert.equal(JSON.stringify(packet), before);
+  assert.throws(() => research.exportRiskWorksheetCsv({}, NOW), /structurally valid/);
+});
+
 test('comparison worksheets preserve full independent snapshots and exact changed values', () => {
   const previous = examplePacket(), current = examplePacket(); current.thesis = 'Changed\n' + 'detail '.repeat(500);
   const sheet = research.comparisonWorksheet(previous, current, NOW);
