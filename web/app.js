@@ -1,7 +1,7 @@
 import {
   MAX_PACKET_BYTES, MAX_JSON_INPUT_BYTES, HORIZONS, SCENARIOS, REVIEW_ASSERTIONS, parsePacket, validatePacket, blankPacket,
   timestamp, endAt, formatDate, formatPrice, safeSourceUrl, intervalLabel, returnLabel, chartThresholds, exportMarkdown, repairQueue, evidenceAudit, sourceMatches, horizonOverview, exportScenarioCsv, comparePackets, riskHandoff, restoreResearchDraft, referenceSensitivity, validationReceipt, sourceOriginAudit, exportEvidenceCsv, verifyReceipt, exportResearchBundle, readResearchBundle, monitoringChecklist, exportMonitoringCsv, renewResearchPacket,
-  repairWorksheet, evidenceChronology, evidenceAgeCheck, filterEvidence, sourceCitation, classifyHypotheticalPrice,
+  repairWorksheet, evidenceChronology, evidenceAgeCheck, filterEvidence, sourceCitation, classifyHypotheticalPrice, intervalProbabilityBounds,
 } from './packet.js';
 import { examplePacket } from './example.js';
 
@@ -1147,10 +1147,21 @@ $('undo-edit').addEventListener('click', () => {
 });
 
 function clearSensitivity() {
+  $('probability-lower').value = ''; $('probability-upper').value = ''; $('probability-results').replaceChildren(); $('probability-status').textContent = '';
   $('classification-price').value = ''; $('classification-results').replaceChildren(); $('classification-status').textContent = '';
   $('sensitivity-price').value = ''; $('sensitivity-status').textContent = ''; $('sensitivity-results').replaceChildren();
 }
 $('classification-price').addEventListener('input', () => { $('classification-results').replaceChildren(); $('classification-status').textContent = ''; });
+for (const id of ['probability-lower', 'probability-upper']) $(id).addEventListener('input', () => { $('probability-results').replaceChildren(); $('probability-status').textContent = ''; });
+$('calculate-probability-bounds').addEventListener('click', () => {
+  try {
+    if (!$('probability-lower').value.trim()) throw new Error('Enter the included lower price. Leave only the upper price blank for an unbounded interval.');
+    const lower = Number($('probability-lower').value), upper = $('probability-upper').value.trim() ? Number($('probability-upper').value) : null;
+    listInto('probability-results', intervalProbabilityBounds(packet, lower, upper).map(row =>
+      row.horizon + ': ' + row.minimumPercent + '% to ' + row.maximumPercent + '%'), 'No eligible scenarios.');
+    setText('probability-status', 'Bounds for [' + formatPrice(lower) + ', ' + (upper === null ? 'unbounded' : formatPrice(upper)) + ') ' + packet.asset.quoteCurrency + '. Submitted interval masses only; no distribution within a scenario is assumed.');
+  } catch (error) { $('probability-results').replaceChildren(); setText('probability-status', error.message); }
+});
 $('classify-price').addEventListener('click', () => {
   try {
     if (!$('classification-price').value.trim()) throw new Error('Enter a hypothetical price, including 0 when intended.');

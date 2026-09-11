@@ -4,6 +4,31 @@ import * as research from '../web/packet.js';
 import { examplePacket } from '../web/example.js';
 const NOW = Date.parse('2026-08-20T10:00:00Z');
 
+test('probability bounds use whole-bin mass, exact decimal arithmetic and no uniform assumption', () => {
+  const packet = examplePacket(), [bear, base, bull] = packet.horizons[0].scenarios;
+  assert.deepEqual(research.intervalProbabilityBounds(packet, 0, null, NOW)[0], { horizon: '12h', minimumPercent: 100, maximumPercent: 100 });
+  assert.deepEqual(research.intervalProbabilityBounds(packet, base.lower, base.upper, NOW)[0], { horizon: '12h', minimumPercent: base.probability, maximumPercent: base.probability });
+  assert.equal(research.intervalProbabilityBounds(packet, 100, 101, NOW)[0].minimumPercent, 0);
+  assert.equal(research.intervalProbabilityBounds(packet, 100, 101, NOW)[0].maximumPercent, base.probability);
+  assert.equal(research.intervalProbabilityBounds(packet, bull.lower, null, NOW)[0].minimumPercent, bull.probability);
+  [bear.probability, base.probability, bull.probability] = [33.33, 33.33, 33.34];
+  assert.equal(research.intervalProbabilityBounds(packet, 0, null, NOW)[0].minimumPercent, 100);
+  for (const [lower, upper] of [[-1, null], [0, 0], [3, 2], [NaN, null], [0, Infinity], [0, '100']]) assert.throws(() => research.intervalProbabilityBounds(packet, lower, upper, NOW), /lower price/);
+  packet.riskReview.status = 'pending'; assert.throws(() => research.intervalProbabilityBounds(packet, 0, null, NOW), /withheld/);
+});
+
+test('probability bounds contain independently enumerated mass placements', () => {
+  const packet = examplePacket(), bins = packet.horizons[0].scenarios;
+  for (const lower of [0, 47, 94, 100, 106, 500]) for (const upper of [50, 94, 100, 106, 200, null]) {
+    if (upper !== null && upper <= lower) continue;
+    const result = research.intervalProbabilityBounds(packet, lower, upper, NOW)[0];
+    for (const a of [0, 47, 93.99]) for (const b of [94, 100, 105.99]) for (const c of [106, 200, 1000]) {
+      const mass = [a, b, c].reduce((sum, value, index) => sum + (value >= lower && (upper === null || value < upper) ? bins[index].probability : 0), 0);
+      assert(result.minimumPercent <= mass && result.maximumPercent >= mass);
+    }
+  }
+});
+
 test('hypothetical prices use half-open boundaries and never mutate or bypass review', () => {
   const packet = examplePacket(), before = JSON.stringify(packet), [bear, base] = packet.horizons[0].scenarios;
   assert.equal(research.classifyHypotheticalPrice(packet, 0, NOW)[0].scenario, 'Bear');

@@ -808,6 +808,21 @@ export function classifyHypotheticalPrice(packet, price, now = Date.now()) {
   });
 }
 
+export function intervalProbabilityBounds(packet, lower, upper, now = Date.now()) {
+  if (!validatePacket(packet, now).chartEligible) throw new Error('Probability bounds are withheld by the current packet gate.');
+  if (!finitePrice(lower) || (upper !== null && (!finitePrice(upper) || upper <= lower))) throw new Error('Use a nonnegative lower price and a greater upper price, or leave the upper bound unbounded.');
+  const ceiling = upper ?? Infinity;
+  return packet.horizons.map(horizon => {
+    let minimum = 0, maximum = 0;
+    for (const scenario of horizon.scenarios) {
+      const end = scenario.upper ?? Infinity, mass = Math.round(scenario.probability * 100);
+      if (scenario.lower >= lower && end <= ceiling) minimum += mass;
+      if (scenario.lower < ceiling && end > lower) maximum += mass;
+    }
+    return { horizon: horizon.id, minimumPercent: minimum / 100, maximumPercent: maximum / 100 };
+  });
+}
+
 export async function validationReceipt(packet, now = Date.now()) {
   const report = validatePacket(packet, now);
   if (!report.valid) throw new Error('A check receipt requires a structurally valid packet.');

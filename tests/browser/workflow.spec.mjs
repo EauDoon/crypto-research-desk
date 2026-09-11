@@ -84,3 +84,15 @@ test('hypothetical classification has keyboard, empty-input, edit and gate recov
   await page.locator('#classification-price').fill('100'); await page.locator('#classify-price').click();
   await expect(page.locator('#classification-status')).toContainText('withheld');
 });
+
+test('range probability bounds distinguish partial bins and recover from invalid ranges', async ({ page }) => {
+  await page.getByText('Explore submitted scenario intervals', { exact: true }).click();
+  await page.locator('#probability-lower').fill('0'); await page.locator('#calculate-probability-bounds').click();
+  await expect(page.locator('#probability-results')).toContainText('12h: 100% to 100%');
+  await page.locator('#probability-lower').fill('100'); await page.locator('#probability-upper').fill('101');
+  await page.locator('#calculate-probability-bounds').click();
+  await expect(page.locator('#probability-results')).toContainText('12h: 0% to');
+  await page.locator('#probability-upper').fill('99'); await page.locator('#calculate-probability-bounds').click();
+  await expect(page.locator('#probability-results')).toBeEmpty();
+  await expect(page.locator('#probability-status')).toContainText('greater upper price');
+});

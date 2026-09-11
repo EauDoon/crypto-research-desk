@@ -146,6 +146,13 @@
           <button id="classify-price" class="button small" type="button">Locate hypothetical price</button>
           <p id="classification-status" role="status" class="small-copy"></p>
           <ul id="classification-results" class="text-list"></ul>
+          <h3>Bound a price-range probability</h3>
+          <p class="small-copy">A partially intersected scenario may contribute none or all of its submitted probability. The minimum counts fully contained scenarios; the maximum counts all intersecting scenarios. These are bounds on supplied judgments, not calibrated likelihoods.</p>
+          <label for="probability-lower">Included lower price<input id="probability-lower" type="number" min="0" max="1000000000000" step="any"></label>
+          <label for="probability-upper">Excluded upper price (blank means unbounded)<input id="probability-upper" type="number" min="0" max="1000000000000" step="any"></label>
+          <button id="calculate-probability-bounds" class="button small" type="button">Calculate probability bounds</button>
+          <p id="probability-status" role="status" class="small-copy"></p>
+          <ul id="probability-results" class="text-list"></ul>
         </details>
         <details><summary>Plan manual research monitoring</summary>
           <p class="small-copy">Review submitted triggers and invalidations across horizons. This is a manual worksheet; no alerts, market checks, orders, or probability updates run in the background.</p>
