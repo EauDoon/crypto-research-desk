@@ -4,6 +4,13 @@ import * as research from '../web/packet.js';
 import { examplePacket } from '../web/example.js';
 const NOW = Date.parse('2026-08-20T10:00:00Z');
 
+test('source citations retain full provenance, multiline excerpts and unknowns', () => {
+  const packet = examplePacket(); packet.sources[0].excerpt = 'Original line\nSecond line'; packet.sources[0].publishedAt = '';
+  const citation = research.sourceCitation(packet, packet.sources[0].id, NOW);
+  for (const text of ['SYNTHETIC', packet.reference.capturedAt, packet.sources[0].url, 'Original line\nSecond line', 'Published: UNKNOWN', 'unverified']) assert(citation.includes(text));
+  assert.throws(() => research.sourceCitation(packet, 'missing', NOW), /Choose a source/);
+});
+
 test('evidence filters intersect literal search, source type and self-reported coverage', () => {
   const packet = examplePacket(); packet.riskReview = research.blankPacket().riskReview;
   packet.riskReview.sourceIds = [packet.sources[0].id];

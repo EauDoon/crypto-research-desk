@@ -1,7 +1,7 @@
 import {
   MAX_PACKET_BYTES, MAX_JSON_INPUT_BYTES, HORIZONS, SCENARIOS, REVIEW_ASSERTIONS, parsePacket, validatePacket, blankPacket,
   timestamp, endAt, formatDate, formatPrice, safeSourceUrl, intervalLabel, returnLabel, chartThresholds, exportMarkdown, repairQueue, evidenceAudit, sourceMatches, horizonOverview, exportScenarioCsv, comparePackets, riskHandoff, restoreResearchDraft, referenceSensitivity, validationReceipt, sourceOriginAudit, exportEvidenceCsv, verifyReceipt, exportResearchBundle, readResearchBundle, monitoringChecklist, exportMonitoringCsv, renewResearchPacket,
-  repairWorksheet, evidenceChronology, evidenceAgeCheck, filterEvidence,
+  repairWorksheet, evidenceChronology, evidenceAgeCheck, filterEvidence, sourceCitation,
 } from './packet.js';
 import { examplePacket } from './example.js';
 
@@ -315,7 +315,15 @@ function renderSources() {
       const target = field('source-' + index + '-claim');
       target.focus({ preventScroll: true }); revealEditorTarget(target);
     });
-    content.append(heading, element('p', source.claim), details, editSource);
+    const copyCitation = element('button', 'Copy source citation', 'button small subtle');
+    copyCitation.type = 'button'; copyCitation.setAttribute('aria-label', 'Copy citation for ' + source.id);
+    copyCitation.addEventListener('click', async () => {
+      copyCitation.disabled = true;
+      try { await navigator.clipboard.writeText(sourceCitation(packet, source.id)); announce('Source citation copied with raw dates, claim, excerpt and research provenance.'); }
+      catch { announce('Clipboard unavailable. Export complete evidence CSV to retain this source and its provenance.', true); }
+      finally { copyCitation.disabled = false; }
+    });
+    content.append(heading, element('p', source.claim), details, editSource, copyCitation);
     const dates = element('dl', undefined, 'source-dates');
     for (const [key, label] of [['publishedAt', 'Published'], ['capturedAt', 'Captured']]) {
       const item = element('div'); item.append(element('dt', label), element('dd', formatDate(source[key]))); dates.append(item);

@@ -849,6 +849,17 @@ export function exportEvidenceCsv(packet, now = Date.now()) {
   return csvRows(rows);
 }
 
+export function sourceCitation(packet, sourceId, now = Date.now()) {
+  if (!validatePacket(packet, now).valid) throw new Error('Citation copying requires a structurally valid packet.');
+  const source = packet.sources.find(item => item.id === sourceId);
+  if (!source) throw new Error('Choose a source in the open packet.');
+  return ['RESEARCH ONLY | ' + packet.kind.toUpperCase() + ' | supplied, unverified evidence',
+    'Asset: ' + (packet.asset.symbol || 'UNKNOWN') + ' | Reference cutoff: ' + (packet.reference.capturedAt || 'UNKNOWN'),
+    'Source: ' + source.id + ' | ' + source.title, 'URL: ' + source.url, 'Type as recorded: ' + source.type,
+    'Published: ' + (source.publishedAt || 'UNKNOWN'), 'Captured: ' + (source.capturedAt || 'UNKNOWN'),
+    'Claim: ' + (source.claim || 'UNKNOWN'), 'Supplied excerpt: ' + (source.excerpt || 'UNKNOWN')].join('\n') + '\n';
+}
+
 export async function verifyReceipt(text, packet, now = Date.now()) {
   if (typeof text !== 'string' || new TextEncoder().encode(text).length > 65536) throw new Error('Receipt JSON must be at most 64 KiB.');
   const receipt = parsePacket(text);

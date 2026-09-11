@@ -135,6 +135,8 @@ The review editor includes **Select sources actually reviewed**. Its checkboxes 
 **Start renewal draft** carries forward source records, their original dates, asset identity, and research notes as unverified starting material. It clears the common reference price/cutoff, every forecast scenario, and the prior review. All four horizons remain incomplete until newly supported inputs are provided. The packet kind remains unchanged, so fictional examples never silently become research. Session undo can restore earlier research inputs, while keeping review pending.
 # Research workflow worksheets
 
+Copy source citation puts one complete plain-text source record on the clipboard, including asset, cutoff, URL, raw dates, type as recorded, claim, excerpt, and synthetic/unverified labeling. It does not open the source. If clipboard access is denied, use the complete evidence CSV export.
+
 Evidence cards can be filtered by listed or unlisted submitted review coverage, together with source type and literal text search. Coverage is self-reported. Editing research clears review coverage through the existing reset path. CSV and print still contain all evidence records.
 
 The capture-age limit flags sources older than a chosen number of hours at the packet cutoff, with equality inside the limit. Missing capture/cutoff stays UNKNOWN. The default 24 hours is an editable inspection aid, not a market-data freshness policy or review clearance; it resets on reload.

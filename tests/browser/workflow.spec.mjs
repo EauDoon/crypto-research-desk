@@ -48,3 +48,22 @@ test('coverage filtering exposes unlisted sources after edits and preserves raw 
   await page.locator('#source-search').fill('upgrade');
   await expect(page.locator('#source-results')).toContainText('1 of 2');
 });
+
+test('citation copy gives a usable recovery when browser clipboard access fails', async ({ page }) => {
+  await page.evaluate(() => Object.defineProperty(navigator, 'clipboard', { value: { writeText: async () => { throw new Error('denied'); } }, configurable: true }));
+  const button = page.getByRole('button', { name: 'Copy citation for example-upgrade', exact: true });
+  await button.focus(); await page.keyboard.press('Enter');
+  await expect(page.locator('#app-error')).toContainText('Export complete evidence CSV');
+  await expect(button).toBeEnabled();
+  expect(await exported(page, '#export-evidence-csv')).toContain('example-upgrade');
+});
+
+test('citation copy places full source provenance on the browser clipboard', async ({ page, context, browserName }) => {
+  test.skip(browserName !== 'chromium', 'Clipboard read permission is not supported by the Firefox automation API.');
+  await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+  await page.getByRole('button', { name: 'Copy citation for example-upgrade', exact: true }).click();
+  await expect(page.locator('#notice')).toContainText('Source citation copied');
+  const copied = await page.evaluate(() => navigator.clipboard.readText());
+  expect(copied).toContain('RESEARCH ONLY | SYNTHETIC');
+  expect(copied).toContain(examplePacket().sources[0].excerpt);
+});
