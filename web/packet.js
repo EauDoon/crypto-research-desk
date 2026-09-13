@@ -743,7 +743,7 @@ export function comparePackets(previous, current, now = Date.now()) {
       for (const id of new Set([...before.keys(), ...after.keys()])) walk(before.get(id), after.get(id), path + '[' + id + ']');
       return;
     }
-    if (path === 'riskReview.sourceIds') { left = [...left].sort(); right = [...right].sort(); }
+    if (path === 'riskReview.sourceIds' || path === 'risks' || path === 'unknowns') { left = [...left].sort(); right = [...right].sort(); }
     if (left !== null && right !== null && typeof left === 'object' && typeof right === 'object' && Array.isArray(left) === Array.isArray(right)) {
       for (const key of new Set([...Object.keys(left), ...Object.keys(right)])) walk(left[key], right[key], path ? path + (Array.isArray(right) ? '[' + key + ']' : '.' + key) : key);
     } else if (left !== right) {
