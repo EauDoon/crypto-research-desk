@@ -18,7 +18,7 @@ If a change does not serve one of those five jobs, it does not belong here.
 
 ## What this repo is not
 
-- No order placement, routing, or “simulate as filled.”
+- No order placement, routing, or "simulate as filled."
 - No exchange, broker, wallet, custodian, or trading API.
 - No seed phrases, keys, passwords, or session tokens.
 - No allocation sizing while the mandate is incomplete.
