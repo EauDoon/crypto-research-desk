@@ -18,8 +18,6 @@
 - Preserve schema version 1 and research core 1.1.0, including all five specialists and independent risk requirements.
 
 
-## Unreleased
-
 ## 1.8.1, 30-08-2026
 
 - Accepted safely normalized internationalized top-level domains in public HTTPS evidence links.
