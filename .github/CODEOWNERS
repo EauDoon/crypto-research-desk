@@ -1,0 +1,10 @@
+# CODEOWNERS for crypto-research-desk
+#
+# This repository is a frozen multi-agent charter: conventions, schemas,
+# and shared rules are intentionally versioned and rarely changed.
+# All paths are owned by the single repository owner.
+#
+# Reviews and approvals on any PR touching this repo must come from the
+# owner listed below. Do not bypass via shared write access or web edits.
+
+* @EauDoon
