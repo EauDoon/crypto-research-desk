@@ -1,5 +1,9 @@
 # Crypto Research Desk
 
+[![build](https://img.shields.io/github/actions/workflow/status/EauDoon/crypto-research-desk/ci.yml?branch=main)](https://github.com/EauDoon/crypto-research-desk/actions)
+[![license](https://img.shields.io/github/license/EauDoon/crypto-research-desk)](https://github.com/EauDoon/crypto-research-desk/blob/main/LICENSE)
+[![last commit](https://img.shields.io/github/last-commit/EauDoon/crypto-research-desk)](https://github.com/EauDoon/crypto-research-desk)
+
 This repository ships a local, browser-only workbench for inspecting, editing, reviewing, and exporting research-only crypto forecast packets. It loads a synthetic `DEMO` packet by default so the delivered interface can be explored without a live feed, account connection, or trading action path.
 
 Research remains governed by [AGENTS.md](AGENTS.md), the frozen project charter. [STAND-UP.md](STAND-UP.md) contains the cross-host team setup, and [docs/WORKBENCH.md](docs/WORKBENCH.md) documents the packet schema and local tools.
