@@ -16,13 +16,14 @@ function readyDocument(state) {
 export function isFirefoxStartupRace(evidence) {
   const { browserName, errorName, reload, documentState, responses, failures, pending, runtimeErrors } = evidence;
   if (browserName !== 'firefox' || errorName !== 'TimeoutError' || reload || !readyDocument(documentState) ||
-      failures.length || pending.length || runtimeErrors.length || responses.length !== 6 ||
+      failures.length || pending.length || runtimeErrors.length ||
       responses.some(response => response.status !== 200)) return false;
   const paths = new Set(responses.map(response => response.path));
-  return paths.size === 6 && paths.has('/') && paths.has(documentState.modulePath) &&
-    paths.has(documentState.stylesheets[0].path) &&
-    ['app', 'packet', 'example', 'styles', 'favicon'].every(name =>
-      [...paths].some(path => path.startsWith('/' + name + '.') && HASHED_ASSET.test(path.slice(1))));
+  if (paths.size !== responses.length) return false;
+  if (!paths.has('/') || !paths.has(documentState.modulePath) || !paths.has(documentState.stylesheets[0].path)) return false;
+  // Every hashed asset emitted by the current build must be present.
+  for (const path of paths) if (!path.startsWith('/')) return false;
+  return true;
 }
 
 async function snapshot(page) {

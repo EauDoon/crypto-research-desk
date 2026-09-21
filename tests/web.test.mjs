@@ -109,8 +109,8 @@ test('the build is deterministic and publishes only the reviewed static allowlis
   assert.equal(first.workbenchVersion, '1.10.0');
   assert.equal(first.researchCoreVersion, '1.1.0');
   assert.equal(first.files.length, PUBLIC_FILES.length);
-  assert.equal(first.files.filter(name => HASHED_ASSET.test(name)).length, 5);
-  assert.equal((await readdir(join(directory, 'dist'))).length, 9);
+  assert.equal(first.files.filter(name => HASHED_ASSET.test(name)).length, 18);
+  assert.equal((await readdir(join(directory, 'dist'))).length, 22);
   assert.ok(!first.files.includes('private-notes.md'));
   assert.deepEqual(await verifyBuild(join(directory, 'dist')), first);
   const html = await readFile(join(directory, 'dist', 'index.html'), 'utf8');

@@ -215,7 +215,20 @@ export async function build(root = projectRoot, { beforePublish } = {}) {
     const files = new Map();
     const names = {};
     // Dependencies are rewritten before hashing their importers.
-    for (const name of ['favicon.svg', 'packet.js', 'example.js', 'app.js', 'styles.css']) {
+    // Split siblings are processed before the entry points so that the
+    // re-export shims (app.js, packet.js) see the hashed names of every
+    // sibling they import from. example.js imports from packet.js, so the
+    // packet re-export shim is hashed first.
+    for (const name of [
+      'favicon.svg', 'styles.css',
+      'packet-constants.js', 'packet-parse.js', 'packet-validate.js',
+      'packet-format.js', 'packet-export.js', 'packet-receipts.js', 'packet-actions.js',
+      'packet.js',
+      'example.js',
+      'app-utils.js', 'app-state.js', 'app-editor.js', 'app-render.js',
+      'app-events.js', 'app-bootstrap.js',
+      'app.js',
+    ]) {
       let contents = originals[name];
       for (const [original, replacement] of Object.entries(names)) contents = contents.replaceAll('./' + original, './' + replacement);
       const extension = name.slice(name.lastIndexOf('.'));
@@ -258,8 +271,8 @@ function validateManifest(manifest, source) {
     || Object.keys(manifest).some((key, index) => key !== MANIFEST_KEYS[index])
     || manifest.formatVersion !== 2
     || !validSemver(manifest.workbenchVersion) || !validSemver(manifest.researchCoreVersion)
-    || !Array.isArray(manifest.files) || manifest.files.length !== 8
-    || new Set(manifest.files).size !== 8
+    || !Array.isArray(manifest.files) || manifest.files.length !== 21
+    || new Set(manifest.files).size !== 21
     || !manifest.files.every(name => typeof name === 'string' && MANAGED_FILE(name))
     || manifest.files.some((name, index) => index > 0 && asciiOrder(manifest.files[index - 1], name) >= 0)
     || ['index.html', '404.html', 'robots.txt'].some(name => !manifest.files.includes(name))
@@ -267,7 +280,8 @@ function validateManifest(manifest, source) {
     throw new Error('Invalid build manifest.');
   }
   if (source !== manifestText(manifest)) throw new Error('Build manifest is not canonical.');
-  for (const stem of ['app', 'packet', 'example', 'styles', 'favicon']) {
+  for (const stem of ['app', 'packet', 'example', 'styles', 'favicon', 'app-bootstrap', 'app-editor', 'app-events', 'app-render', 'app-state', 'app-utils',
+    'packet-actions', 'packet-constants', 'packet-export', 'packet-format', 'packet-parse', 'packet-receipts', 'packet-validate']) {
     if (manifest.files.filter(name => HASHED_ASSET.test(name) && name.startsWith(stem + '.')).length !== 1) {
       throw new Error('Missing or duplicate built asset.');
     }
@@ -287,7 +301,7 @@ export async function loadVerifiedBuild(directory = join(projectRoot, 'dist')) {
   if (manifest.researchCoreVersion !== release.researchCoreVersion) throw new Error('Built research-core version mismatch.');
   if (manifest.workbenchVersion !== release.workbenchVersion) throw new Error('Built workbench version mismatch.');
   const existing = await readdir(directory);
-  if (existing.length !== 9 || existing.some(name => name !== 'build-info.json' && !manifest.files.includes(name))) throw new Error('Unexpected public output.');
+  if (existing.length !== 22 || existing.some(name => name !== 'build-info.json' && !manifest.files.includes(name))) throw new Error('Unexpected public output.');
   const files = new Map();
   for (const name of manifest.files) {
     await regular(join(directory, name));
