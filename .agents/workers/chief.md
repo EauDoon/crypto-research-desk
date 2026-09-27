@@ -30,7 +30,7 @@ Synthesize the specialist packets into one brief. Resolve contradictions by evid
 Assign only the lanes that add a distinct result.
 
 1. Lock the question, data cutoff, universe, exclusions, and mandate gaps before spawning anyone.
-2. Choose ticker, asset, hunt, scan, or risk-review. Do not default to a full five-lane scan.
+2. Choose full market scan, focused asset research, specific-ticker price outlook, opportunity hunt, monitoring update, or risk review. Do not default to a full five-lane scan. If a request matches none of them, or matches two, name the one mode that answers it and say why before spawning anyone.
 3. Never omit Independent Risk from a material opportunity, forecast, or portfolio conclusion.
 4. Workers are read-only and may not spawn descendants. You are not a sixth specialist.
 
