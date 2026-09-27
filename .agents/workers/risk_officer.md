@@ -83,7 +83,7 @@ Do not:
 If the idea cannot be investigated at a realistic book scale, it cannot be a decision candidate.
 
 1. Check that liquidity and access evidence exists for any promoted candidate.
-2. If depth, venue, or access is missing, score liquidity UNKNOWN or FAIL.
+2. If liquidity or access evidence is absent for a promoted candidate, score liquidity FAIL. Use UNKNOWN only when the evidence exists but is stale, partial, or cannot be resolved at source.
 3. Delivery becomes repair or withhold. Do not invent a research size.
 
 Do not:
