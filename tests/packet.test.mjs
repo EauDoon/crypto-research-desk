@@ -611,3 +611,31 @@ test('mixed-script source hosts are rejected', () => {
   assert.notEqual(safeSourceUrl('https://\u043f\u0440\u0438\u043c\u0435\u0440.\u0440\u0444/a'), null);
   assert.equal(safeSourceUrl('https://www.iana.org/domains/reserved'), 'https://www.iana.org/domains/reserved');
 });
+
+test('raw and percent-encoded non-separator characters are one source', () => {
+  for (const [first, second] of [
+    ['https://www.iana.org/q?a=%2B', 'https://www.iana.org/q?a=+'],
+    ['https://www.iana.org/a%5Bb%5D', 'https://www.iana.org/a[b]'],
+    ['https://www.iana.org/q?a=%21', 'https://www.iana.org/q?a=!'],
+  ]) {
+    const packet = research();
+    packet.sources[0].url = first;
+    packet.sources[1].url = second;
+    const report = validate(packet);
+    assert.equal(report.valid, false, second);
+    assert.ok(report.errors.some(issue => issue.path === 'sources[1].url' && issue.message.includes('duplicates')), second);
+  }
+  for (const second of [
+    'https://www.iana.org/domains%2Freserved',
+    'https://www.iana.org/q?a=%26',
+    'https://www.iana.org/q?a%3Db',
+  ]) {
+    const packet = research();
+    packet.sources[0].url = second.startsWith('https://www.iana.org/q')
+      ? 'https://www.iana.org/q?a=&' : 'https://www.iana.org/domains/reserved';
+    if (second.includes('%3D')) packet.sources[0].url = 'https://www.iana.org/q?a=b';
+    if (second.includes('%26')) packet.sources[0].url = 'https://www.iana.org/q?a=&';
+    packet.sources[1].url = second;
+    assert.equal(validate(packet).chartEligible, true, second);
+  }
+});

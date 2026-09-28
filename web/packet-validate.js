@@ -56,7 +56,14 @@ function sourceUrlIdentity(value) {
         continue;
       }
       flush();
-      output += component[index];
+      const raw = component[index];
+      // Encode raw ASCII that is neither unreserved nor a separator so it matches
+      // its percent-encoded form. Slashes, query separators, and equals stay literal
+      // so %2F, %26, and %3D remain different sources.
+      const separator = raw === '/' || raw === '?' || raw === '&' || raw === '=' || raw === '#';
+      output += raw.codePointAt(0) < 0x80 && !/^[A-Za-z0-9._~-]$/.test(raw) && !separator
+        ? '%' + raw.charCodeAt(0).toString(16).toUpperCase().padStart(2, '0')
+        : raw;
       index += 1;
     }
     flush();
