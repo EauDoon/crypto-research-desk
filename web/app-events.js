@@ -11,7 +11,7 @@ import { examplePacket } from './example.js';
 import {
   packet, activeHorizon, dirty, undoHistory, pinnedBaseline, comparisonBaseline,
   baselineImportSequence, receiptCheckSequence, editorMode, editorInitial, editor,
-  form, importSequence, printDetailsState, unreadableSavedDraft, lastValidation,
+  form, importSequence, editorOpener, printDetailsState, unreadableSavedDraft, lastValidation,
   methodLabels,
   setActiveHorizon, setDirty, popUndo, setPinnedBaseline, setComparisonBaseline,
   incrementBaselineImportSequence, setBaselineImportSequence, incrementReceiptCheckSequence,
