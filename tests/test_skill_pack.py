@@ -7,11 +7,13 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 SKILLS = ROOT / ".agents" / "skills"
+WORKERS = ROOT / ".agents" / "workers"
 CATALOGUE = ROOT / "docs" / "SKILLS.md"
 UMBRELLA = "crypto-fund-research"
 AUTHORITY = "Research, monitoring, and written analysis only. No orders, wallets, credentials, or external financial action."
 FRONT_MATTER = re.compile(r"^---\nname: (\S+)\ndescription: \S.+\n---\n", re.MULTILINE)
 LANE = re.compile(r"^Lane: (.+)$", re.MULTILINE)
+LANE_ID = re.compile(r"^Lane: .*\(`([^`]+)`\)\s*$", re.MULTILINE)
 HEADING = re.compile(r"^## (.+)$", re.MULTILINE)
 CATALOGUE_ROW = re.compile(r"^\| \[`([^`]+)`\]\(\.\./\.agents/skills/([^/]+)/SKILL\.md\) \|")
 MARKDOWN_LINK = re.compile(r"\[[^\]]+\]\(([^)]+)\)")
@@ -76,6 +78,24 @@ class SkillPackTests(unittest.TestCase):
             with self.subTest(source=source.relative_to(ROOT).as_posix(), target=target):
                 resolved = (source.parent / target.split("#", 1)[0]).resolve()
                 self.assertTrue(resolved.exists(), f"dangling link to {target}")
+
+    def test_every_skill_lane_resolves_to_a_worker(self) -> None:
+        """A skill names the lane it belongs to. That lane must be spawnable.
+
+        The Lane line is how routing decides which worker receives a skill, so
+        a lane id with no worker file behind it is an instruction that can never
+        be dispatched, and a worker no skill names can never be given work.
+        """
+        workers = {path.stem for path in WORKERS.glob("*.md")}
+        lanes = {}
+        for skill in sorted(SKILLS.glob("*/SKILL.md")):
+            lane_id = LANE_ID.findall(skill.read_text(encoding="utf-8"))
+            if skill.parent.name != UMBRELLA:
+                self.assertEqual(len(lane_id), 1, f"{skill.parent.name} names exactly one lane id")
+            lanes[skill.parent.name] = lane_id[0] if lane_id else None
+        used = {lane for lane in lanes.values() if lane}
+        self.assertEqual(sorted(used - workers), [], "skills name a lane with no worker file")
+        self.assertEqual(sorted(workers - used), [], "a worker file owns no skill")
 
 
 if __name__ == "__main__":
