@@ -522,6 +522,20 @@ test('required text rejects unicode line and paragraph separators', () => {
   assert.equal(validate(multiline).valid, true);
 });
 
+test('confusable reviewer aliases cannot pass as an independent review', () => {
+  for (const reviewer of ['\u0410lex', '\u0406ndependent', 'B\u039Fb']) {
+    const packet = research();
+    packet.preparedBy = reviewer === '\u0406ndependent' ? 'Independent' : reviewer === 'B\u039Fb' ? 'Bob' : 'Alex';
+    packet.riskReview.reviewer = reviewer;
+    assert.equal(validate(packet).valid, false, JSON.stringify(reviewer));
+    assert.ok(validate(packet).errors.some(issue => issue.path === 'riskReview.reviewer'), JSON.stringify(reviewer));
+  }
+  const distinct = research();
+  distinct.preparedBy = 'Alex';
+  distinct.riskReview.reviewer = 'Independent reviewer';
+  assert.equal(validate(distinct).chartEligible, true);
+});
+
 test('internationalized sources retain canonical Unicode and ACE spellings', () => {
   for (const host of ['例え.みんな', 'bücher.de', 'mañana.com', 'παράδειγμα.δοκιμή', 'مثال.إختبار', 'пример.рф', '例子.中国', '실례.한국', '例え.テスト', '日本語.jp', '💩.la']) {
     const canonical = new URL('https://' + host + '/evidence').href;
