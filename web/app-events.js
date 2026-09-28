@@ -214,6 +214,12 @@ $('export-brief').addEventListener('click', () => {
     announce('Brief export prepared, including unresolved gaps. Use Print / PDF for the chart.');
   } catch (error) { announce(error.message, true); }
 });
+$('export-monitoring').addEventListener('click', () => {
+  try {
+    download(exportMonitoringCsv(packet), 'text/csv; charset=utf-8', 'Monitoring Worksheet.csv');
+    announce('Manual monitoring worksheet prepared from the submitted triggers and invalidations. It runs no alerts, market checks, or probability updates.');
+  } catch (error) { announce(error.message, true); }
+});
 window.addEventListener('beforeprint', () => {
   if (printDetailsState) return;
   setPrintDetailsState([...document.querySelectorAll('details')].map(node => [node, node.open]));
