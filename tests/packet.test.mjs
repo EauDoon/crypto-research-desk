@@ -590,3 +590,14 @@ test('canonically equivalent Unicode in a source URL is one source', () => {
   distinct.sources[1].url = 'https://www.iana.org/cafe';
   assert.equal(validate(distinct).chartEligible, true);
 });
+
+test('unicode noncharacters are rejected in text and source URLs', () => {
+  for (const value of ['\uFFFE', '\uFFFF', '\uFDD0', '\u{10FFFF}']) {
+    const packet = research();
+    packet.thesis = 'Note ' + value;
+    assert.equal(validate(packet).valid, false, value.codePointAt(0).toString(16));
+    assert.equal(safeSourceUrl('https://www.iana.org/a' + value), null, value.codePointAt(0).toString(16));
+  }
+  assert.equal(safeSourceUrl('https://www.iana.org/a%EF%BF%BE'), null);
+  assert.equal(validate(research()).chartEligible, true);
+});

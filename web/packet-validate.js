@@ -117,6 +117,14 @@ function validEncodedSourceLabel(label) {
 
 const forbiddenDecodedUrl = /[\u0000-\u0020\u007f-\u009f]|\p{Cf}|\p{Zl}|\p{Zp}|\p{Default_Ignorable_Code_Point}/u;
 
+function hasNoncharacter(value) {
+  for (const char of value) {
+    const code = char.codePointAt(0);
+    if ((code & 0xFFFE) === 0xFFFE || (code >= 0xFDD0 && code <= 0xFDEF)) return true;
+  }
+  return false;
+}
+
 // Percent-encoding must not smuggle controls, format characters, or ill-formed UTF-8
 // past the raw-string check. Structural bytes such as %2F stay decodable and are
 // rejected only when the decoded character itself is forbidden.
@@ -143,7 +151,8 @@ function decodePercentUtf8(component) {
 
 export function safeSourceUrl(value) {
   if (typeof value !== 'string' || !wellFormed(value) || value.length > 2048
-    || /[\u0000-\u0020\u007f-\u009f]|\p{Cf}|\p{Zl}|\p{Zp}|\p{Default_Ignorable_Code_Point}/u.test(value)) return null;
+    || /[\u0000-\u0020\u007f-\u009f]|\p{Cf}|\p{Zl}|\p{Zp}|\p{Default_Ignorable_Code_Point}/u.test(value)
+    || hasNoncharacter(value)) return null;
   try {
     const url = new URL(value);
     const host = url.hostname.toLowerCase();
@@ -158,7 +167,7 @@ export function safeSourceUrl(value) {
     if (labels.some(label => !validEncodedSourceLabel(label))) return null;
     if ([url.pathname, url.search, url.hash].some(component => {
       const decoded = decodePercentUtf8(component);
-      return decoded === null || forbiddenDecodedUrl.test(decoded);
+      return decoded === null || forbiddenDecodedUrl.test(decoded) || hasNoncharacter(decoded);
     })) return null;
     return url.href;
   } catch { return null; }
@@ -209,7 +218,8 @@ export function validatePacket(packet, now = Date.now()) {
   }
   function text(value, path, required = true, limit = 5000) {
     if (typeof value !== 'string' || !wellFormed(value) || value.length > limit
-      || /[\u0000-\u0008\u000b-\u001f\u007f-\u009f]|\p{Cf}|\p{Zl}|\p{Zp}|\p{Default_Ignorable_Code_Point}/u.test(value ?? '')) {
+      || /[\u0000-\u0008\u000b-\u001f\u007f-\u009f]|\p{Cf}|\p{Zl}|\p{Zp}|\p{Default_Ignorable_Code_Point}/u.test(value ?? '')
+      || hasNoncharacter(value ?? '')) {
       error(path, 'Use bounded visible plain text without hidden formatting controls.'); return false;
     }
     if (required && !value.trim()) gap(path, 'Information is UNKNOWN.');
