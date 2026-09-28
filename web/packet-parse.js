@@ -5,7 +5,21 @@ const own = (value, key) => Object.prototype.hasOwnProperty.call(value, key);
 const record = value => value !== null && typeof value === 'object' && !Array.isArray(value)
   && [Object.prototype, null].includes(Object.getPrototypeOf(value));
 const present = value => typeof value === 'string' && value.trim().length > 0;
-const aliasKey = value => value.normalize('NFKC').replace(/\p{White_Space}+/gu, ' ').trim().toLocaleLowerCase('en-US');
+// Single-character Latin lookalikes from Cyrillic and Greek. NFKC already folds
+// compatibility forms such as fullwidth letters; this catches the homoglyphs it does not.
+const CONFUSABLE_LETTERS = new Map([
+  ['\u0410', 'A'], ['\u0430', 'a'], ['\u0412', 'B'], ['\u0415', 'E'], ['\u0435', 'e'],
+  ['\u041A', 'K'], ['\u043A', 'k'], ['\u041C', 'M'], ['\u043C', 'm'], ['\u041D', 'H'], ['\u043D', 'h'],
+  ['\u041E', 'O'], ['\u043E', 'o'], ['\u0420', 'P'], ['\u0440', 'p'], ['\u0421', 'C'], ['\u0441', 'c'],
+  ['\u0422', 'T'], ['\u0442', 't'], ['\u0423', 'Y'], ['\u0443', 'y'], ['\u0425', 'X'], ['\u0445', 'x'],
+  ['\u0406', 'I'], ['\u0456', 'i'], ['\u0408', 'J'], ['\u0458', 'j'], ['\u0405', 'S'], ['\u0455', 's'],
+  ['\u0391', 'A'], ['\u03B1', 'a'], ['\u0392', 'B'], ['\u0395', 'E'], ['\u03B5', 'e'],
+  ['\u0397', 'H'], ['\u03B7', 'n'], ['\u0399', 'I'], ['\u03B9', 'i'], ['\u039A', 'K'], ['\u03BA', 'k'],
+  ['\u039C', 'M'], ['\u039D', 'N'], ['\u039F', 'O'], ['\u03BF', 'o'], ['\u03A1', 'P'], ['\u03C1', 'p'],
+  ['\u03A4', 'T'], ['\u03C4', 't'], ['\u03A5', 'Y'], ['\u03C5', 'u'], ['\u03A7', 'X'], ['\u03C7', 'x'],
+]);
+const aliasKey = value => [...value.normalize('NFKC')].map(char => CONFUSABLE_LETTERS.get(char) ?? char).join('')
+  .replace(/\p{White_Space}+/gu, ' ').trim().toLocaleLowerCase('en-US');
 const finitePrice = value => typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 1e12;
 function wellFormed(value) {
   if (typeof value !== 'string') return false;
