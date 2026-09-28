@@ -566,3 +566,9 @@ test('internationalized sources retain canonical Unicode and ACE spellings', () 
     assert.equal(safeSourceUrl(canonical), canonical, host);
   }
 });
+
+test('object keys that match under NFC are duplicates', () => {
+  assert.throws(() => parsePacket('{"caf\\u00e9":1,"cafe\\u0301":2}'), /Duplicate object key/);
+  assert.equal(parsePacket('{"cafe\\u0301":1}')['cafe\u0301'], 1);
+  assert.throws(() => parsePacket('{"a":1,"\\u0061":2}'), /Duplicate object key/);
+});
