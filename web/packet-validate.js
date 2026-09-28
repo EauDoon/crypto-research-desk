@@ -28,10 +28,44 @@ function sourceUrlIdentity(value) {
   const safe = safeSourceUrl(value);
   if (safe === null) return null;
   const url = new URL(safe);
-  const normalizeEscapes = component => component.replace(/%[0-9a-f]{2}/gi, escape => {
-    const character = String.fromCharCode(Number.parseInt(escape.slice(1), 16));
-    return /^[A-Za-z0-9._~-]$/.test(character) ? character : escape.toUpperCase();
-  });
+  // Decode UTF-8 percent sequences, NFC-normalize, then re-encode non-ASCII.
+  // ASCII unreserved bytes stay decoded; reserved ASCII escapes stay encoded so
+  // %2F remains distinct from a slash.
+  const normalizeEscapes = component => {
+    let output = '';
+    const pending = [];
+    const flush = () => {
+      if (!pending.length) return;
+      try {
+        output += new TextDecoder('utf-8', { fatal: true }).decode(Uint8Array.from(pending)).normalize('NFC');
+      } catch {
+        for (const byte of pending) output += '%' + byte.toString(16).toUpperCase().padStart(2, '0');
+      }
+      pending.length = 0;
+    };
+    for (let index = 0; index < component.length;) {
+      const match = component.slice(index).match(/^%[0-9a-f]{2}/i);
+      if (match) {
+        const byte = Number.parseInt(match[0].slice(1), 16);
+        if (byte < 0x80) {
+          flush();
+          const character = String.fromCharCode(byte);
+          output += /^[A-Za-z0-9._~-]$/.test(character) ? character : match[0].toUpperCase();
+        } else pending.push(byte);
+        index += 3;
+        continue;
+      }
+      flush();
+      output += component[index];
+      index += 1;
+    }
+    flush();
+    return [...output.normalize('NFC')].map(char => {
+      const code = char.codePointAt(0);
+      if (code < 0x80) return char;
+      return [...new TextEncoder().encode(char)].map(byte => '%' + byte.toString(16).toUpperCase().padStart(2, '0')).join('');
+    }).join('');
+  };
   const queryIndex = safe.indexOf('?');
   const fragmentIndex = safe.indexOf('#');
   const hasQuery = queryIndex !== -1 && (fragmentIndex === -1 || queryIndex < fragmentIndex);
