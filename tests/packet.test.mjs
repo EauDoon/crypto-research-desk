@@ -503,6 +503,25 @@ test('encoded source labels are checked even when the URL parser accepts invalid
   for (const value of invalid) assert.equal(safeSourceUrl(value), null, value);
 });
 
+test('required text rejects unicode line and paragraph separators', () => {
+  for (const separator of ['\u2028', '\u2029']) {
+    for (const mutate of [
+      packet => { packet.preparedBy = 'Ada' + separator + 'Lovelace'; },
+      packet => { packet.asset.name = 'Name' + separator + 'Line'; },
+      packet => { packet.sources[0].title = 'Official' + separator + 'source'; },
+      packet => { packet.thesis = 'Line one' + separator + 'line two'; },
+      packet => { packet.risks = ['market' + separator + 'gap']; },
+    ]) {
+      const packet = research();
+      mutate(packet);
+      assert.equal(validate(packet).valid, false, JSON.stringify(separator));
+    }
+  }
+  const multiline = research();
+  multiline.thesis = 'Line one\nline two';
+  assert.equal(validate(multiline).valid, true);
+});
+
 test('internationalized sources retain canonical Unicode and ACE spellings', () => {
   for (const host of ['例え.みんな', 'bücher.de', 'mañana.com', 'παράδειγμα.δοκιμή', 'مثال.إختبار', 'пример.рф', '例子.中国', '실례.한국', '例え.テスト', '日本語.jp', '💩.la']) {
     const canonical = new URL('https://' + host + '/evidence').href;

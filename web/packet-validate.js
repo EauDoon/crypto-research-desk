@@ -145,7 +145,7 @@ export function validatePacket(packet, now = Date.now()) {
   }
   function text(value, path, required = true, limit = 5000) {
     if (typeof value !== 'string' || !wellFormed(value) || value.length > limit
-      || /[\u0000-\u0008\u000b-\u001f\u007f-\u009f]|\p{Cf}|\p{Default_Ignorable_Code_Point}/u.test(value ?? '')) {
+      || /[\u0000-\u0008\u000b-\u001f\u007f-\u009f]|\p{Cf}|\p{Zl}|\p{Zp}|\p{Default_Ignorable_Code_Point}/u.test(value ?? '')) {
       error(path, 'Use bounded visible plain text without hidden formatting controls.'); return false;
     }
     if (required && !value.trim()) gap(path, 'Information is UNKNOWN.');
