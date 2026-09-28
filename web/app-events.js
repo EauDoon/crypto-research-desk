@@ -205,8 +205,10 @@ $('copy-json').addEventListener('click', async () => {
 
 // Export / print events
 $('export-json').addEventListener('click', () => {
-  download(JSON.stringify(packet, null, 2) + '\n', 'application/json', 'Research Packet.json');
-  announce('JSON export prepared. Keep the downloaded file as your portable research record.');
+  try {
+    download(JSON.stringify(packet, null, 2) + '\n', 'application/json', 'Research Packet.json');
+    announce('JSON export prepared. Keep the downloaded file as your portable research record.');
+  } catch (error) { announce('JSON export failed: ' + error.message, true); }
 });
 $('export-brief').addEventListener('click', () => {
   try {
@@ -252,9 +254,11 @@ $('remember-packet').addEventListener('change', () => {
 });
 $('recover-saved').addEventListener('click', () => {
   if (unreadableSavedDraft === null) return;
-  download(JSON.stringify({ storageKey: STORAGE_KEY, rawValue: unreadableSavedDraft }, null, 2) + '\n',
-    'application/json; charset=utf-8', '', 'Unparsed Saved Research Draft.json');
-  announce('A recovery wrapper containing the raw saved value was downloaded without changing browser storage. Treat it as untrusted data.');
+  try {
+    download(JSON.stringify({ storageKey: STORAGE_KEY, rawValue: unreadableSavedDraft }, null, 2) + '\n',
+      'application/json; charset=utf-8', '', 'Unparsed Saved Research Draft.json');
+    announce('A recovery wrapper containing the raw saved value was downloaded without changing browser storage. Treat it as untrusted data.');
+  } catch (error) { announce('Recovery download failed: ' + error.message + ' The saved draft is still in browser storage.', true); }
 });
 $('clear-saved').addEventListener('click', () => {
   const prompt = unreadableSavedDraft === null ? 'Remove this app’s saved browser draft? The open packet will stay in memory.'
@@ -426,8 +430,10 @@ $('pin-baseline').addEventListener('click', () => {
 $('clear-baseline').addEventListener('click', () => { incrementBaselineImportSequence(); setPinnedBaseline(null); clearComparison(); renderPinnedBaseline(); });
 $('export-baseline').addEventListener('click', () => {
   if (!pinnedBaseline) return;
-  download(JSON.stringify(pinnedBaseline, null, 2) + '\n', 'application/json; charset=utf-8', '', pinnedBaseline.asset.symbol + ' Comparison Baseline.json');
-  announce('Pinned baseline exported as standard packet JSON. Import it as a baseline to compare without replacing the open packet.');
+  try {
+    download(JSON.stringify(pinnedBaseline, null, 2) + '\n', 'application/json; charset=utf-8', '', pinnedBaseline.asset.symbol + ' Comparison Baseline.json');
+    announce('Pinned baseline exported as standard packet JSON. Import it as a baseline to compare without replacing the open packet.');
+  } catch (error) { announce('Baseline export failed: ' + error.message, true); }
 });
 $('import-baseline').addEventListener('click', () => $('baseline-file').click());
 $('baseline-file').addEventListener('change', async event => {
