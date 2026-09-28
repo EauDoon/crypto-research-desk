@@ -32,6 +32,20 @@ test('reorder-insensitive lists report added and removed values, not shifted cop
   ]);
 });
 
+test('equivalent timestamps are not submitted changes', () => {
+  const previous = examplePacket(), current = examplePacket();
+  current.reference.capturedAt = '2026-08-20T09:00:00.000Z';
+  current.horizons[0].endAt = current.horizons[0].endAt.replace('.000Z', 'Z');
+  current.sources[0].publishedAt = '2026-08-20T07:00:00.000Z';
+  current.riskReview.reviewedAt = '2026-08-20T17:15:00+08:00';
+  assert.equal(research.comparePackets(previous, current, NOW).total, 0);
+  current.sources[0].publishedAt = '2026-08-20T06:59:00Z';
+  const shifted = research.comparePackets(previous, current, NOW);
+  assert.equal(shifted.total, 1);
+  assert.equal(shifted.changes[0].path, 'sources[example-upgrade].publishedAt');
+  assert.equal(shifted.changes[0].current, '2026-08-20T06:59:00Z');
+});
+
 test('comparison follows source and assertion identities through record reorder', () => {
   const previous = examplePacket(), current = examplePacket();
   current.sources.reverse(); current.riskReview.assertions.reverse(); current.riskReview.sourceIds.reverse(); current.risks.reverse(); current.unknowns.reverse();
