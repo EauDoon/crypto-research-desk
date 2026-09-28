@@ -517,3 +517,23 @@ test('every id-bearing workbench button is bound to a listener', async () => {
   assert.deepEqual(unbound, [], 'rendered buttons with no listener: ' + unbound.join(', '));
   assert.ok(buttons.length > 30, 'the check still sees the workbench controls');
 });
+
+// Regression guard. A handler that calls download() without a catch turns any
+// failure inside it into an unhandled error: the user gets no message, and the
+// only signal is a page error in the console. Three export controls shipped that
+// way while the other ten already reported failures. Every handler that builds a
+// download must be able to say it failed.
+test('every handler that builds a download can report a failure', async () => {
+  const source = await readFile(join(root, 'web', 'app-events.js'), 'utf8');
+  const handlers = source.split(/(?=\$\('[^']+'\)\.addEventListener)/).slice(1);
+  const silent = [];
+  let checked = 0;
+  for (const handler of handlers) {
+    const id = /^\$\('([^']+)'\)/.exec(handler)?.[1];
+    if (!id || !/\bdownload\(/.test(handler)) continue;
+    checked++;
+    if (!/\bcatch\b/.test(handler)) silent.push(id);
+  }
+  assert.ok(checked >= 13, 'the check still sees the download controls');
+  assert.deepEqual(silent, [], 'download handlers with no failure path: ' + silent.join(', '));
+});
