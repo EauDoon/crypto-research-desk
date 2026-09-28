@@ -122,8 +122,9 @@ export function parsePacket(text) {
         space();
         if (text[position] !== '"') fail('Expected a quoted object key.');
         const key = string();
-        if (forbiddenKeys.has(key)) fail('Reserved object key is not allowed.');
-        if (own(result, key)) fail('Duplicate object key is not allowed.');
+        const canonicalKey = key.normalize('NFC');
+        if (forbiddenKeys.has(key) || forbiddenKeys.has(canonicalKey)) fail('Reserved object key is not allowed.');
+        if (own(result, key) || Object.keys(result).some(existing => existing.normalize('NFC') === canonicalKey)) fail('Duplicate object key is not allowed.');
         space();
         if (text[position++] !== ':') fail('Expected a colon.');
         result[key] = value(depth + 1);
