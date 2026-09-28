@@ -1,4 +1,4 @@
-import { baselineImportSequence, STORAGE_KEY, setPacket, setOrigin, setDirty, setUnreadableSavedDraft, editableFieldForPath } from './app-state.js';
+import { unreadableSavedDraft, STORAGE_KEY, setPacket, setOrigin, setDirty, setUnreadableSavedDraft, editableFieldForPath } from './app-state.js';
 import { parsePacket, validatePacket } from './packet.js';
 import { $, setText, announce, supportsPageMarginIdentity } from './app-utils.js';
 import { renderPinnedBaseline, render } from './app-render.js';
@@ -20,7 +20,7 @@ try {
   }
 } catch {
   $('remember-packet').disabled = true;
-  $('recover-saved').hidden = baselineImportSequence === 0;
+  $('recover-saved').hidden = unreadableSavedDraft === null;
   setText('storage-status', 'Browser storage is unavailable. Local saving is disabled.');
   announce('The saved draft could not be loaded. It was not deleted or overwritten. A synthetic example is shown; local saving is locked.', true);
 }
