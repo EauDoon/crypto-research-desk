@@ -185,6 +185,37 @@ test('look-ahead evidence, duplicate sources, invalid zones, and future reviews 
   assert.equal(validate(noPrimary).chartEligible, false);
 });
 
+test('reordered query parameters cannot be recorded as separate evidence', () => {
+  const reordered = research();
+  reordered.sources[0].url = 'https://www.iana.org/domains/reserved?b=2&a=1';
+  reordered.sources[1].url = 'https://www.iana.org/domains/reserved?a=1&b=2#section';
+  const duplicate = validate(reordered);
+  assert.equal(duplicate.valid, false);
+  assert.equal(duplicate.chartEligible, false);
+  assert.ok(duplicate.errors.some(issue => issue.path === 'sources[1].url'
+    && issue.message.includes('sources[0].url')
+    && issue.message.includes('duplicates')), duplicate.errors.map(issue => issue.message).join('\n'));
+
+  const repeatedKeys = research();
+  repeatedKeys.sources[0].url = 'https://www.iana.org/domains/reserved?a=2&b=1&a=1';
+  repeatedKeys.sources[1].url = 'https://www.iana.org/domains/reserved?b=1&a=1&a=2';
+  assert.equal(validate(repeatedKeys).valid, false);
+
+  const decoded = research();
+  decoded.sources[0].url = 'https://www.iana.org/domains/reserved?b=%62&a=1';
+  decoded.sources[1].url = 'https://www.iana.org/domains/reserved?a=1&b=b';
+  assert.equal(validate(decoded).valid, false);
+
+  const distinct = research();
+  distinct.sources[0].url = 'https://www.iana.org/domains/reserved?a=1&b=2';
+  distinct.sources[1].url = 'https://www.iana.org/domains/reserved?a=1&b=3';
+  assert.equal(validate(distinct).chartEligible, true, 'different query values stay distinct');
+  const emptyQuery = research();
+  emptyQuery.sources[0].url = 'https://www.iana.org/domains/reserved';
+  emptyQuery.sources[1].url = 'https://www.iana.org/domains/reserved?';
+  assert.equal(validate(emptyQuery).chartEligible, true, 'an empty query is not the bare path');
+});
+
 test('canonical duplicate source URLs cannot inflate evidence coverage', () => {
   const duplicatePairs = [
     ['https://www.iana.org/domains/reserved', 'HTTPS://WWW.IANA.ORG/domains/reserved'],

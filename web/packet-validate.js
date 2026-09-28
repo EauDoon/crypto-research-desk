@@ -16,6 +16,14 @@ export function timestamp(value) {
   return Number.isFinite(instant) ? instant : null;
 }
 
+function canonicalQuery(query) {
+  // Parameter order is not a different source. The same pairs, including
+  // repeated keys, are one URL whichever way they are written.
+  const parts = query.slice(1).split('&');
+  parts.sort();
+  return '?' + parts.join('&');
+}
+
 function sourceUrlIdentity(value) {
   const safe = safeSourceUrl(value);
   if (safe === null) return null;
@@ -28,7 +36,7 @@ function sourceUrlIdentity(value) {
   const fragmentIndex = safe.indexOf('#');
   const hasQuery = queryIndex !== -1 && (fragmentIndex === -1 || queryIndex < fragmentIndex);
   const normalizedQuery = hasQuery
-    ? normalizeEscapes(safe.slice(queryIndex, fragmentIndex === -1 ? undefined : fragmentIndex))
+    ? canonicalQuery(normalizeEscapes(safe.slice(queryIndex, fragmentIndex === -1 ? undefined : fragmentIndex)))
     : '';
   return url.origin + normalizeEscapes(url.pathname) + normalizedQuery;
 }
