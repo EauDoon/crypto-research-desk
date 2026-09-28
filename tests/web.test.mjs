@@ -496,3 +496,24 @@ test('sequence helpers return the incremented value so staleness guards compare 
     if (saved === undefined) delete globalThis.document; else globalThis.document = saved;
   }
 });
+
+// Regression guard. A control rendered in index.html but never bound to a
+// listener is inert: the click does nothing and the page reports nothing. The
+// monitoring worksheet export shipped that way, and nothing in the unit suite
+// noticed, so the defect only surfaced as a browser-suite timeout days later.
+// Every id-bearing <button> must be bound by a web module. A button with no id
+// is exempt, because a form-associated submit button needs no JavaScript.
+test('every id-bearing workbench button is bound to a listener', async () => {
+  const modules = (await Promise.all(['app.js', 'app-bootstrap.js', 'app-editor.js', 'app-events.js', 'app-render.js', 'app-state.js', 'app-utils.js']
+    .map(name => readFile(join(root, 'web', name), 'utf8')))).join('\n');
+  const html = await readFile(join(root, 'web', 'index.html'), 'utf8');
+  const buttons = [...html.matchAll(/<button\b[^>]*>/g)].map(match => match[0]);
+  const unbound = [];
+  for (const tag of buttons) {
+    const id = /\bid="([^"]+)"/.exec(tag)?.[1];
+    if (!id) continue;
+    if (!modules.includes("$('" + id + "').addEventListener")) unbound.push(id);
+  }
+  assert.deepEqual(unbound, [], 'rendered buttons with no listener: ' + unbound.join(', '));
+  assert.ok(buttons.length > 30, 'the check still sees the workbench controls');
+});
