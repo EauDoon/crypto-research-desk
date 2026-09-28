@@ -572,3 +572,21 @@ test('object keys that match under NFC are duplicates', () => {
   assert.equal(parsePacket('{"cafe\\u0301":1}')['cafe\u0301'], 1);
   assert.throws(() => parsePacket('{"a":1,"\\u0061":2}'), /Duplicate object key/);
 });
+
+test('canonically equivalent Unicode in a source URL is one source', () => {
+  for (const [first, second] of [
+    ['https://www.iana.org/caf%C3%A9', 'https://www.iana.org/cafe%CC%81'],
+    ['https://www.iana.org/q?name=caf%C3%A9', 'https://www.iana.org/q?name=cafe%CC%81'],
+  ]) {
+    const packet = research();
+    packet.sources[0].url = first;
+    packet.sources[1].url = second;
+    const report = validate(packet);
+    assert.equal(report.valid, false, second);
+    assert.ok(report.errors.some(issue => issue.path === 'sources[1].url' && issue.message.includes('duplicates')), second);
+  }
+  const distinct = research();
+  distinct.sources[0].url = 'https://www.iana.org/caf%C3%A9';
+  distinct.sources[1].url = 'https://www.iana.org/cafe';
+  assert.equal(validate(distinct).chartEligible, true);
+});
