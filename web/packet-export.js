@@ -82,7 +82,7 @@ export function exportMarkdown(packet, now = Date.now()) {
 function csvRows(rows) {
   const cell = value => {
     let text = String(value ?? 'UNKNOWN');
-    if (/^[\s]*[=+@-]/.test(text)) text = "'" + text;
+    if (/^[\s]*[=+@-]/.test(text.normalize('NFKC'))) text = "'" + text;
     return '"' + text.replaceAll('"', '""') + '"';
   };
   return rows.map(row => row.map(cell).join(',')).join('\r\n') + '\r\n';

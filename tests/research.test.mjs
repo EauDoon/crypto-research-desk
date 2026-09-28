@@ -45,6 +45,20 @@ test('CSV retains provenance, escapes formula text and withholds gated values', 
   assert.equal(withheld.trim().split('\r\n').length, 5);
 });
 
+test('spreadsheet formula guards cover compatibility lookalikes', () => {
+  const packet = examplePacket();
+  packet.sources[0].claim = '\uFF1DSUM(A1)';
+  packet.sources[1].excerpt = '\uFF0B1+1';
+  packet.horizons[0].scenarios[0].trigger = '\uFF20cmd';
+  const evidence = research.exportEvidenceCsv(packet, NOW);
+  const scenarios = research.exportScenarioCsv(packet, NOW);
+  assert.match(evidence, /"'\uFF1DSUM\(A1\)"/);
+  assert.match(evidence, /"'\uFF0B1\+1"/);
+  assert.match(scenarios, /"'\uFF20cmd"/);
+  packet.sources[0].claim = '=SUM(1,2)';
+  assert.match(research.exportEvidenceCsv(packet, NOW), /"'=SUM\(1,2\)"/);
+});
+
 test('comparison rejects malformed and unrelated packets and bounds differences', () => {
   const previous = examplePacket(), current = examplePacket();
   current.thesis = 'Updated thesis';
