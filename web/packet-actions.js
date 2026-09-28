@@ -87,6 +87,14 @@ export function sourceOriginAudit(packet, now = Date.now()) {
   };
 }
 
+function sameInstant(path, left, right) {
+  if (typeof left !== 'string' || typeof right !== 'string') return false;
+  if (path !== 'reference.capturedAt' && path !== 'riskReview.reviewedAt'
+    && !path.endsWith('.publishedAt') && !path.endsWith('.capturedAt') && !path.endsWith('.endAt')) return false;
+  const before = timestamp(left), after = timestamp(right);
+  return before !== null && before === after;
+}
+
 export function comparePackets(previous, current, now = Date.now()) {
   if (!validatePacket(previous, now).valid || !validatePacket(current, now).valid) throw new Error('Both packets must be structurally valid.');
   if (!previous.asset.symbol || previous.asset.symbol !== current.asset.symbol || previous.asset.quoteCurrency !== current.asset.quoteCurrency) throw new Error('Compare the same named asset and quote currency.');
@@ -131,6 +139,7 @@ export function comparePackets(previous, current, now = Date.now()) {
     if (left !== null && right !== null && typeof left === 'object' && typeof right === 'object' && Array.isArray(left) === Array.isArray(right)) {
       for (const key of new Set([...Object.keys(left), ...Object.keys(right)])) walk(left[key], right[key], path ? path + (Array.isArray(right) ? '[' + key + ']' : '.' + key) : key);
     } else if (left !== right) {
+      if (sameInstant(path, left, right)) return;
       total++;
       if (changes.length < 80) changes.push({ path, previous: left ?? null, current: right ?? null });
     }
