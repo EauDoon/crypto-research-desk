@@ -3,6 +3,35 @@ import assert from 'node:assert/strict';
 import * as research from '../web/packet.js';
 import { examplePacket } from '../web/example.js';
 const NOW = Date.parse('2026-08-20T10:00:00Z');
+test('reorder-insensitive lists report added and removed values, not shifted copies', () => {
+  const previous = examplePacket(), current = examplePacket();
+  previous.risks = ['alpha', 'beta', 'beta'];
+  current.risks = ['beta', 'gamma', 'beta'];
+  const risks = research.comparePackets(previous, current, NOW);
+  assert.deepEqual(risks.changes, [
+    { path: 'risks', previous: 'alpha', current: null },
+    { path: 'risks', previous: null, current: 'gamma' },
+  ]);
+  assert.equal(risks.total, 2);
+  assert.equal(risks.omitted, 0);
+
+  const beforeIds = examplePacket(), afterIds = examplePacket();
+  afterIds.riskReview.sourceIds = ['example-upgrade'];
+  const ids = research.comparePackets(beforeIds, afterIds, NOW);
+  assert.deepEqual(ids.changes.filter(item => item.path.includes('sourceIds')), [
+    { path: 'riskReview.sourceIds', previous: 'example-activity', current: null },
+  ]);
+
+  const beforeUnknowns = examplePacket(), afterUnknowns = examplePacket();
+  beforeUnknowns.unknowns = ['kept', 'removed'];
+  afterUnknowns.unknowns = ['added', 'kept'];
+  const unknowns = research.comparePackets(beforeUnknowns, afterUnknowns, NOW);
+  assert.deepEqual(unknowns.changes.filter(item => item.path.startsWith('unknowns')), [
+    { path: 'unknowns', previous: null, current: 'added' },
+    { path: 'unknowns', previous: 'removed', current: null },
+  ]);
+});
+
 test('comparison follows source and assertion identities through record reorder', () => {
   const previous = examplePacket(), current = examplePacket();
   current.sources.reverse(); current.riskReview.assertions.reverse(); current.riskReview.sourceIds.reverse(); current.risks.reverse(); current.unknowns.reverse();
