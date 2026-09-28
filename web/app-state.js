@@ -59,9 +59,9 @@ export function pushUndo(snapshot) {
 export function popUndo() { return undoHistory.pop(); }
 export function setPinnedBaseline(next) { pinnedBaseline = next; }
 export function setComparisonBaseline(next) { comparisonBaseline = next; }
-export function incrementBaselineImportSequence() { baselineImportSequence++; }
+export function incrementBaselineImportSequence() { baselineImportSequence++; return baselineImportSequence; }
 export function setBaselineImportSequence(next) { baselineImportSequence = next; }
-export function incrementReceiptCheckSequence() { receiptCheckSequence++; }
+export function incrementReceiptCheckSequence() { receiptCheckSequence++; return receiptCheckSequence; }
 export function setReceiptCheckSequence(next) { receiptCheckSequence = next; }
 export function setEditorMode(next) { editorMode = next; }
 export function setEditorInitial(next) { editorInitial = next; }
