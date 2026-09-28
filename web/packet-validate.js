@@ -75,6 +75,19 @@ function sourceUrlIdentity(value) {
   return url.origin + normalizeEscapes(url.pathname) + normalizedQuery;
 }
 
+function mixesConfusableScripts(text) {
+  const scripts = new Set();
+  for (const char of text) {
+    const script = /\p{Script=Latin}/u.test(char) ? 'Latin'
+      : /\p{Script=Cyrillic}/u.test(char) ? 'Cyrillic'
+      : /\p{Script=Greek}/u.test(char) ? 'Greek' : '';
+    if (!script) continue;
+    scripts.add(script);
+    if (scripts.size > 1) return true;
+  }
+  return false;
+}
+
 // Decode ACE labels independently of platform URL acceptance. RFC 3492 section
 // 6.2: https://www.rfc-editor.org/rfc/rfc3492#section-6.2
 function validEncodedSourceLabel(label) {
@@ -111,6 +124,7 @@ function validEncodedSourceLabel(label) {
   if (!output.some(point => point >= 128)) return false;
   const decoded = String.fromCodePoint(...output);
   if (/[\p{C}\p{Z}]|\p{Default_Ignorable_Code_Point}/u.test(decoded)) return false;
+  if (mixesConfusableScripts(decoded)) return false;
   // Re-encode the Unicode form to reject noncanonical or otherwise invalid IDNA.
   return new URL('https://' + decoded + '.invalid').hostname === label + '.invalid';
 }

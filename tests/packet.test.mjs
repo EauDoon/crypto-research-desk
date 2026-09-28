@@ -601,3 +601,13 @@ test('unicode noncharacters are rejected in text and source URLs', () => {
   assert.equal(safeSourceUrl('https://www.iana.org/a%EF%BF%BE'), null);
   assert.equal(validate(research()).chartEligible, true);
 });
+
+test('mixed-script source hosts are rejected', () => {
+  for (const value of [
+    'https://ex\u0430mple.com/a',
+    'https://xn--exmple-4nf.com/a',
+    'https://ex\u03B1mple.com/evidence',
+  ]) assert.equal(safeSourceUrl(value), null, value);
+  assert.notEqual(safeSourceUrl('https://\u043f\u0440\u0438\u043c\u0435\u0440.\u0440\u0444/a'), null);
+  assert.equal(safeSourceUrl('https://www.iana.org/domains/reserved'), 'https://www.iana.org/domains/reserved');
+});
