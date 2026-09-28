@@ -14,6 +14,23 @@ FRONT_MATTER = re.compile(r"^---\nname: (\S+)\ndescription: \S.+\n---\n", re.MUL
 LANE = re.compile(r"^Lane: (.+)$", re.MULTILINE)
 HEADING = re.compile(r"^## (.+)$", re.MULTILINE)
 CATALOGUE_ROW = re.compile(r"^\| \[`([^`]+)`\]\(\.\./\.agents/skills/([^/]+)/SKILL\.md\) \|")
+MARKDOWN_LINK = re.compile(r"\[[^\]]+\]\(([^)]+)\)")
+EXTERNAL = ("http://", "https://", "#", "mailto:")
+
+
+def relative_link_targets() -> list[tuple[Path, str]]:
+    """Every relative markdown link under .agents/ and docs/, with its source file.
+
+    A skill or worker that points at a file which does not exist reads as an
+    instruction to consult a gate or reference that is not there, so the link
+    must resolve from the directory of the file that contains it.
+    """
+    found: list[tuple[Path, str]] = []
+    for path in sorted((ROOT / ".agents").rglob("*.md")) + sorted((ROOT / "docs").glob("*.md")):
+        for target in MARKDOWN_LINK.findall(path.read_text(encoding="utf-8")):
+            if not target.startswith(EXTERNAL):
+                found.append((path, target))
+    return found
 
 
 def catalogued_lanes() -> list[tuple[str, str, str]]:
@@ -51,6 +68,14 @@ class SkillPackTests(unittest.TestCase):
                 self.assertIn(lane, LANE.findall((SKILLS / linked / "SKILL.md").read_text(encoding="utf-8")), "catalogued lane")
         on_disk = {path.parent.name for path in SKILLS.glob("*/SKILL.md")} - {UMBRELLA}
         self.assertEqual(set(labels), on_disk, "docs/SKILLS.md and .agents/skills disagree")
+
+    def test_every_relative_markdown_link_resolves(self) -> None:
+        links = relative_link_targets()
+        self.assertGreater(len(links), 40, "the check still sees the documented links")
+        for source, target in links:
+            with self.subTest(source=source.relative_to(ROOT).as_posix(), target=target):
+                resolved = (source.parent / target.split("#", 1)[0]).resolve()
+                self.assertTrue(resolved.exists(), f"dangling link to {target}")
 
 
 if __name__ == "__main__":
