@@ -503,6 +503,29 @@ test('encoded source labels are checked even when the URL parser accepts invalid
   for (const value of invalid) assert.equal(safeSourceUrl(value), null, value);
 });
 
+test('percent-encoded controls and invalid UTF-8 cannot hide in a source URL', () => {
+  for (const value of [
+    'https://www.iana.org/%00',
+    'https://www.iana.org/a%0Ab',
+    'https://www.iana.org/a%09b',
+    'https://www.iana.org/a%7Fb',
+    'https://www.iana.org/a%C2%85b',
+    'https://www.iana.org/%E2%80%8B',
+    'https://www.iana.org/%E2%80%AE',
+    'https://www.iana.org/a%E2%80%A8b',
+    'https://www.iana.org/a\u2028b',
+    'https://www.iana.org/a%20b',
+    'https://www.iana.org/%EF%BB%BF',
+    'https://www.iana.org/%C0%AF',
+    'https://www.iana.org/%FF',
+  ]) assert.equal(safeSourceUrl(value), null, value);
+  assert.equal(safeSourceUrl('https://www.iana.org/domains/%72eserved'), 'https://www.iana.org/domains/%72eserved');
+  assert.equal(safeSourceUrl('https://www.iana.org/caf%C3%A9'), 'https://www.iana.org/caf%C3%A9');
+  const packet = research();
+  packet.sources[0].url = 'https://www.iana.org/domains/reserved%E2%80%8B';
+  assert.equal(validate(packet).valid, false);
+});
+
 test('required text rejects unicode line and paragraph separators', () => {
   for (const separator of ['\u2028', '\u2029']) {
     for (const mutate of [

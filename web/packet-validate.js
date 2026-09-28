@@ -81,9 +81,35 @@ function validEncodedSourceLabel(label) {
   return new URL('https://' + decoded + '.invalid').hostname === label + '.invalid';
 }
 
+const forbiddenDecodedUrl = /[\u0000-\u0020\u007f-\u009f]|\p{Cf}|\p{Zl}|\p{Zp}|\p{Default_Ignorable_Code_Point}/u;
+
+// Percent-encoding must not smuggle controls, format characters, or ill-formed UTF-8
+// past the raw-string check. Structural bytes such as %2F stay decodable and are
+// rejected only when the decoded character itself is forbidden.
+function decodePercentUtf8(component) {
+  const bytes = [];
+  for (let index = 0; index < component.length;) {
+    const code = component.codePointAt(index);
+    if (component[index] === '%') {
+      const hex = component.slice(index + 1, index + 3);
+      if (!/^[0-9a-fA-F]{2}$/.test(hex)) return null;
+      bytes.push(Number.parseInt(hex, 16));
+      index += 3;
+      continue;
+    }
+    bytes.push(...new TextEncoder().encode(String.fromCodePoint(code)));
+    index += code > 0xffff ? 2 : 1;
+  }
+  try {
+    return new TextDecoder('utf-8', { fatal: true }).decode(Uint8Array.from(bytes));
+  } catch {
+    return null;
+  }
+}
+
 export function safeSourceUrl(value) {
   if (typeof value !== 'string' || !wellFormed(value) || value.length > 2048
-    || /[\u0000-\u0020\u007f-\u009f]|\p{Cf}|\p{Default_Ignorable_Code_Point}/u.test(value)) return null;
+    || /[\u0000-\u0020\u007f-\u009f]|\p{Cf}|\p{Zl}|\p{Zp}|\p{Default_Ignorable_Code_Point}/u.test(value)) return null;
   try {
     const url = new URL(value);
     const host = url.hostname.toLowerCase();
@@ -96,6 +122,10 @@ export function safeSourceUrl(value) {
       || /(?:^|\.)(?:localhost|local|internal|test|invalid|example|onion|alt|home\.arpa)$/.test(host)) return null;
     if (host.length > 253 || labels.some(label => label.length > 63 || !/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/.test(label))) return null;
     if (labels.some(label => !validEncodedSourceLabel(label))) return null;
+    if ([url.pathname, url.search, url.hash].some(component => {
+      const decoded = decodePercentUtf8(component);
+      return decoded === null || forbiddenDecodedUrl.test(decoded);
+    })) return null;
     return url.href;
   } catch { return null; }
 }
