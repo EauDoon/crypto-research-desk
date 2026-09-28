@@ -98,7 +98,36 @@ export function comparePackets(previous, current, now = Date.now()) {
       for (const id of new Set([...before.keys(), ...after.keys()])) walk(before.get(id), after.get(id), path + '[' + id + ']');
       return;
     }
-    if (path === 'riskReview.sourceIds' || path === 'risks' || path === 'unknowns') { left = [...left].sort(); right = [...right].sort(); }
+    if (path === 'riskReview.sourceIds' || path === 'risks' || path === 'unknowns') {
+      // Order is not a change. Diff the multisets so an entry that is still
+      // present is not reported as having turned into a neighbor.
+      if (Array.isArray(left) && Array.isArray(right)) {
+        const tally = items => {
+          const counts = new Map();
+          for (const item of items) {
+            const key = JSON.stringify(item);
+            const entry = counts.get(key) ?? { value: item, count: 0 };
+            entry.count += 1;
+            counts.set(key, entry);
+          }
+          return counts;
+        };
+        const before = tally(left), after = tally(right);
+        for (const key of [...new Set([...before.keys(), ...after.keys()])].sort()) {
+          const removed = before.get(key)?.count ?? 0;
+          const added = after.get(key)?.count ?? 0;
+          const value = (after.get(key) ?? before.get(key)).value;
+          const count = Math.abs(added - removed);
+          for (let index = 0; index < count; index += 1) {
+            total += 1;
+            if (changes.length < 80) changes.push(added > removed
+              ? { path, previous: null, current: value }
+              : { path, previous: value, current: null });
+          }
+        }
+        return;
+      }
+    }
     if (left !== null && right !== null && typeof left === 'object' && typeof right === 'object' && Array.isArray(left) === Array.isArray(right)) {
       for (const key of new Set([...Object.keys(left), ...Object.keys(right)])) walk(left[key], right[key], path ? path + (Array.isArray(right) ? '[' + key + ']' : '.' + key) : key);
     } else if (left !== right) {
