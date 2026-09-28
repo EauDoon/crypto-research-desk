@@ -472,3 +472,27 @@ test('Firefox startup recovery verifies cached pages and preserves subsequent fa
     assert.equal(page.eventNames().length, 0, 'temporary listeners are removed');
   }
 });
+
+// Regression guard. The staleness guards in app-events capture a sequence with
+// `const sequence = increment*Sequence()` and later compare it with the live
+// counter to drop a result that a newer edit already superseded. If the helper
+// returns nothing, that captured value is undefined, the comparison is never
+// equal, and the guard silently discards every result and every error instead
+// of only the stale ones.
+test('sequence helpers return the incremented value so staleness guards compare real numbers', async () => {
+  const saved = globalThis.document;
+  globalThis.document = { getElementById: () => ({ hidden: false }), createElement: () => ({}) };
+  try {
+    const state = await import('../web/app-state.js');
+    state.setReceiptCheckSequence(5);
+    const receipt = state.incrementReceiptCheckSequence();
+    assert.equal(receipt, 6, 'receipt check helper returns its new value');
+    assert.equal(receipt, state.receiptCheckSequence, 'a receipt guard would see an unchanged check as current');
+    state.setBaselineImportSequence(9);
+    const baseline = state.incrementBaselineImportSequence();
+    assert.equal(baseline, 10, 'baseline import helper returns its new value');
+    assert.equal(baseline, state.baselineImportSequence, 'a baseline guard would see an unchanged import as current');
+  } finally {
+    if (saved === undefined) delete globalThis.document; else globalThis.document = saved;
+  }
+});
