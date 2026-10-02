@@ -30,7 +30,7 @@ EXAMPLE. Produce a risk-cleared BTC four-horizon forecast from one exact fiction
 - `liquidity`: UNKNOWN — No 2% depth print.
 - `invalidation`: PASS — Observable invalidation is stated: a primary freeze that supports expansion.
 
-Load the same example in the desk with the Example control. Do not treat the 100000 reference as a live print.
+This is a written workflow example, separate from the browser's Load demo fixture (DEMO at a fictional 100 USD reference). Neither is live research. For a runnable incomplete specialist packet, see [incomplete-quant.json](incomplete-quant.json).
 
 
 ---

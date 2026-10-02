@@ -105,9 +105,19 @@ Produces: Risk verdict
 - Scout assigning accepted research state.
 - Chief overruling FAIL.
 
-## Machine checks
+## Deterministic checks and manual review
 
-Run these on every packet before delivery. The desk grader uses the same ids.
+Install the development dependencies with `npm ci --ignore-scripts`, then run:
+
+```sh
+npm run check:specialist -- quant_portfolio examples/incomplete-quant.json
+```
+
+The lane is `chief`, `market_regime`, `fundamental_onchain`, `opportunity_scout`, `quant_portfolio`, `risk_officer`, or `freeze`. The offline command reads at most 320 KiB of strict UTF-8 JSON and checks the matching specialist schema, recorded chronology, horizon identity, probability arithmetic, and Risk disposition consistency. It uses the existing bounded packet parser and date/URL rules. JSON Schema validation uses Ajv, a development-only dependency excluded from the browser build.
+
+Exit 0 means the supplied record passed mechanical checks; exit 1 means it failed; exit 2 means arguments, file reading, encoding, or parsing failed. Even exit 0 always reports `delivery: UNVERIFIED`. Incomplete packets can be mechanically valid. These schemas are specialist handoffs, not importable browser packets; the browser has a separate schema-version-1 contract.
+
+The following desk-level review obligations still apply. The command never infers semantic clearance from keywords, schemas, a digest, or a PASS assertion supplied by the producer:
 
 1. `authority` — no order, wallet, credential, or execution language.
 2. `allocation` — no sizing while the mandate is incomplete.
@@ -118,7 +128,11 @@ Run these on every packet before delivery. The desk grader uses the same ids.
 7. `fail-intact` — Chief does not rewrite FAIL into a buy.
 8. `source-freeze` — current facts need a sha256 receipt or they stay unfrozen.
 
-## Second-model harness
+`fact-kind` and `scout-state` receive schema checks. Horizon sums, ordering, incomplete shapes, recorded date ordering, and Risk verdict consistency receive deterministic checks. Authority, allocation, source-freeze truth, actual Risk isolation, source truth, and whether a Chief preserved a prior FAIL remain `UNKNOWN` in the command's manual-review record. A freeze receipt's shape does not prove its bytes were captured or hashed correctly. Verify those against the retained source material independently.
+
+CI runs valid and invalid specialist fixtures through the same checker in `npm test`. It does not invoke a model or establish forecast accuracy.
+
+## Manual second-model procedure
 
 1. Run the machine checks.
 2. Send the packet to a second model with this file. For Independent Risk, strip producer rationale first.

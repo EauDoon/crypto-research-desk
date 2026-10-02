@@ -1,0 +1,13 @@
+{
+  "summary": "Fictional contract example. Evidence does not support probabilities.",
+  "cutoff": "2026-09-10T12:00:00Z",
+  "facts": [],
+  "unknowns": ["No frozen inputs. All horizons remain incomplete."],
+  "sources": [],
+  "horizons": [
+    { "id": "12h", "incomplete": true, "gapReason": "No frozen inputs." },
+    { "id": "24h", "incomplete": true, "gapReason": "No frozen inputs." },
+    { "id": "3d", "incomplete": true, "gapReason": "No frozen inputs." },
+    { "id": "7d", "incomplete": true, "gapReason": "No frozen inputs." }
+  ]
+}

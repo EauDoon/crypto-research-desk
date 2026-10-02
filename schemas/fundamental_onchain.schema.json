@@ -19,7 +19,8 @@
       "type": "string"
     },
     "cutoff": {
-      "type": "string"
+      "type": "string",
+      "format": "date-time"
     },
     "thesis": {
       "type": "string"
@@ -59,9 +60,11 @@
             "type": "string"
           },
           "asOf": {
-            "type": "string"
+            "type": "string",
+            "format": "date-time"
           }
-        }
+        },
+        "additionalProperties": false
       }
     },
     "risks": {
@@ -103,10 +106,12 @@
             ]
           },
           "publishedAt": {
-            "type": "string"
+            "type": "string",
+            "format": "date-time"
           },
           "capturedAt": {
-            "type": "string"
+            "type": "string",
+            "format": "date-time"
           },
           "claim": {
             "type": "string"
@@ -114,7 +119,8 @@
           "excerpt": {
             "type": "string"
           }
-        }
+        },
+        "additionalProperties": false
       }
     }
   }

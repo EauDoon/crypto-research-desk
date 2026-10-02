@@ -9,13 +9,14 @@ This repository stands up a research-only crypto agent team. Do not add a sixth 
 - One stand-up file for every host: [STAND-UP.md](../STAND-UP.md)
 - Frozen Codex core (`AGENTS.md`, `.codex/agents/*.toml`)
 - Packet schemas, eval bars, worker spawn files
-- Machine grader plus second-model eval harness
+- Offline specialist schema, chronology, and arithmetic checker
+- Documented manual second-model review procedure (not an automated harness)
 - Source-freeze receipts (canonical URL, capturedAt, sha256, bytes)
 - Worked ticker, hunt, and independent-risk examples
 
 ## Now
 
-- Grade every packet (machine, then second model) before delivery
+- Run deterministic checks, then complete independent semantic review before delivery
 - Freeze every current print or mark it unknown
 - Spawn workers from [`.agents/workers/`](../.agents/workers/)
 - Grow a skill only when a real FAIL repeats

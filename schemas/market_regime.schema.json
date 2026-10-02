@@ -25,7 +25,8 @@
       ]
     },
     "cutoff": {
-      "type": "string"
+      "type": "string",
+      "format": "date-time"
     },
     "facts": {
       "type": "array",
@@ -53,15 +54,38 @@
             "type": "string"
           },
           "asOf": {
-            "type": "string"
+            "type": "string",
+            "format": "date-time"
           }
-        }
+        },
+        "additionalProperties": false
       }
     },
     "scenarios": {
       "type": "array",
       "items": {
-        "type": "object"
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "label",
+          "probability",
+          "driver"
+        ],
+        "properties": {
+          "label": {
+            "type": "string",
+            "minLength": 1
+          },
+          "probability": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "driver": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
       }
     },
     "horizons": {
@@ -69,7 +93,8 @@
       "items": {
         "type": "object",
         "required": [
-          "id"
+          "id",
+          "incomplete"
         ],
         "properties": {
           "id": {
@@ -81,15 +106,21 @@
             ]
           },
           "bearUpper": {
-            "type": "number"
+            "type": "number",
+            "exclusiveMinimum": 0,
+            "maximum": 1000000000000.0
           },
           "bullLower": {
-            "type": "number"
+            "type": "number",
+            "exclusiveMinimum": 0,
+            "maximum": 1000000000000.0
           },
           "probabilities": {
             "type": "array",
             "items": {
-              "type": "number"
+              "type": "number",
+              "minimum": 0,
+              "maximum": 100
             },
             "minItems": 3,
             "maxItems": 3
@@ -97,20 +128,29 @@
           "drivers": {
             "type": "array",
             "items": {
-              "type": "string"
-            }
+              "type": "string",
+              "minLength": 1
+            },
+            "minItems": 3,
+            "maxItems": 3
           },
           "triggers": {
             "type": "array",
             "items": {
-              "type": "string"
-            }
+              "type": "string",
+              "minLength": 1
+            },
+            "minItems": 3,
+            "maxItems": 3
           },
           "invalidations": {
             "type": "array",
             "items": {
-              "type": "string"
-            }
+              "type": "string",
+              "minLength": 1
+            },
+            "minItems": 3,
+            "maxItems": 3
           },
           "confidence": {
             "enum": [
@@ -125,8 +165,53 @@
           "gapReason": {
             "type": "string"
           }
-        }
-      }
+        },
+        "additionalProperties": false,
+        "oneOf": [
+          {
+            "properties": {
+              "incomplete": {
+                "const": true
+              },
+              "gapReason": {
+                "type": "string",
+                "minLength": 1
+              },
+              "bearUpper": false,
+              "bullLower": false,
+              "probabilities": false,
+              "drivers": false,
+              "triggers": false,
+              "invalidations": false,
+              "confidence": false
+            },
+            "required": [
+              "gapReason"
+            ]
+          },
+          {
+            "properties": {
+              "incomplete": {
+                "const": false
+              },
+              "gapReason": {
+                "const": ""
+              }
+            },
+            "required": [
+              "bearUpper",
+              "bullLower",
+              "probabilities",
+              "drivers",
+              "triggers",
+              "invalidations",
+              "confidence"
+            ]
+          }
+        ]
+      },
+      "minItems": 4,
+      "maxItems": 4
     },
     "unknowns": {
       "type": "array",
@@ -161,10 +246,12 @@
             ]
           },
           "publishedAt": {
-            "type": "string"
+            "type": "string",
+            "format": "date-time"
           },
           "capturedAt": {
-            "type": "string"
+            "type": "string",
+            "format": "date-time"
           },
           "claim": {
             "type": "string"
@@ -172,11 +259,68 @@
           "excerpt": {
             "type": "string"
           }
-        }
+        },
+        "additionalProperties": false
       }
     },
     "method": {
-      "type": "object"
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "basis",
+        "description",
+        "sourceWindow",
+        "observationFrequency",
+        "transformations",
+        "regimeAdjustment",
+        "eventAssumptions",
+        "limitations",
+        "sampleSize"
+      ],
+      "properties": {
+        "basis": {
+          "enum": [
+            "judgmental",
+            "empirical",
+            "model-derived"
+          ]
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sourceWindow": {
+          "type": "string",
+          "minLength": 1
+        },
+        "observationFrequency": {
+          "type": "string",
+          "minLength": 1
+        },
+        "transformations": {
+          "type": "string",
+          "minLength": 1
+        },
+        "regimeAdjustment": {
+          "type": "string",
+          "minLength": 1
+        },
+        "eventAssumptions": {
+          "type": "string",
+          "minLength": 1
+        },
+        "limitations": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sampleSize": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 1
+        }
+      }
     }
   }
 }
