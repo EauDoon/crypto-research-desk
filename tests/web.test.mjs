@@ -93,7 +93,17 @@ test('Vercel production settings match the verified build and security configura
     'Cache-Control': 'public, max-age=0, must-revalidate',
   });
   assert.equal(config.headers[0].source, '/(.*)');
-  assert.equal(config.headers[1].source, '/:file([a-z]+\\.[a-f0-9]{64}\\.[a-z]+)');
+  assert.ok(config.headers[1].source.startsWith('/:file('));
+  const immutable = new RegExp('^' + config.headers[1].source.slice(7, -1) + '$');
+  for (const name of PUBLIC_FILES.filter(name => /\.(?:js|css|svg)$/.test(name))) {
+    const hashed = name.replace(/\.(\w+)$/, '.' + 'a'.repeat(64) + '.$1');
+    assert.ok(HASHED_ASSET.test(hashed));
+    assert.ok(immutable.test(hashed), hashed + ' receives immutable caching');
+    assert.equal(immutable.test(name), false, name + ' is not immutable');
+  }
+  for (const name of ['index.html', '404.html', 'build-info.json', 'robots.txt', 'app.' + 'a'.repeat(63) + '.js']) {
+    assert.equal(immutable.test(name), false, name);
+  }
   assert.deepEqual(headers(config.headers[1], 1), {
     'Cache-Control': 'public, max-age=31536000, immutable',
   });

@@ -15,7 +15,8 @@
       "type": "string"
     },
     "cutoff": {
-      "type": "string"
+      "type": "string",
+      "format": "date-time"
     },
     "candidates": {
       "type": "array",
@@ -48,7 +49,8 @@
           "quarantineReason": {
             "type": "string"
           }
-        }
+        },
+        "additionalProperties": false
       }
     },
     "facts": {
@@ -77,9 +79,11 @@
             "type": "string"
           },
           "asOf": {
-            "type": "string"
+            "type": "string",
+            "format": "date-time"
           }
-        }
+        },
+        "additionalProperties": false
       }
     },
     "unknowns": {
@@ -115,10 +119,12 @@
             ]
           },
           "publishedAt": {
-            "type": "string"
+            "type": "string",
+            "format": "date-time"
           },
           "capturedAt": {
-            "type": "string"
+            "type": "string",
+            "format": "date-time"
           },
           "claim": {
             "type": "string"
@@ -126,7 +132,8 @@
           "excerpt": {
             "type": "string"
           }
-        }
+        },
+        "additionalProperties": false
       }
     }
   }

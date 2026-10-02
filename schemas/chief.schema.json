@@ -14,7 +14,8 @@
       "type": "string"
     },
     "cutoff": {
-      "type": "string"
+      "type": "string",
+      "format": "date-time"
     },
     "name": {
       "type": "string"
@@ -60,9 +61,11 @@
             "type": "string"
           },
           "asOf": {
-            "type": "string"
+            "type": "string",
+            "format": "date-time"
           }
-        }
+        },
+        "additionalProperties": false
       }
     },
     "horizons": {
@@ -70,7 +73,8 @@
       "items": {
         "type": "object",
         "required": [
-          "id"
+          "id",
+          "incomplete"
         ],
         "properties": {
           "id": {
@@ -82,15 +86,21 @@
             ]
           },
           "bearUpper": {
-            "type": "number"
+            "type": "number",
+            "exclusiveMinimum": 0,
+            "maximum": 1000000000000.0
           },
           "bullLower": {
-            "type": "number"
+            "type": "number",
+            "exclusiveMinimum": 0,
+            "maximum": 1000000000000.0
           },
           "probabilities": {
             "type": "array",
             "items": {
-              "type": "number"
+              "type": "number",
+              "minimum": 0,
+              "maximum": 100
             },
             "minItems": 3,
             "maxItems": 3
@@ -98,20 +108,29 @@
           "drivers": {
             "type": "array",
             "items": {
-              "type": "string"
-            }
+              "type": "string",
+              "minLength": 1
+            },
+            "minItems": 3,
+            "maxItems": 3
           },
           "triggers": {
             "type": "array",
             "items": {
-              "type": "string"
-            }
+              "type": "string",
+              "minLength": 1
+            },
+            "minItems": 3,
+            "maxItems": 3
           },
           "invalidations": {
             "type": "array",
             "items": {
-              "type": "string"
-            }
+              "type": "string",
+              "minLength": 1
+            },
+            "minItems": 3,
+            "maxItems": 3
           },
           "confidence": {
             "enum": [
@@ -126,8 +145,53 @@
           "gapReason": {
             "type": "string"
           }
-        }
-      }
+        },
+        "additionalProperties": false,
+        "oneOf": [
+          {
+            "properties": {
+              "incomplete": {
+                "const": true
+              },
+              "gapReason": {
+                "type": "string",
+                "minLength": 1
+              },
+              "bearUpper": false,
+              "bullLower": false,
+              "probabilities": false,
+              "drivers": false,
+              "triggers": false,
+              "invalidations": false,
+              "confidence": false
+            },
+            "required": [
+              "gapReason"
+            ]
+          },
+          {
+            "properties": {
+              "incomplete": {
+                "const": false
+              },
+              "gapReason": {
+                "const": ""
+              }
+            },
+            "required": [
+              "bearUpper",
+              "bullLower",
+              "probabilities",
+              "drivers",
+              "triggers",
+              "invalidations",
+              "confidence"
+            ]
+          }
+        ]
+      },
+      "minItems": 4,
+      "maxItems": 4
     },
     "risks": {
       "type": "array",
@@ -168,10 +232,12 @@
             ]
           },
           "publishedAt": {
-            "type": "string"
+            "type": "string",
+            "format": "date-time"
           },
           "capturedAt": {
-            "type": "string"
+            "type": "string",
+            "format": "date-time"
           },
           "claim": {
             "type": "string"
@@ -179,7 +245,8 @@
           "excerpt": {
             "type": "string"
           }
-        }
+        },
+        "additionalProperties": false
       }
     }
   }
