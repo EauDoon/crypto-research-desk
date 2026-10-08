@@ -1,5 +1,4 @@
-import { test, expect } from '@playwright/test';
-import AxeBuilder from '@axe-core/playwright';
+import { test, expect, checkAccessibility } from './harness.mjs';
 import { examplePacket } from '../../web/example.js';
 import { navigate } from './navigation.mjs';
 const NOW = new Date('2026-08-20T10:00:00Z');
@@ -79,8 +78,7 @@ test('new tools remain accessible and usable on narrow screens', async ({ page }
   await page.setViewportSize({ width: 390, height: 844 });
   await page.getByText('Compare all four horizon boundaries', { exact: true }).click();
   await expect(page.locator('#horizon-overview tbody tr')).toHaveCount(4);
-  const violations = (await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze()).violations;
-  expect(violations.map(item => item.id)).toEqual([]);
+  await checkAccessibility(page);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   if (testInfo.project.name === 'chromium') await page.screenshot({ path: '../evidence/crypto-workbench-mobile.png', fullPage: true });
 });

@@ -1,7 +1,6 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, checkAccessibility } from './harness.mjs';
 import { examplePacket } from '../../web/example.js';
 import { navigate } from './navigation.mjs';
-import AxeBuilder from '@axe-core/playwright';
 const NOW = new Date('2026-08-20T10:00:00Z');
 test.beforeEach(async ({ page }) => {
   await page.clock.install({ time: NOW }); await navigate(page);
@@ -172,7 +171,7 @@ test('expanded workflow controls remain accessible at mobile and desktop widths'
   for (const width of [1440, 768, 390, 320]) {
     await page.setViewportSize({ width, height: 900 });
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-    expect((await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze()).violations.map(item => item.id)).toEqual([]);
+    await checkAccessibility(page);
     if (testInfo.project.name === 'chromium' && [1440, 390].includes(width)) await page.screenshot({ path: '../evidence/crypto-research-desk-workflow-' + width + '.png', fullPage: true });
   }
 });

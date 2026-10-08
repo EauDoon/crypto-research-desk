@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { test, expect } from '@playwright/test';
-import AxeBuilder from '@axe-core/playwright';
+import { checkAccessibility } from '../browser/harness.mjs';
 import { examplePacket } from '../../web/example.js';
 import { HASHED_ASSET, SECURITY_HEADERS } from '../../tools/web-config.mjs';
 
@@ -63,8 +63,7 @@ test('production serves the reviewed artifact and complete local-only workflow',
   await expect(page.locator('#asset-symbol')).toHaveText('DEMO');
   await expect(page.locator('#chart-area svg')).toBeVisible();
   await expect(page.locator('#assertion-record .assertion-summary')).toHaveCount(5);
-  const accessibility = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa']).analyze();
-  expect(accessibility.violations).toEqual([]);
+  await checkAccessibility(page);
 
   await page.locator('#new-packet').click();
   await page.locator('#close-editor').click();

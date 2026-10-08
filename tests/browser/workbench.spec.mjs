@@ -1,14 +1,10 @@
-import { test, expect } from '@playwright/test';
-import AxeBuilder from '@axe-core/playwright';
+import { test, expect, checkAccessibility } from './harness.mjs';
 import { examplePacket } from '../../web/example.js';
 import { MAX_PACKET_BYTES, blankPacket } from '../../web/packet.js';
 import { navigate } from './navigation.mjs';
-import { PREVIEW_ORIGIN } from './origin.mjs';
 
 const NOW = new Date('2026-08-20T10:00:00Z');
 const STORAGE_KEY = 'crypto-research-desk.packet.v1';
-const errors = new WeakMap();
-const requests = new WeakMap();
 function research() {
   const packet = examplePacket();
   packet.kind = 'research';
@@ -37,23 +33,10 @@ async function exported(page, selector) {
   for await (const chunk of stream) chunks.push(chunk);
   return { name: download.suggestedFilename(), text: Buffer.concat(chunks).toString('utf8') };
 }
-async function a11y(page) {
-  const result = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa']).analyze();
-  expect(result.violations.map(item => ({ id: item.id, impact: item.impact, nodes: item.nodes.map(node => node.target) }))).toEqual([]);
-}
 test.beforeEach(async ({ page }) => {
-  errors.set(page, []); requests.set(page, []);
-  page.on('pageerror', error => errors.get(page).push(error.message));
-  page.on('request', request => {
-    if (!request.url().startsWith(PREVIEW_ORIGIN + '/') && !request.url().startsWith('blob:')) requests.get(page).push(request.url());
-  });
   await page.clock.install({ time: NOW });
   await navigate(page);
   await expect(page.locator('#asset-symbol')).toHaveText('DEMO');
-});
-test.afterEach(async ({ page }) => {
-  expect(errors.get(page), 'browser runtime errors').toEqual([]);
-  expect(requests.get(page), 'unexpected external network requests').toEqual([]);
 });
 
 test('the default view is explicitly synthetic, local, and accessible', async ({ page }) => {
@@ -66,7 +49,7 @@ test('the default view is explicitly synthetic, local, and accessible', async ({
   await expect(page.locator('#chart-area svg')).toContainText('Bull floor 106');
   await expect(page.locator('#chart-area svg')).toContainText('Bear ceiling 94');
   await expect(page.locator('progress').first()).toHaveAttribute('aria-hidden', 'true');
-  await a11y(page);
+  await checkAccessibility(page);
 });
 
 test('startup fails closed when JavaScript is unavailable', async ({ browser, baseURL }) => {
@@ -133,13 +116,13 @@ test('new packets show unknown values, withhold the chart, and keep the form acc
   await page.locator('#new-packet').click();
   await expect(page.locator('#packet-editor')).toBeVisible();
   await expect(page.locator('input[name="symbol"]')).toBeFocused();
-  await a11y(page);
+  await checkAccessibility(page);
   await page.locator('#close-editor').click();
   await expect(page.locator('#new-packet')).toBeFocused();
   await expect(page.locator('#reference-price')).toContainText('UNKNOWN');
   await expect(page.locator('#structure-status')).toHaveText('INCOMPLETE');
   await expect(page.locator('#chart-area svg')).toHaveCount(0);
-  await a11y(page);
+  await checkAccessibility(page);
 });
 
 test('invalid imports preserve the open packet and report exact validation failures', async ({ page }) => {
@@ -292,7 +275,7 @@ test('imported prose stays inert and submitted reviews remain explicitly unverif
   await expect(page.locator('#source-list a').first()).toHaveAttribute('rel', 'noopener noreferrer');
   await expect(page.locator('#source-list a').first()).toHaveAccessibleName(/opens in a new tab/);
   await expect(page.locator('.source-host').first()).toHaveText('www.iana.org');
-  await a11y(page);
+  await checkAccessibility(page);
 });
 
 test('evidence records are named articles with navigable source headings', async ({ page }) => {
@@ -404,7 +387,7 @@ test('editing research inputs clears the old review and withholds the chart', as
 
 test('method and dated sources can be edited without manipulating packet JSON', async ({ page }) => {
   await page.locator('#edit-details').click();
-  await a11y(page);
+  await checkAccessibility(page);
   await page.locator('select[name="method-basis"]').selectOption('empirical');
   await page.locator('input[name="method-sampleSize"]').fill('12');
   await page.locator('textarea[name="method-description"]').fill('Twelve fictional observations reviewed manually.');
@@ -700,7 +683,7 @@ test('corrupt storage is retained without replacement and saving stays off', asy
   expect(recovery.name).toBe('Unparsed Saved Research Draft.json');
   expect(JSON.parse(recovery.text)).toEqual({ storageKey: STORAGE_KEY, rawValue: '{"bad":true}' });
   expect(await page.evaluate(key => localStorage.getItem(key), STORAGE_KEY)).toBe('{"bad":true}');
-  await a11y(page);
+  await checkAccessibility(page);
   page.once('dialog', dialog => dialog.accept());
   await page.locator('#clear-saved').click();
   await expect(page.locator('#remember-packet')).toBeEnabled();
@@ -751,7 +734,7 @@ test('storage denial at startup keeps the workbench usable and saving disabled',
   await expect(deniedPage.locator('#storage-status')).toContainText('storage is unavailable');
   await expect(deniedPage.locator('#app-error')).toContainText('storage is unavailable');
   await expect(deniedPage.locator('#app-error')).not.toContainText('saved draft');
-  await a11y(deniedPage);
+  await checkAccessibility(deniedPage);
   await context.close();
 });
 
@@ -812,7 +795,7 @@ test('another tab changing storage locks destructive controls without replacing 
   await expect(page.locator('#storage-status')).toContainText('locked until reload');
   await expect(page.locator('#asset-symbol')).toHaveText('DEMO');
   expect(await page.evaluate(key => JSON.parse(localStorage.getItem(key)).thesis, STORAGE_KEY)).toBe(otherPacket.thesis);
-  await a11y(page);
+  await checkAccessibility(page);
   expect(await page.evaluate(() => {
     const event = new Event('beforeunload', { cancelable: true });
     window.dispatchEvent(event); return event.defaultPrevented;
