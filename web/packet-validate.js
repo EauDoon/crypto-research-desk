@@ -18,8 +18,12 @@ export function timestamp(value) {
 
 function canonicalQuery(query) {
   // Parameter order is not a different source. The same pairs, including
-  // repeated keys, are one URL whichever way they are written.
-  const parts = query.slice(1).split('&');
+  // repeated keys, are one URL whichever way they are written. Empty pairs
+  // ('?a=1&', '?&a=1', '&&') carry no parameter and the WHATWG urlencoded
+  // parser skips them, so they are dropped. The leading '?' is kept, so a bare
+  // path and '?' stay distinct, and a value-less key ('?a') stays distinct
+  // from an empty value ('?a=').
+  const parts = query.slice(1).split('&').filter(part => part !== '');
   parts.sort();
   return '?' + parts.join('&');
 }

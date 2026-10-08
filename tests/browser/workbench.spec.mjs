@@ -679,6 +679,32 @@ test('corrupt storage is retained without replacement and saving stays off', asy
   })).toBe(false);
 });
 
+test('saved drafts with empty query pairs restore unless two sources collapse into one', async ({ page }) => {
+  // A draft written by an earlier release with an empty pair on one source still restores unchanged.
+  const earlier = research();
+  earlier.sources[0].url = 'https://www.iana.org/domains/reserved?a=1&';
+  const earlierText = JSON.stringify(earlier);
+  await page.evaluate(([key, value]) => localStorage.setItem(key, value), [STORAGE_KEY, earlierText]);
+  await navigate(page, { reload: true });
+  await expect(page.locator('#storage-status')).toContainText('Restored');
+  await expect(page.locator('#remember-packet')).toBeChecked();
+  expect(await page.evaluate(key => localStorage.getItem(key), STORAGE_KEY)).toBe(earlierText);
+
+  // A draft that recorded one source twice is kept byte for byte and offered for recovery.
+  const duplicated = research();
+  duplicated.sources[1].url = 'https://www.iana.org/domains/reserved?a=1&';
+  duplicated.sources[0].url = 'https://www.iana.org/domains/reserved?a=1';
+  const duplicatedText = JSON.stringify(duplicated);
+  await page.evaluate(([key, value]) => localStorage.setItem(key, value), [STORAGE_KEY, duplicatedText]);
+  await navigate(page, { reload: true });
+  await expect(page.locator('#app-error')).toContainText('not deleted or overwritten');
+  await expect(page.locator('#remember-packet')).toBeDisabled();
+  await expect(page.locator('#recover-saved')).toBeVisible();
+  const recovery = await exported(page, '#recover-saved');
+  expect(JSON.parse(recovery.text)).toEqual({ storageKey: STORAGE_KEY, rawValue: duplicatedText });
+  expect(await page.evaluate(key => localStorage.getItem(key), STORAGE_KEY)).toBe(duplicatedText);
+});
+
 test('storage denial at startup keeps the workbench usable and saving disabled', async ({ browser, baseURL }) => {
   const context = await browser.newContext({ baseURL });
   await context.addInitScript(() => {
