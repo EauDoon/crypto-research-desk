@@ -11,7 +11,8 @@ import { startServer } from '../tools/serve.mjs';
 import { assertSupportedNode, isSupportedNode } from '../tools/runtime.mjs';
 import { isFirefoxStartupRace, navigate } from './browser/navigation.mjs';
 import { PREVIEW_ORIGIN } from './browser/origin.mjs';
-import { PUBLIC_FILES, HASHED_ASSET, SECURITY_HEADERS } from '../tools/web-config.mjs';
+import { PUBLIC_FILES, HASHED_SOURCES, STATIC_PAGES, HASHED_ASSET, SECURITY_HEADERS } from '../tools/web-config.mjs';
+import { checkSyntax, syntaxTargets } from '../tools/check-syntax.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const work = join(root, 'work');
@@ -110,6 +111,49 @@ test('Vercel production settings match the verified build and security configura
   });
 });
 
+test('one public file list drives the build order, the manifest and the allowlist', async () => {
+  assert.deepEqual(new Set(PUBLIC_FILES), new Set([...STATIC_PAGES, ...HASHED_SOURCES]));
+  assert.equal(new Set(PUBLIC_FILES).size, PUBLIC_FILES.length, 'no file is listed twice');
+  assert.equal(STATIC_PAGES.some(name => HASHED_SOURCES.includes(name)), false);
+  const webFiles = (await readdir(join(root, 'web'))).sort();
+  assert.deepEqual([...PUBLIC_FILES].sort(), webFiles, 'every web/ file is published and every published file exists');
+  for (const name of HASHED_SOURCES) {
+    assert.ok(HASHED_ASSET.test(name.replace(/\.(\w+)$/, '.' + 'a'.repeat(64) + '.$1')), name + ' has a hashed public name');
+  }
+  // Each module may import only modules hashed before it, so its rewritten imports are final.
+  for (const [index, name] of HASHED_SOURCES.entries()) {
+    if (!name.endsWith('.js')) continue;
+    const source = await readFile(join(root, 'web', name), 'utf8');
+    const imports = [...source.matchAll(/(?:^|[\s;])(?:import|export)\b[^'"]*?['"]\.\/([^'"]+)['"]/g)].map(match => match[1]);
+    for (const imported of imports) {
+      const position = HASHED_SOURCES.indexOf(imported);
+      assert.ok(position !== -1 && position < index, name + ' imports ./' + imported + ', which must be listed earlier in HASHED_SOURCES');
+    }
+  }
+});
+
+test('the syntax check covers every shipped and test module and names the first failure', async t => {
+  const targets = syntaxTargets();
+  for (const required of ['web/app.js', 'web/packet-parse.js', 'tools/build.mjs', 'tools/check-syntax.mjs',
+    'tests/production/workbench.spec.mjs', 'tests/browser/navigation.mjs', 'playwright.production.config.mjs']) {
+    assert.ok(targets.includes(required), required);
+  }
+  assert.equal(targets.some(path => path.includes('node_modules')), false);
+  assert.equal(checkSyntax().ok, true);
+
+  await mkdir(work, { recursive: true });
+  const directory = await mkdtemp(join(work, 'syntax-test-'));
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  for (const folder of ['web', 'tools', 'tests/production', 'tests/node_modules/ignored']) await mkdir(join(directory, folder), { recursive: true });
+  await writeFile(join(directory, 'web', 'ok.js'), 'export const ok = 1;\n');
+  await writeFile(join(directory, 'tests', 'node_modules', 'ignored', 'broken.mjs'), 'export const = ;\n');
+  assert.equal(checkSyntax(directory).ok, true, 'node_modules is skipped');
+  await writeFile(join(directory, 'tests', 'production', 'smoke.spec.mjs'), 'export const = ;\n');
+  const failed = checkSyntax(directory);
+  assert.equal(failed.ok, false);
+  assert.equal(failed.file, 'tests/production/smoke.spec.mjs');
+});
+
 test('the build is deterministic and publishes only the reviewed static allowlist', async t => {
   const directory = await fixture(t);
   await writeFile(join(directory, 'web', 'private-notes.md'), 'Not part of the public build.');
@@ -120,8 +164,8 @@ test('the build is deterministic and publishes only the reviewed static allowlis
   assert.equal(first.workbenchVersion, '1.10.0');
   assert.equal(first.researchCoreVersion, '1.1.0');
   assert.equal(first.files.length, PUBLIC_FILES.length);
-  assert.equal(first.files.filter(name => HASHED_ASSET.test(name)).length, 18);
-  assert.equal((await readdir(join(directory, 'dist'))).length, 22);
+  assert.equal(first.files.filter(name => HASHED_ASSET.test(name)).length, HASHED_SOURCES.length);
+  assert.equal((await readdir(join(directory, 'dist'))).length, PUBLIC_FILES.length + 1);
   assert.ok(!first.files.includes('private-notes.md'));
   assert.deepEqual(await verifyBuild(join(directory, 'dist')), first);
   const html = await readFile(join(directory, 'dist', 'index.html'), 'utf8');
