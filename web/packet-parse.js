@@ -116,6 +116,8 @@ export function parsePacket(text) {
     if (text[position] === '{') {
       position++;
       const result = Object.create(null);
+      // NFC forms of every key read so far, so NFC-equivalent duplicates are found in linear time.
+      const canonicalKeys = new Set();
       space();
       if (text[position] === '}') { position++; return result; }
       while (position < text.length) {
@@ -124,7 +126,8 @@ export function parsePacket(text) {
         const key = string();
         const canonicalKey = key.normalize('NFC');
         if (forbiddenKeys.has(key) || forbiddenKeys.has(canonicalKey)) fail('Reserved object key is not allowed.');
-        if (own(result, key) || Object.keys(result).some(existing => existing.normalize('NFC') === canonicalKey)) fail('Duplicate object key is not allowed.');
+        if (own(result, key) || canonicalKeys.has(canonicalKey)) fail('Duplicate object key is not allowed.');
+        canonicalKeys.add(canonicalKey);
         space();
         if (text[position++] !== ':') fail('Expected a colon.');
         result[key] = value(depth + 1);

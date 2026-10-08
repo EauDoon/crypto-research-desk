@@ -573,6 +573,18 @@ test('object keys that match under NFC are duplicates', () => {
   assert.throws(() => parsePacket('{"a":1,"\\u0061":2}'), /Duplicate object key/);
 });
 
+test('duplicate-key detection stays linear on a wide object', () => {
+  const text = '{' + Array.from({ length: 9990 }, (_, index) => '"k' + index + '":0').join(',') + '}';
+  const started = performance.now();
+  const parsed = parsePacket(text);
+  const elapsed = performance.now() - started;
+  assert.equal(Object.keys(parsed).length, 9990);
+  assert.ok(elapsed < 1000, 'parsing 9,990 keys took ' + elapsed.toFixed(0) + ' ms');
+  assert.throws(() => parsePacket('{"é":1,"é":2}'), /Duplicate object key/);
+  assert.throws(() => parsePacket('{"a":1,"a":2}'), /Duplicate object key/);
+  assert.throws(() => parsePacket('{"k0":0,"k1":0,"k0":0}'), /Duplicate object key/);
+});
+
 test('canonically equivalent Unicode in a source URL is one source', () => {
   for (const [first, second] of [
     ['https://www.iana.org/caf%C3%A9', 'https://www.iana.org/cafe%CC%81'],
