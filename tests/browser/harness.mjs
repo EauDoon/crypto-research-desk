@@ -29,7 +29,12 @@ export const test = base.extend({
 
 export { expect };
 
+// label-content-name-mismatch (WCAG 2.5.3 Label in Name) is experimental in
+// axe-core and off by default, so it is enabled explicitly. options() replaces
+// every earlier option, so it must come before withTags() or the tag filter is lost.
 export async function checkAccessibility(page) {
-  const result = await new AxeBuilder({ page }).withTags(ACCESSIBILITY_TAGS).analyze();
+  const result = await new AxeBuilder({ page })
+    .options({ rules: { 'label-content-name-mismatch': { enabled: true } } })
+    .withTags(ACCESSIBILITY_TAGS).analyze();
   expect(result.violations.map(item => ({ id: item.id, impact: item.impact, targets: item.nodes.map(node => node.target) }))).toEqual([]);
 }

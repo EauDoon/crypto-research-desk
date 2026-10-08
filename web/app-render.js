@@ -208,9 +208,11 @@ export function renderSources() {
     article.classList.toggle('source-filtered', !visible.has(source.id));
     const heading = element('div', undefined, 'source-title');
     const sourceUrl = safeSourceUrl(source.url);
-    const link = element('a', source.title + ' ↗');
+    const link = element('a', source.title);
     link.href = sourceUrl; link.target = '_blank'; link.rel = 'noopener noreferrer';
-    link.append(element('span', ' (opens in a new tab)', 'visually-hidden'));
+    const arrow = element('span', ' ↗');
+    arrow.setAttribute('aria-hidden', 'true');
+    link.append(arrow, element('span', ' (opens in a new tab)', 'visually-hidden'));
     const title = element('h3');
     title.id = 'source-heading-' + index;
     const printUrl = element('span', sourceUrl, 'print-source-url');
@@ -222,14 +224,14 @@ export function renderSources() {
     const details = element('details'); details.append(element('summary', 'Supplied excerpt (' + source.id + ')'), element('blockquote', source.excerpt));
     const editSource = element('button', 'Edit this source', 'button small subtle');
     editSource.type = 'button'; editSource.id = 'edit-source-' + source.id;
-    editSource.setAttribute('aria-label', 'Edit source ' + source.id);
+    editSource.setAttribute('aria-label', 'Edit this source: ' + source.id);
     editSource.addEventListener('click', () => {
       openEditor('details');
       const target = field('source-' + index + '-claim');
       target.focus({ preventScroll: true }); revealEditorTarget(target);
     });
     const copyCitation = element('button', 'Copy source citation', 'button small subtle');
-    copyCitation.type = 'button'; copyCitation.setAttribute('aria-label', 'Copy citation for ' + source.id);
+    copyCitation.type = 'button'; copyCitation.setAttribute('aria-label', 'Copy source citation: ' + source.id);
     copyCitation.addEventListener('click', async () => {
       copyCitation.disabled = true;
       try { await navigator.clipboard.writeText(sourceCitation(packet, source.id)); announce('Source citation copied with raw dates, claim, excerpt and research provenance.'); }

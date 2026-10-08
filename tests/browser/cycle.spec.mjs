@@ -27,7 +27,7 @@ test('pinned comparison survives edits and is forgotten on reload', async ({ pag
 
 test('evidence row editing focuses the selected claim and returns to its rebuilt action', async ({ page }) => {
   await page.locator('#source-search').fill('activity');
-  const action = page.getByRole('button', { name: 'Edit source example-activity', exact: true });
+  const action = page.getByRole('button', { name: 'Edit this source: example-activity', exact: true });
   await action.focus(); await page.keyboard.press('Enter');
   await expect(page.locator('[name="source-1-claim"]')).toBeFocused();
   await page.locator('[name="source-1-claim"]').fill('Updated fictional activity observation.');
