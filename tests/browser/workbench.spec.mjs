@@ -646,6 +646,16 @@ test('local saving is opt-in, survives reload, and clears only the app key', asy
   })).toBe(true);
 });
 
+test('startup logs no console warnings or errors', async ({ page }) => {
+  const messages = [];
+  page.on('console', message => {
+    if (['warning', 'error'].includes(message.type())) messages.push(message.type() + ': ' + message.text());
+  });
+  await navigate(page, { reload: true });
+  await expect(page.locator('#asset-symbol')).toHaveText('DEMO');
+  expect(messages).toEqual([]);
+});
+
 test('clearing when no saved draft exists leaves the default packet clean', async ({ page }) => {
   page.once('dialog', dialog => dialog.accept());
   await page.locator('#clear-saved').click();
@@ -661,6 +671,7 @@ test('corrupt storage is retained without replacement and saving stays off', asy
   await page.evaluate(key => localStorage.setItem(key, '{"bad":true}'), STORAGE_KEY);
   await navigate(page, { reload: true });
   await expect(page.locator('#app-error')).toContainText('not deleted or overwritten');
+  await expect(page.locator('#storage-status')).toContainText('unreadable');
   await expect(page.locator('#remember-packet')).toBeDisabled();
   await expect(page.locator('#recover-saved')).toBeVisible();
   expect(await page.evaluate(key => localStorage.getItem(key), STORAGE_KEY)).toBe('{"bad":true}');
@@ -717,6 +728,8 @@ test('storage denial at startup keeps the workbench usable and saving disabled',
   await expect(deniedPage.locator('#remember-packet')).toBeDisabled();
   await expect(deniedPage.locator('#recover-saved')).toBeHidden();
   await expect(deniedPage.locator('#storage-status')).toContainText('storage is unavailable');
+  await expect(deniedPage.locator('#app-error')).toContainText('storage is unavailable');
+  await expect(deniedPage.locator('#app-error')).not.toContainText('saved draft');
   await a11y(deniedPage);
   await context.close();
 });
