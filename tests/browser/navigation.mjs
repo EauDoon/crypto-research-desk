@@ -15,16 +15,48 @@ function readyDocument(state) {
 
 // Observed in CI with Playwright 1.62.1; see microsoft/playwright#42183.
 export function isFirefoxStartupRace(evidence) {
-  const { browserName, errorName, reload, documentState, responses, failures, pending, runtimeErrors } = evidence;
+  const { browserName, errorName, reload, documentState, responses, failures, pending, runtimeErrors, expectedAssets } = evidence;
   if (browserName !== 'firefox' || errorName !== 'TimeoutError' || reload || !readyDocument(documentState) ||
       failures.length || pending.length || runtimeErrors.length ||
       responses.some(response => response.status !== 200)) return false;
   const paths = new Set(responses.map(response => response.path));
   if (paths.size !== responses.length) return false;
   if (!paths.has('/') || !paths.has(documentState.modulePath) || !paths.has(documentState.stylesheets[0].path)) return false;
-  // Every hashed asset emitted by the current build must be present.
-  for (const path of paths) if (!path.startsWith('/')) return false;
-  return true;
+  // Every hashed asset emitted by the current build must be present. The caller
+  // supplies that list; without it the navigation is never treated as recovered.
+  if (!Array.isArray(expectedAssets) || !expectedAssets.length) return false;
+  return expectedAssets.every(path => paths.has(path));
+}
+
+// Creates a context and page for one test and always closes the context, so a
+// failing assertion cannot leak a browser context into later tests.
+export async function withIsolatedPage(browser, options, run) {
+  const context = await browser.newContext(options);
+  try {
+    return await run(await context.newPage(), context);
+  } finally {
+    await context.close();
+  }
+}
+
+// A bounded navigation for pages the startup probe cannot inspect (JavaScript
+// disabled, application module blocked) and for the live smoke. In Firefox a
+// completed navigation can still time out (microsoft/playwright#42183), so a
+// TimeoutError there is logged and retried exactly once; anything else throws.
+export async function gotoOnce(page, path = '/', options = {}) {
+  const attempt = () => page.goto(path, { timeout: 10000, ...options });
+  let response;
+  try {
+    response = await attempt();
+  } catch (error) {
+    const browserName = page.context().browser()?.browserType().name();
+    if (browserName !== 'firefox' || error.name !== 'TimeoutError') throw error;
+    console.warn('Navigation diagnostics: ' + JSON.stringify({ browserName, errorName: error.name, path, url: page.url() }));
+    console.warn('Retrying Firefox navigation once (microsoft/playwright#42183).');
+    response = await attempt();
+  }
+  assert.equal(response?.status(), 200, 'navigation status for ' + path);
+  return response;
 }
 
 async function snapshot(page) {
@@ -46,7 +78,7 @@ async function snapshot(page) {
   } finally { clearTimeout(timer); }
 }
 
-export async function navigate(page, { reload = false } = {}) {
+export async function navigate(page, { reload = false, expectedAssets } = {}) {
   if (!instrumented.has(page)) {
     await page.addInitScript(() => {
       const probe = { documentId: crypto.randomUUID(), events: [] };
@@ -79,7 +111,7 @@ export async function navigate(page, { reload = false } = {}) {
     if (!reload) assert.ok(readyDocument(await snapshot(page)), 'workbench startup document');
   } catch (error) {
     const evidence = {
-      browserName: page.context().browser()?.browserType().name(), errorName: error.name, reload,
+      browserName: page.context().browser()?.browserType().name(), errorName: error.name, reload, expectedAssets,
       events: [...events], responses: [...responses], failures: [...failures], runtimeErrors: [...runtimeErrors],
       pending: [...pending].map(request => new URL(request.url()).pathname),
     };

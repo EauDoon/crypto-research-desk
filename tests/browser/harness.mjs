@@ -1,6 +1,27 @@
+import { readFileSync } from 'node:fs';
 import { test as base, expect } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
+import { HASHED_ASSET } from '../../tools/web-config.mjs';
+import { navigate as navigateWithEvidence } from './navigation.mjs';
 import { PREVIEW_ORIGIN } from './origin.mjs';
+
+export { gotoOnce, withIsolatedPage } from './navigation.mjs';
+
+// The hashed assets of the build under test, read on first use. Only Playwright
+// specs reach this; `npm run test:browser` always builds dist/ first, while unit
+// tests import navigation.mjs, which never reads dist/.
+let builtAssets;
+function expectedAssets() {
+  builtAssets ??= JSON.parse(readFileSync(new URL('../../dist/build-info.json', import.meta.url), 'utf8'))
+    .files.filter(name => HASHED_ASSET.test(name)).map(name => '/' + name);
+  return builtAssets;
+}
+
+// Startup navigation that may recover the Firefox race only when every hashed
+// asset of this build was actually served.
+export function navigate(page, options = {}) {
+  return navigateWithEvidence(page, { ...options, expectedAssets: expectedAssets() });
+}
 
 // One accessibility bar for every spec, including the live production smoke.
 export const ACCESSIBILITY_TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'];

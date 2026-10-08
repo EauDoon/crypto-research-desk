@@ -1,7 +1,6 @@
-import { test, expect, checkAccessibility } from './harness.mjs';
+import { test, expect, checkAccessibility, navigate, gotoOnce, withIsolatedPage } from './harness.mjs';
 import { examplePacket } from '../../web/example.js';
 import { MAX_PACKET_BYTES, blankPacket } from '../../web/packet.js';
-import { navigate } from './navigation.mjs';
 
 const NOW = new Date('2026-08-20T10:00:00Z');
 const STORAGE_KEY = 'crypto-research-desk.packet.v1';
@@ -53,50 +52,46 @@ test('the default view is explicitly synthetic, local, and accessible', async ({
 });
 
 test('startup fails closed when JavaScript is unavailable', async ({ browser, baseURL }) => {
-  const context = await browser.newContext({ javaScriptEnabled: false, baseURL });
-  const noScriptPage = await context.newPage();
-  const response = await noScriptPage.goto('/', { waitUntil: 'commit' });
-  expect(response?.status()).toBe(200);
-  await expect(noScriptPage.locator('html')).toHaveClass(/app-unavailable/);
-  await expect(noScriptPage.locator('#startup-status')).toContainText('Research workbench unavailable');
-  await expect(noScriptPage.locator('.requires-app:visible')).toHaveCount(0);
-  await expect(noScriptPage.getByRole('button')).toHaveCount(0);
-  await expect(noScriptPage.locator('#guide')).toBeVisible();
-  await expect(noScriptPage.locator('.page-footer')).toContainText('cannot place trades');
-  await context.close();
+  await withIsolatedPage(browser, { javaScriptEnabled: false, baseURL }, async noScriptPage => {
+    await gotoOnce(noScriptPage, '/', { waitUntil: 'commit' });
+    await expect(noScriptPage.locator('html')).toHaveClass(/app-unavailable/);
+    await expect(noScriptPage.locator('#startup-status')).toContainText('Research workbench unavailable');
+    await expect(noScriptPage.locator('.requires-app:visible')).toHaveCount(0);
+    await expect(noScriptPage.getByRole('button')).toHaveCount(0);
+    await expect(noScriptPage.locator('#guide')).toBeVisible();
+    await expect(noScriptPage.locator('.page-footer')).toContainText('cannot place trades');
+  });
 });
 
 test('startup remains fail closed when the application module cannot load', async ({ browser, baseURL }) => {
-  const context = await browser.newContext({ baseURL });
-  await context.route(/\/app(?:\.[^/]+)?\.js$/, route => route.abort());
-  const failedPage = await context.newPage();
-  await failedPage.goto('/');
-  await expect(failedPage.locator('html')).toHaveClass(/app-unavailable/);
-  await expect(failedPage.locator('#startup-status')).toBeVisible();
-  await expect(failedPage.locator('.requires-app:visible')).toHaveCount(0);
-  await context.close();
+  await withIsolatedPage(browser, { baseURL }, async (failedPage, context) => {
+    await context.route(/\/app(?:\.[^/]+)?\.js$/, route => route.abort());
+    await gotoOnce(failedPage, '/');
+    await expect(failedPage.locator('html')).toHaveClass(/app-unavailable/);
+    await expect(failedPage.locator('#startup-status')).toBeVisible();
+    await expect(failedPage.locator('.requires-app:visible')).toHaveCount(0);
+  });
 });
 
 test('startup does not shift visible content when the application module arrives', async ({ browser, baseURL, browserName }) => {
   test.skip(browserName !== 'chromium', 'Layout Shift entries are exposed by Chromium.');
-  const context = await browser.newContext({ baseURL });
-  await context.addInitScript(() => {
-    window.__cumulativeLayoutShift = 0;
-    new PerformanceObserver(list => {
-      for (const entry of list.getEntries()) {
-        if (!entry.hadRecentInput) window.__cumulativeLayoutShift += entry.value;
-      }
-    }).observe({ type: 'layout-shift', buffered: true });
+  await withIsolatedPage(browser, { baseURL }, async (measuredPage, context) => {
+    await context.addInitScript(() => {
+      window.__cumulativeLayoutShift = 0;
+      new PerformanceObserver(list => {
+        for (const entry of list.getEntries()) {
+          if (!entry.hadRecentInput) window.__cumulativeLayoutShift += entry.value;
+        }
+      }).observe({ type: 'layout-shift', buffered: true });
+    });
+    await context.route(/\/app(?:\.[^/]+)?\.js$/, async route => {
+      await new Promise(resolve => setTimeout(resolve, 750));
+      await route.continue();
+    });
+    await gotoOnce(measuredPage, '/');
+    await expect(measuredPage.locator('html')).not.toHaveClass(/app-unavailable/);
+    expect(await measuredPage.evaluate(() => window.__cumulativeLayoutShift)).toBeLessThan(0.1);
   });
-  await context.route(/\/app(?:\.[^/]+)?\.js$/, async route => {
-    await new Promise(resolve => setTimeout(resolve, 750));
-    await route.continue();
-  });
-  const measuredPage = await context.newPage();
-  await measuredPage.goto('/');
-  await expect(measuredPage.locator('html')).not.toHaveClass(/app-unavailable/);
-  expect(await measuredPage.evaluate(() => window.__cumulativeLayoutShift)).toBeLessThan(0.1);
-  await context.close();
 });
 
 test('horizon tabs support arrows, Home, End, and correct tab panels', async ({ page }) => {
@@ -722,20 +717,19 @@ test('saved drafts with empty query pairs restore unless two sources collapse in
 });
 
 test('storage denial at startup keeps the workbench usable and saving disabled', async ({ browser, baseURL }) => {
-  const context = await browser.newContext({ baseURL });
-  await context.addInitScript(() => {
-    Storage.prototype.getItem = function () { throw new DOMException('Test storage denied', 'SecurityError'); };
+  await withIsolatedPage(browser, { baseURL }, async (deniedPage, context) => {
+    await context.addInitScript(() => {
+      Storage.prototype.getItem = function () { throw new DOMException('Test storage denied', 'SecurityError'); };
+    });
+    await navigate(deniedPage);
+    await expect(deniedPage.locator('#asset-symbol')).toHaveText('DEMO');
+    await expect(deniedPage.locator('#remember-packet')).toBeDisabled();
+    await expect(deniedPage.locator('#recover-saved')).toBeHidden();
+    await expect(deniedPage.locator('#storage-status')).toContainText('storage is unavailable');
+    await expect(deniedPage.locator('#app-error')).toContainText('storage is unavailable');
+    await expect(deniedPage.locator('#app-error')).not.toContainText('saved draft');
+    await checkAccessibility(deniedPage);
   });
-  const deniedPage = await context.newPage();
-  await navigate(deniedPage);
-  await expect(deniedPage.locator('#asset-symbol')).toHaveText('DEMO');
-  await expect(deniedPage.locator('#remember-packet')).toBeDisabled();
-  await expect(deniedPage.locator('#recover-saved')).toBeHidden();
-  await expect(deniedPage.locator('#storage-status')).toContainText('storage is unavailable');
-  await expect(deniedPage.locator('#app-error')).toContainText('storage is unavailable');
-  await expect(deniedPage.locator('#app-error')).not.toContainText('saved draft');
-  await checkAccessibility(deniedPage);
-  await context.close();
 });
 
 test('failed saved-draft removal keeps its retention state visible', async ({ page }) => {

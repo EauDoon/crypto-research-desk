@@ -427,7 +427,7 @@ test('Firefox navigation recovery requires the exact completed and successful st
   const baseline = {
     browserName: 'firefox', errorName: 'TimeoutError', reload: false,
     documentState: loadedNavigationDocument(paths), events: [], failures: [], pending: [], runtimeErrors: [],
-    responses: paths.map(path => ({ path, status: 200 })),
+    responses: paths.map(path => ({ path, status: 200 })), expectedAssets: paths.slice(1),
   };
   assert.equal(isFirefoxStartupRace(baseline), true, 'native events suffice when the driver drops events');
   const rejected = [
@@ -445,6 +445,9 @@ test('Firefox navigation recovery requires the exact completed and successful st
     { runtimeErrors: ['Application failed'] }, { responses: baseline.responses.slice(1) },
     { responses: baseline.responses.map((response, i) => i === 1 ? { ...response, status: 404 } : response) },
     { responses: baseline.responses.map((response, i) => i === 1 ? { ...response, path: '/unknown.js' } : response) },
+    { responses: baseline.responses.filter(response => !response.path.startsWith('/favicon.')) },
+    { expectedAssets: [...baseline.expectedAssets, '/packet-extra.' + hash + '.js'] },
+    { expectedAssets: [] }, { expectedAssets: undefined },
   ];
   for (const change of rejected) assert.equal(isFirefoxStartupRace({ ...baseline, ...change }), false, JSON.stringify(change));
 });
@@ -477,11 +480,30 @@ test('Firefox startup recovery verifies cached pages and preserves subsequent fa
       }
       return { status: () => 200 };
     };
-    if (['success', 'cached'].includes(outcome)) await navigate(page);
-    else await assert.rejects(navigate(page), /Navigation still failed|recovered navigation/);
+    const expectedAssets = paths.slice(1);
+    if (['success', 'cached'].includes(outcome)) await navigate(page, { expectedAssets });
+    else await assert.rejects(navigate(page, { expectedAssets }), /Navigation still failed|recovered navigation/);
     assert.equal(calls, 2, 'only one recovery attempt');
     assert.equal(page.eventNames().length, 0, 'temporary listeners are removed');
   }
+
+  // Without the build's asset list a timed-out navigation is never treated as recovered.
+  const page = new EventEmitter(); let calls = 0;
+  page.addInitScript = async () => {};
+  page.context = () => ({ browser: () => ({ browserType: () => ({ name: () => 'firefox' }) }) });
+  page.evaluate = async () => loadedNavigationDocument(paths);
+  page.goto = async () => {
+    calls++;
+    for (const path of paths) {
+      const request = { url: () => PREVIEW_ORIGIN + path };
+      page.emit('request', request);
+      page.emit('response', { url: request.url, status: () => 200 });
+      page.emit('requestfinished', request);
+    }
+    const error = new Error('Navigation timed out'); error.name = 'TimeoutError'; throw error;
+  };
+  await assert.rejects(navigate(page), /Navigation timed out/);
+  assert.equal(calls, 1, 'no recovery attempt without the expected asset list');
 });
 
 // Regression guard. The staleness guards in app-events capture a sequence with

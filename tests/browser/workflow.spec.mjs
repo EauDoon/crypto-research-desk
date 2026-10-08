@@ -1,6 +1,5 @@
-import { test, expect, checkAccessibility } from './harness.mjs';
+import { test, expect, checkAccessibility, navigate } from './harness.mjs';
 import { examplePacket } from '../../web/example.js';
-import { navigate } from './navigation.mjs';
 const NOW = new Date('2026-08-20T10:00:00Z');
 test.beforeEach(async ({ page }) => {
   await page.clock.install({ time: NOW }); await navigate(page);
