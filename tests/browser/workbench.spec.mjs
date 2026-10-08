@@ -357,6 +357,27 @@ test('undated exports use exact portable fallback filenames', async ({ page }) =
   expect(markdown.name).toBe('(Undated)Research Brief.md');
 });
 
+test('receipt, bundle and pinned baseline exports are named from their own snapshot', async ({ page }) => {
+  expect((await exported(page, '#export-receipt')).name).toBe('(2026-08-20)DEMO Research Check Receipt.json');
+  expect((await exported(page, '#export-bundle')).name).toBe('(2026-08-20)DEMO Research Bundle.json');
+  await page.getByText('Open packet comparison', { exact: true }).click();
+  await page.locator('#pin-baseline').click();
+  expect((await exported(page, '#export-baseline')).name).toBe('(2026-08-20)DEMO Comparison Baseline.json');
+
+  // The baseline keeps the pinned packet's date after a later packet with the same asset is opened.
+  const later = blankPacket();
+  later.asset.symbol = 'DEMO'; later.reference.capturedAt = '2026-08-19T09:00:00Z';
+  await importPacket(page, later);
+  await expect(page.locator('#export-baseline')).toBeEnabled();
+  expect((await exported(page, '#export-baseline')).name).toBe('(2026-08-20)DEMO Comparison Baseline.json');
+  expect((await exported(page, '#export-receipt')).name).toBe('(2026-08-19)DEMO Research Check Receipt.json');
+
+  page.once('dialog', dialog => dialog.accept());
+  await page.locator('#new-packet').click();
+  await page.locator('#close-editor').click();
+  expect((await exported(page, '#export-receipt')).name).toBe('(Undated)Research Check Receipt.json');
+});
+
 test('export filenames keep the packet date across positive and negative UTC boundaries', async ({ page }) => {
   for (const [capturedAt, timezone, date] of [
     ['2026-08-20T00:30:00+08:00', 'Asia/Singapore', '2026-08-20'],
