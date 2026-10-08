@@ -1,9 +1,10 @@
 import assert from 'node:assert/strict';
 import { HASHED_ASSET } from '../../tools/web-config.mjs';
+import { PREVIEW_ORIGIN } from './origin.mjs';
 
 const instrumented = new WeakSet();
 function readyDocument(state) {
-  return state?.origin === 'http://127.0.0.1:4173' && state.path === '/' && state.readyState === 'complete' &&
+  return state?.origin === PREVIEW_ORIGIN && state.path === '/' && state.readyState === 'complete' &&
     typeof state.documentId === 'string' && state.documentId.length > 0 &&
     state.nativeEvents?.includes('domcontentloaded') && state.nativeEvents.includes('load') &&
     state.symbol === 'DEMO' && state.hasChart === true && state.assertionCount === 5 &&

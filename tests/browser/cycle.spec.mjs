@@ -3,12 +3,13 @@ import { examplePacket } from '../../web/example.js';
 import { blankPacket } from '../../web/packet.js';
 import AxeBuilder from '@axe-core/playwright';
 import { navigate } from './navigation.mjs';
+import { PREVIEW_ORIGIN } from './origin.mjs';
 const NOW = new Date('2026-08-20T10:00:00Z');
 const runtimeErrors = new WeakMap(), externalRequests = new WeakMap();
 test.beforeEach(async ({ page }) => {
   runtimeErrors.set(page, []); externalRequests.set(page, []);
   page.on('pageerror', error => runtimeErrors.get(page).push(error.message));
-  page.on('request', request => { if (!request.url().startsWith('http://127.0.0.1:4173/') && !request.url().startsWith('blob:')) externalRequests.get(page).push(request.url()); });
+  page.on('request', request => { if (!request.url().startsWith(PREVIEW_ORIGIN + '/') && !request.url().startsWith('blob:')) externalRequests.get(page).push(request.url()); });
   await page.clock.install({ time: NOW }); await navigate(page);
 });
 test.afterEach(async ({ page }) => { expect(runtimeErrors.get(page)).toEqual([]); expect(externalRequests.get(page)).toEqual([]); });

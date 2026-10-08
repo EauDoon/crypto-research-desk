@@ -20,7 +20,7 @@ npm run test:browser
 
 On Linux, use the available Python 3 executable and install Playwright browser system dependencies as the CI workflow does. On a restricted Windows host, browser execution may need permission to start and stop its own child processes.
 
-`npm run dev` serves source files on loopback only. `npm run preview` loads and verifies a production build once, then serves that immutable in-memory byte snapshot even if `dist/` changes. Restart preview to inspect a later build. Both commands default to `http://127.0.0.1:4173` and support `-- --port 4174`. Do not expose this development server to a network.
+`npm run dev` serves source files on loopback only. `npm run preview` loads and verifies a production build once, then serves that immutable in-memory byte snapshot even if `dist/` changes. Restart preview to inspect a later build. Both commands default to `http://127.0.0.1:4173` and support `-- --port 4174`. Do not expose this development server to a network. `npm run test:browser` serves the build on the same default port; when another local server already holds it, set `BROWSER_TEST_PORT` (for example `$env:BROWSER_TEST_PORT = '4273'`) and every browser guard follows that origin.
 
 The [CI workflow](../.github/workflows/ci.yml) runs the exact research-core check, Python regressions, Node tests, build, dependency audit, and Chromium/Firefox browser and accessibility tests. Its actions are pinned to immutable commits, its token is read-only, and it does not deploy. Check the CI result for the exact proposed commit, not a previous revision.
 

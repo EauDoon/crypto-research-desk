@@ -3,6 +3,7 @@ import AxeBuilder from '@axe-core/playwright';
 import { examplePacket } from '../../web/example.js';
 import { MAX_PACKET_BYTES, blankPacket } from '../../web/packet.js';
 import { navigate } from './navigation.mjs';
+import { PREVIEW_ORIGIN } from './origin.mjs';
 
 const NOW = new Date('2026-08-20T10:00:00Z');
 const STORAGE_KEY = 'crypto-research-desk.packet.v1';
@@ -44,7 +45,7 @@ test.beforeEach(async ({ page }) => {
   errors.set(page, []); requests.set(page, []);
   page.on('pageerror', error => errors.get(page).push(error.message));
   page.on('request', request => {
-    if (!request.url().startsWith('http://127.0.0.1:4173/') && !request.url().startsWith('blob:')) requests.get(page).push(request.url());
+    if (!request.url().startsWith(PREVIEW_ORIGIN + '/') && !request.url().startsWith('blob:')) requests.get(page).push(request.url());
   });
   await page.clock.install({ time: NOW });
   await navigate(page);

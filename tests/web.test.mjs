@@ -10,6 +10,7 @@ import { build, verifyBuild } from '../tools/build.mjs';
 import { startServer } from '../tools/serve.mjs';
 import { assertSupportedNode, isSupportedNode } from '../tools/runtime.mjs';
 import { isFirefoxStartupRace, navigate } from './browser/navigation.mjs';
+import { PREVIEW_ORIGIN } from './browser/origin.mjs';
 import { PUBLIC_FILES, HASHED_ASSET, SECURITY_HEADERS } from '../tools/web-config.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -413,7 +414,7 @@ test('built preview serves one immutable verified byte snapshot after mutation a
 });
 
 function loadedNavigationDocument(paths, documentId = 'first') {
-  return { origin: 'http://127.0.0.1:4173', path: '/', readyState: 'complete', documentId,
+  return { origin: PREVIEW_ORIGIN, path: '/', readyState: 'complete', documentId,
     nativeEvents: ['domcontentloaded', 'load'], symbol: 'DEMO', hasChart: true, assertionCount: 5,
     modulePath: paths.find(path => path.startsWith('/app.')),
     stylesheets: [{ path: paths.find(path => path.startsWith('/styles.')), rules: 100 }] };
@@ -466,7 +467,7 @@ test('Firefox startup recovery verifies cached pages and preserves subsequent fa
       calls++;
       for (const path of paths) {
         if (calls === 2 && outcome === 'cached' && path !== '/') continue;
-        const request = { url: () => 'http://127.0.0.1:4173' + path };
+        const request = { url: () => PREVIEW_ORIGIN + path };
         page.emit('request', request);
         page.emit('response', { url: request.url, status: () => calls === 2 && outcome === 'asset' && path.startsWith('/styles.') ? 404 : 200 });
         page.emit('requestfinished', request);
