@@ -890,6 +890,15 @@ test('mobile and desktop layouts contain overflow and keep dialog actions reacha
   }
 });
 
+test('source excerpt toggles keep a 24 px target at every width (WCAG 2.5.8)', async ({ page }) => {
+  for (const width of [320, 390, 768, 1440]) {
+    await page.setViewportSize({ width, height: 900 });
+    const heights = await page.locator('.source-item summary').evaluateAll(nodes => nodes.map(node => node.getBoundingClientRect().height));
+    expect(heights.length, 'source summaries at ' + width).toBeGreaterThan(0);
+    for (const height of heights) expect(height, 'summary height at ' + width).toBeGreaterThanOrEqual(24);
+  }
+});
+
 test('scroll hints follow measured chart and table overflow after resizing', async ({ page }) => {
   for (const width of [768, 1000]) {
     await page.setViewportSize({ width, height: 1000 });
