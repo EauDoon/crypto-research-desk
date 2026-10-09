@@ -38,7 +38,7 @@ All listed fields are required, including empty fields. Unknown keys and unsuppo
 
 - Canonical compact packet data must fit within 256 KiB. Import and full-packet editing accept at most 320 KiB of UTF-8 JSON so formatting whitespace does not consume the semantic packet limit. Individual prose fields accept at most 5,000 characters, with tighter limits for identifiers, names, and URLs.
 - Risks, unknowns, and sources each accept at most 32 entries. The parser also limits nesting, total nodes, and array lengths.
-- Duplicate keys, reserved prototype keys, sparse lists, nonfinite numbers, precision-losing numbers, malformed UTF-8, ill-formed Unicode, and hidden Unicode formatting controls are rejected.
+- Duplicate keys, including keys that are equal after Unicode NFC normalization, reserved prototype keys, sparse lists, nonfinite numbers, precision-losing numbers, malformed UTF-8, ill-formed Unicode, Unicode noncharacters, line and paragraph separators, and hidden Unicode formatting controls are rejected.
 - Prices are numbers from zero to 1 trillion, with a strictly positive reference price. Negative zero is rejected because JSON serialization cannot preserve its sign. Use `null` for an unknown reference price and the unbounded upper tail.
 - Timestamps require seconds and a known explicit offset, such as `2026-08-20T09:00:00Z`; the RFC 3339 unknown-offset marker `-00:00` is rejected. Calendar dates are checked. The display timezone is an IANA name such as `UTC` or `Asia/Singapore`. Decision-facing timestamps include the local wall time, its numeric UTC offset, and the canonical UTC instant so repeated daylight-saving times remain unambiguous.
 - Evidence must be published before or at capture, and captured before or at the common reference cutoff. Review time cannot predate that evidence or cutoff. A five-minute tolerance accommodates clock skew; it does not establish freshness.
@@ -47,6 +47,10 @@ All listed fields are required, including empty fields. Unknown keys and unsuppo
 ### Evidence and method
 
 Source URLs must be public HTTPS URLs without embedded credentials, a custom port, or a listed local, test-only, or special-use namespace such as `.example`, `.onion`, `.home.arpa`, or `.alt`. At least one primary source record is required for structural completeness. Reserved example domains cannot support a packet labeled `research`. The workbench displays the canonical hostname beside each operator-supplied source title.
+
+Percent-encoded controls, formatting characters, noncharacters, and invalid UTF-8 are rejected anywhere in a source URL, as are invalid Punycode labels and internationalized host labels that mix Latin, Cyrillic, or Greek letters.
+
+Each source record must name a different source. URLs are compared after canonicalization, so none of these makes a second source: host case, an explicit default port, dot segments, percent-encoding of unreserved and other non-separator characters, Unicode NFC form, query-pair order, or empty query pairs such as a trailing `&`. The fragment is ignored. Encoded separators such as `%2F`, `%26`, and `%3D` stay distinct from the literal characters, a bare path stays distinct from the same path with an empty `?`, and `?a` stays distinct from `?a=`. A second record for the same canonical URL is rejected as a duplicate.
 
 The app validates URL form and recorded chronology. It does not open sources, inspect DNS destinations, prove primary-source status, verify excerpts, resolve contradictions, or determine whether evidence is stale for a particular claim. The operator must do that work.
 
@@ -78,7 +82,7 @@ The five assertion IDs are `authority`, `evidence`, `scenarios`, `liquidity`, an
 
 A final review must account for every source and all five assertions. Warnings require a warning disposition; failed or unknown assertions block the chart. `repair` and `withhold` block delivery. `deliver` cannot coexist with unresolved unknowns. Non-PASS assertions require a repair description.
 
-The preparer and reviewer aliases cannot match after Unicode compatibility normalization, whitespace collapse, and case normalization. This is only a consistency check. Different aliases, even a structurally complete record, do not prove that two independent people reviewed the work.
+The preparer and reviewer aliases cannot match after Unicode compatibility normalization, folding of Cyrillic and Greek lookalike letters to Latin, whitespace collapse, and case normalization. This is only a consistency check. Different aliases, even a structurally complete record, do not prove that two independent people reviewed the work.
 
 Every material local input edit resets final or partial review data to a blank pending record. Save the changed inputs first, then record the actual new review. Attempts to change inputs and review data together are rejected without clearing the editor. Reordering JSON keys, review assertions, or reviewed source IDs does not count as a review change. Saving unchanged details does not reset the review. Imported records remain self-reported and unverified.
 
@@ -111,6 +115,8 @@ Undo retains up to ten saved edits in page memory. It restores research inputs a
 - **Scenario CSV** includes kind, reference cutoff, quote currency, horizon endpoints, and submitted gate status. Blocked packets produce four WITHHELD rows. Eligible packets retain all twelve scenarios with unbounded upper tails explicitly labeled. Text beginning with spreadsheet formula prefixes is apostrophe-prefixed and every cell is quoted. It contains no expected-return estimate or order instruction.
 - **Independent review handoff** is a separate JSON format, not an importable forecast packet. It omits the producer thesis, scenario drivers, and prior risk verdict; retains source records, proposed ranges, calculation method, counterevidence, risks, and unknowns; and starts requested assertions at UNKNOWN. It is always labeled INCOMPLETE_HANDOFF because the mandate, specialist run ledger, and conflict ledger must be attached separately. Its method and supplied evidence remain untrusted data, and the full project review workflow still applies.
 - **Check receipt** hashes the packet snapshot captured when clicked. Reproduce its SHA-256 using UTF-8 bytes of JSON.stringify(parsedPacket), preserving key order and adding no whitespace or newline. Save the matching packet JSON as well. The receipt records its check time, gap counts, warnings, and gate state. A digest detects changes; it does not authenticate a reviewer, verify sources, or establish forecast accuracy. The browser must provide Web Crypto for this optional export.
+
+Every downloaded file, including check receipts, pinned baselines, and packet bundles, is named `(YYYY-MM-DD)SYMBOL suffix` from the packet it contains. An unusable reference capture time gives `(Undated)`, and an unnamed asset omits the symbol. The one exception is the unreadable-draft recovery file, `Unparsed Saved Research Draft.json`, which has no packet to name it from.
 
 All tools preserve the schema-version-1 packet, the five research functions, the independent risk gate, and the research-only authority boundary. They add no network requests or persistent storage keys.
 

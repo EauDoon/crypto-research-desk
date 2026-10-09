@@ -26,5 +26,5 @@ What actually happened.
 - OS:
 - Node version:
 - Browser (if applicable):
-- Package version:
+- Workbench version and research core version (from `/build-info.json`, or `package.json` and `VERSION`):
 - Any other relevant context:

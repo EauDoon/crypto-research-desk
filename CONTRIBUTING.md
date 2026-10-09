@@ -27,7 +27,11 @@ Run the release-core and workbench checks before opening a pull request:
 python3 -B tools/verify_release.py
 python3 -B -m unittest discover -s tests -v
 npm run check
+npx playwright install chromium firefox
+npm run test:browser
 ```
+
+On Windows, run the two Python commands as `py -B tools/verify_release.py` and `py -B -m unittest discover -s tests -v`. `npm run test:browser` rebuilds `dist/` first, then runs the Chromium and Firefox browser and accessibility suite that CI runs; the browser install is needed once per Playwright version.
 
 Before opening a pull request:
 
