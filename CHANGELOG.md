@@ -6,6 +6,51 @@ Record user-visible changes under `[Unreleased]` as they merge. A release moves 
 
 ## [Unreleased]
 
+## [1.11.0] - 2026-10-09
+
+This release records everything merged since 1.10.0 plus its own changes. Packet schema 1, the five read-only specialists, the four forecast horizons, the independent risk gate, the browser storage key and research core 1.1.0 are unchanged.
+
+One stricter rule affects saved data: a packet whose sources differ only by empty query pairs, such as `?a=1` and `?a=1&`, now records one source twice and fails validation. A saved browser draft like that is kept byte for byte as an unreadable draft with download-and-clear recovery; it is never deleted or overwritten. A single URL with an empty pair still validates and keeps its spelling.
+
+### Added
+
+- A portable skill kit around the frozen core: 44 per-lane skills with the [skill catalogue](docs/SKILLS.md), six worker spawn files, one cross-host [STAND-UP.md](STAND-UP.md), the [eval bar](docs/EVAL.md), the [roadmap](docs/ROADMAP.md), the [skill-adding guide](docs/ADDING-SKILLS.md) and worked examples (#19 and the commits before it).
+- Seven specialist JSON Schemas, including source freeze receipts.
+- `npm run check:specialist`, an offline checker for specialist records built on Ajv, a development-only dependency (#60).
+- Tests that keep the skill pack, its catalogue, the worker spawn files and every relative Markdown link consistent (#35, #36, #45, #46), and that fail when a rendered button has no listener (#44).
+- `--help` and `--version` on `check:specialist` and the preview server, which print the lanes and exit codes or both release versions.
+- `npm run check:version`, run inside `npm run check`, which keeps `package.json`, both lockfile version fields, `VERSION` and this changelog in agreement.
+- A release-check workflow that verifies `vX.Y.Z` and `core-vX.Y.Z` tags, and a production-smoke workflow that runs the live Chromium and Firefox smoke after each Vercel Production deployment.
+- Dependabot proposals for npm and GitHub Actions updates, merged only after review.
+- [examples/freeze-receipt.json](examples/freeze-receipt.json), a freeze receipt the checker accepts. Every JSON example and packet-shape snippet is now validated in `npm test`.
+- Issue and pull request templates with a private vulnerability contact link (#30), CODEOWNERS for the frozen charter (#25), and a README quick start and badges (#22, #27, #33).
+
+### Changed
+
+- The workbench is split into focused modules behind the `app.js` and `packet.js` entry points (#26). One dependency-ordered list now drives the build order, the manifest checks and the syntax check, which covers every shipped and test module, including the live smoke. Deriving the build order from that list left the built artifact byte-identical.
+- Skill procedures were tightened: delivery is graded against all eight desk checks (#34), routing covers every charter mode (#37), the delivery gate requires the run ledger (#38), and a confirmed liquidity absence scores FAIL (#39).
+- Hashed split assets are served with immutable caching (#60).
+- Every browser spec shares one harness that fails on runtime errors, console warnings or errors and external requests, and applies one accessibility bar: WCAG 2.0, 2.1 and 2.2 A and AA, plus Label in Name. `BROWSER_TEST_PORT` runs the suite while another server holds port 4173.
+- CI keeps an uncancelled verdict for every main commit, keeps Playwright traces when a browser check fails, and can be started by hand. Action pins name exact versions (#23).
+- The changelog follows Keep a Changelog from this release; earlier headings are unchanged.
+- The packet guide and security policy describe the validation rules from #48 to #59; the contributor guide and pull request template list the real gates, including the browser suite; the security policy lists supported versions; the release policy defines the tag scheme.
+
+### Fixed
+
+- Parsing a wide object no longer freezes the page for seconds: duplicate keys that are equal under NFC (#56) are now found in linear time.
+- One source can no longer be recorded twice through NFC-equivalent Unicode (#55), reordered query parameters (#48), raw versus percent-encoded non-separators (#59), or empty query pairs.
+- Text and source URLs reject Unicode noncharacters (#57) and line separators (#50), source URLs reject percent-encoded controls (#51), and source hosts that mix Latin, Cyrillic or Greek letters are rejected (#58).
+- Self-review aliases are compared after Cyrillic and Greek lookalike folding (#52), recorded timestamps are compared by instant (#54), and reorder-insensitive lists are compared as multisets (#20, #49).
+- Every download handler reports its own failure (#47), the monitoring worksheet button reaches its exporter (#42), the saved-draft recovery button follows the state it controls (#43), closing the editor restores focus (#40), the sequence helpers return the value their staleness guards compare (#41), and partial reviews clear on every research renewal (#18).
+- Startup reports unreadable browser storage and an unreadable saved draft as different failures, and no longer logs two false console warnings.
+- The source edit and citation buttons, source links and the brand link include their visible label in the accessible name (WCAG 2.5.3), and source excerpt toggles keep a 24 px target (WCAG 2.5.8).
+- Check receipts, pinned baselines and packet bundles are named `(YYYY-MM-DD)SYMBOL suffix` from the packet they contain, like every other export.
+- The Firefox navigation race (microsoft/playwright#42183) is contained in isolated-context tests and in the live smoke, and its recovery now requires every hashed asset of the build. The startup probe of a loaded page retries for up to three seconds on a busy machine instead of failing on one slow read.
+
+### Security
+
+- Spreadsheet exports neutralize formula prefixes written with compatibility lookalike characters (#53).
+
 ## Workbench 1.10.0 (10-09-2026)
 
 - Compare sources and review assertions by identity and retain a pinned session baseline.
@@ -128,3 +173,6 @@ Record user-visible changes under `[Unreleased]` as they merge. A release moves 
 - Added fixed 12-hour, 24-hour, 3-day, and 7-day named-ticker forecast horizons.
 - Added fail-closed authority, evidence, conflict, source, and state controls.
 - Added an exact core-file verifier and local regression tests.
+
+[Unreleased]: https://github.com/EauDoon/crypto-research-desk/compare/v1.11.0...HEAD
+[1.11.0]: https://github.com/EauDoon/crypto-research-desk/compare/v1.1.0...v1.11.0
