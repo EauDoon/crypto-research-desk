@@ -1,0 +1,74 @@
+name: Production smoke
+
+# Every merge to main becomes a Vercel Production deployment. This workflow is
+# the automated live acceptance check: it rebuilds the deployed commit, waits
+# until the live build-info.json matches that build, then runs the read-only
+# Chromium and Firefox smoke against the production origin. It never deploys,
+# promotes, rolls back, tags, or writes to the repository.
+on:
+  deployment_status:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Only a newer successful Production deployment supersedes a running smoke;
+# Preview deployments and other deployment states use separate groups, so
+# they can never cancel a Production verdict.
+concurrency:
+  group: production-smoke-${{ github.event_name == 'workflow_dispatch' && 'manual' || format('{0}-{1}', github.event.deployment.environment, github.event.deployment_status.state) }}
+  cancel-in-progress: true
+
+env:
+  PRODUCTION_URL: https://crypto-research-desk.vercel.app
+
+jobs:
+  smoke:
+    name: Live production smoke
+    if: github.event_name == 'workflow_dispatch' || (github.event.deployment_status.state == 'success' && github.event.deployment.environment == 'Production')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          ref: ${{ github.event.deployment.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: '24'
+          cache: npm
+      - name: Install test dependencies
+        run: npm ci --ignore-scripts
+      - name: Build the deployed commit locally
+        run: npm run build
+      - name: Wait for the live artifact to match this build
+        run: |
+          node --input-type=module -e '
+          import { readFile } from "node:fs/promises";
+          const expected = JSON.parse(await readFile("dist/build-info.json", "utf8")).artifactHash;
+          const url = process.env.PRODUCTION_URL + "/build-info.json";
+          let live = "unavailable";
+          for (let attempt = 1; attempt <= 20; attempt++) {
+            try {
+              const response = await fetch(url, { cache: "no-store", headers: { "x-vercel-skip-toolbar": "1" } });
+              live = response.ok ? String((await response.json()).artifactHash) : "HTTP " + response.status;
+            } catch (error) { live = error.message; }
+            if (live === expected) { console.log("Live artifact matches local build " + expected); process.exit(0); }
+            console.log("Attempt " + attempt + " of 20: live " + live + ", local " + expected);
+            if (attempt < 20) await new Promise(resolve => setTimeout(resolve, 30000));
+          }
+          console.error("The live artifact " + live + " never matched the local build " + expected);
+          process.exit(1);
+          '
+      - name: Install test browsers
+        run: npx playwright install --with-deps chromium firefox
+      - name: Live smoke in Chromium and Firefox
+        run: npx playwright test --config playwright.production.config.mjs
+      - name: Keep smoke failure evidence
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: production-smoke-evidence-${{ github.run_attempt }}
+          path: test-results/
+          retention-days: 7
+          if-no-files-found: ignore
