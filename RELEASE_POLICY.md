@@ -29,6 +29,6 @@ A patch version fixes documentation, tests, validation, or implementation defect
 
 ## Release boundary
 
-Local development may continue between releases. Public pushes are deliberate release events. No unattended process may commit, tag, push, publish a repository release or package, or change repository metadata. An explicitly authorized merge may trigger an already-approved hosting deployment; automation does not make that rollout accepted until its exact live source and artifact are verified.
+Local development may continue between releases. Public pushes are deliberate release events. No unattended process may commit, tag, push, publish a repository release or package, or change repository metadata. An explicitly authorized merge may trigger an already-approved hosting deployment; automation does not make that rollout accepted until its exact live source and artifact are verified. Dependabot is the one automated proposer: it opens dependency update pull requests on `dependabot/*` branches and never merges, tags, publishes, or deploys production. Each proposal reaches `main` only through the owner's reviewed merge.
 
 Promotion inside the research system is separate from GitHub publication. Publishing a candidate never makes it live, validated, or authorized for capital action.
