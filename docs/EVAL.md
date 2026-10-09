@@ -115,7 +115,7 @@ npm run check:specialist -- quant_portfolio examples/incomplete-quant.json
 
 The lane is `chief`, `market_regime`, `fundamental_onchain`, `opportunity_scout`, `quant_portfolio`, `risk_officer`, or `freeze`. The offline command reads at most 320 KiB of strict UTF-8 JSON and checks the matching specialist schema, recorded chronology, horizon identity, probability arithmetic, and Risk disposition consistency. It uses the existing bounded packet parser and date/URL rules. JSON Schema validation uses Ajv, a development-only dependency excluded from the browser build.
 
-Exit 0 means the supplied record passed mechanical checks; exit 1 means it failed; exit 2 means arguments, file reading, encoding, or parsing failed. Even exit 0 always reports `delivery: UNVERIFIED`. Incomplete packets can be mechanically valid. These schemas are specialist handoffs, not importable browser packets; the browser has a separate schema-version-1 contract.
+Exit 0 means the supplied record passed mechanical checks; exit 1 means it failed; exit 2 means arguments, file reading, encoding, or parsing failed. Even exit 0 always reports `delivery: UNVERIFIED`. `npm run check:specialist -- --help` prints the usage, the seven lanes and this exit-code contract, and `-- --version` prints the repository release and research-core versions. An unsupported lane prints the same usage and exits 2; the file path is never echoed. Incomplete packets can be mechanically valid. These schemas are specialist handoffs, not importable browser packets; the browser has a separate schema-version-1 contract.
 
 The following desk-level review obligations still apply. The command never infers semantic clearance from keywords, schemas, a digest, or a PASS assertion supplied by the producer:
 

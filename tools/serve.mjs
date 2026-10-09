@@ -3,7 +3,7 @@ import { lstat, readFile } from 'node:fs/promises';
 import { dirname, extname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { loadVerifiedBuild } from './build.mjs';
-import { assertSupportedNode } from './runtime.mjs';
+import { assertSupportedNode, versionLine } from './runtime.mjs';
 import { PUBLIC_FILES, HASHED_ASSET, SECURITY_HEADERS } from './web-config.mjs';
 
 assertSupportedNode();
@@ -74,15 +74,52 @@ export async function startServer({ directory = join(root, 'web'), port = 4173, 
   return server;
 }
 
+const usage = [
+  'Usage: node tools/serve.mjs [--dist] [--port N]',
+  '       node tools/serve.mjs --help | --version',
+  '',
+  '  (default)  serve the web/ sources for development (npm run dev)',
+  '  --dist     verify dist/ once, then serve that byte snapshot (npm run preview)',
+  '  --port N   listen on 127.0.0.1:N instead of 4173; 0 picks a free port',
+  '',
+  'Loopback only. Do not expose this server to a network.',
+].join('\n') + '\n';
+
+// Strict parsing: a mistyped flag such as --prot must not silently serve on
+// the default port.
+export function parseServeArguments(args) {
+  const options = { port: 4173, built: false, help: false, version: false };
+  const seen = new Set();
+  for (let index = 0; index < args.length; index++) {
+    const arg = args[index];
+    if (!['--dist', '--port', '--help', '-h', '--version'].includes(arg)) return { error: 'Unknown argument: ' + arg };
+    const name = arg === '-h' ? '--help' : arg;
+    if (seen.has(name)) return { error: 'Repeated argument: ' + name };
+    seen.add(name);
+    if (name === '--dist') options.built = true;
+    else if (name === '--help') options.help = true;
+    else if (name === '--version') options.version = true;
+    else {
+      const value = args[++index];
+      if (value === undefined || !/^\d{1,5}$/.test(value) || Number(value) > 65535) return { error: 'Use a valid local port.' };
+      options.port = Number(value);
+    }
+  }
+  if ((options.help || options.version) && args.length !== 1) return { error: 'Use --help or --version on its own.' };
+  return options;
+}
+
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  const args = process.argv.slice(2);
-  const portIndex = args.indexOf('--port');
-  const port = portIndex === -1 ? 4173 : Number(args[portIndex + 1]);
-  if (!Number.isInteger(port) || port < 0 || port > 65535) {
-    process.stderr.write('Use a valid local port.\n'); process.exitCode = 1;
+  const options = parseServeArguments(process.argv.slice(2));
+  if (options.error) {
+    process.stderr.write(options.error + '\n\n' + usage); process.exitCode = 1;
+  } else if (options.help) {
+    process.stdout.write(usage);
+  } else if (options.version) {
+    process.stdout.write(versionLine(root) + '\n');
   } else {
+    const { port, built } = options;
     try {
-      const built = args.includes('--dist');
       const server = await startServer({ directory: join(root, built ? 'dist' : 'web'), port, built });
       process.stdout.write('Research Desk preview: http://127.0.0.1:' + server.address().port + '\n');
       for (const signal of ['SIGINT', 'SIGTERM']) process.once(signal, () => {

@@ -5,6 +5,7 @@ import Ajv2020 from 'ajv/dist/2020.js';
 import { MAX_JSON_INPUT_BYTES, MAX_PACKET_BYTES } from '../web/packet-constants.js';
 import { parsePacket, portableJson } from '../web/packet-parse.js';
 import { safeSourceUrl, timestamp } from '../web/packet-validate.js';
+import { versionLine } from './runtime.mjs';
 
 const lanes = ['chief', 'market_regime', 'fundamental_onchain', 'opportunity_scout', 'quant_portfolio', 'risk_officer', 'freeze'];
 const ajv = new Ajv2020({ allErrors: true, ownProperties: true });
@@ -65,10 +66,33 @@ export function checkSpecialist(lane, packet) {
     limitation: 'Local schema, chronology and arithmetic checks only. Manual evidence review is required; this result never authorizes delivery or financial action.' };
 }
 
+const usage = [
+  'Usage: npm run check:specialist -- <lane> <UTF-8 JSON file>',
+  '       npm run check:specialist -- --help | --version',
+  '',
+  'Checks one specialist record offline: its JSON Schema, recorded chronology and arithmetic.',
+  'The file must be strict UTF-8 JSON of at most ' + MAX_JSON_INPUT_BYTES / 1024 + ' KiB.',
+  '',
+  'Lanes: ' + lanes.join(', '),
+  '',
+  'Exit codes:',
+  '  0  mechanical PASS; delivery stays UNVERIFIED and manual review is still required',
+  '  1  mechanical FAIL',
+  '  2  unusable input: unknown lane, wrong arguments, or an unreadable, oversized or unparsable file',
+].join('\n') + '\n';
+
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  try {
-    const [lane, path, ...extra] = process.argv.slice(2);
-    if (!validators.has(lane) || !path || extra.length) throw new Error('arguments');
+  const args = process.argv.slice(2);
+  if (args.length === 1 && ['--help', '-h'].includes(args[0])) {
+    process.stdout.write(usage);
+  } else if (args.length === 1 && args[0] === '--version') {
+    process.stdout.write(versionLine(fileURLToPath(new URL('..', import.meta.url))) + '\n');
+  } else if (!validators.has(args[0]) || args.length !== 2) {
+    // The arguments are never echoed: the second one is a local file path.
+    process.stderr.write('Cannot check packet: name one supported lane and one file.\n\n' + usage);
+    process.exitCode = 2;
+  } else try {
+    const [lane, path] = args;
     const file = await open(path, 'r');
     let text;
     try {

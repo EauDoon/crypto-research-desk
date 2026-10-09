@@ -3,12 +3,13 @@ import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
 import { createHash } from 'node:crypto';
 import { request } from 'node:http';
+import { spawnSync } from 'node:child_process';
 import { copyFile, cp, lstat, mkdir, mkdtemp, readFile, readdir, realpath, rename, rm, symlink, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { build, verifyBuild } from '../tools/build.mjs';
-import { startServer } from '../tools/serve.mjs';
-import { assertSupportedNode, isSupportedNode } from '../tools/runtime.mjs';
+import { parseServeArguments, startServer } from '../tools/serve.mjs';
+import { assertSupportedNode, isSupportedNode, readReleaseVersions } from '../tools/runtime.mjs';
 import { isFirefoxStartupRace, navigate } from './browser/navigation.mjs';
 import { PREVIEW_ORIGIN } from './browser/origin.mjs';
 import { PUBLIC_FILES, HASHED_SOURCES, STATIC_PAGES, HASHED_ASSET, SECURITY_HEADERS } from '../tools/web-config.mjs';
@@ -74,6 +75,29 @@ test('tooling accepts Node 24.x and fails fast for other or malformed versions',
   }
   assert.equal(isSupportedNode(undefined), false);
   assert.doesNotThrow(() => assertSupportedNode());
+});
+
+test('the preview server reports both versions and rejects arguments it does not understand', async () => {
+  const pkg = JSON.parse(await readFile(join(root, 'package.json'), 'utf8'));
+  const core = (await readFile(join(root, 'VERSION'), 'utf8')).trim();
+  assert.deepEqual(readReleaseVersions(root), { workbenchVersion: pkg.version, researchCoreVersion: core });
+  const serve = (...args) => spawnSync(process.execPath, [join(root, 'tools', 'serve.mjs'), ...args], { encoding: 'utf8', timeout: 15000 });
+  const version = serve('--version');
+  assert.equal(version.status, 0, version.stderr);
+  assert.equal(version.stdout, 'crypto-research-desk ' + pkg.version + ' (research core ' + core + ')\n');
+  const help = serve('--help');
+  assert.equal(help.status, 0, help.stderr);
+  assert.match(help.stdout, /--dist/);
+  assert.match(help.stdout, /--port N/);
+  // A mistyped flag exits before listening instead of serving on the default port.
+  const mistyped = serve('--prot', '4174');
+  assert.equal(mistyped.status, 1);
+  assert.match(mistyped.stderr, /^Unknown argument: --prot\n/);
+  for (const args of [['--port'], ['--port', 'x'], ['--port', '65536'], ['--port', ''], ['--dist', '--dist'], ['--version', '--dist']]) {
+    assert.ok(parseServeArguments(args).error, JSON.stringify(args));
+  }
+  assert.deepEqual(parseServeArguments([]), { port: 4173, built: false, help: false, version: false });
+  assert.deepEqual(parseServeArguments(['--dist', '--port', '0']), { port: 0, built: true, help: false, version: false });
 });
 
 test('Vercel production settings match the verified build and security configuration', async () => {
