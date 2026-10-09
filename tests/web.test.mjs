@@ -548,9 +548,10 @@ test('Firefox startup recovery verifies cached pages and preserves subsequent fa
       }
       return { status: () => 200 };
     };
-    const expectedAssets = paths.slice(1);
-    if (['success', 'cached'].includes(outcome)) await navigate(page, { expectedAssets });
-    else await assert.rejects(navigate(page, { expectedAssets }), /Navigation still failed|recovered navigation/);
+    // settleMs 0: these cases test recovery identity, not probe settling.
+    const expectedAssets = paths.slice(1), options = { expectedAssets, settleMs: 0 };
+    if (['success', 'cached'].includes(outcome)) await navigate(page, options);
+    else await assert.rejects(navigate(page, options), /Navigation still failed|recovered navigation/);
     assert.equal(calls, 2, 'only one recovery attempt');
     assert.equal(page.eventNames().length, 0, 'temporary listeners are removed');
   }
@@ -572,6 +573,29 @@ test('Firefox startup recovery verifies cached pages and preserves subsequent fa
   };
   await assert.rejects(navigate(page), /Navigation timed out/);
   assert.equal(calls, 1, 'no recovery attempt without the expected asset list');
+});
+
+test('a slow startup probe of a loaded document settles instead of failing', async t => {
+  t.mock.method(console, 'warn', () => {});
+  const paths = ['/', '/app.' + 'a'.repeat(64) + '.js', '/styles.' + 'b'.repeat(64) + '.css'];
+  const loadedPage = probes => {
+    const page = new EventEmitter(); let gotos = 0, reads = 0;
+    page.addInitScript = async () => {};
+    page.context = () => ({ browser: () => ({ browserType: () => ({ name: () => 'firefox' }) }) });
+    page.evaluate = async () => probes[Math.min(reads++, probes.length - 1)];
+    page.goto = async () => { gotos++; return { status: () => 200 }; };
+    return { page, counts: () => ({ gotos, reads }) };
+  };
+  const ready = loadedNavigationDocument(paths);
+  const slow = loadedPage([{ unavailable: true }, { ...ready, hasChart: false }, ready]);
+  await navigate(slow.page, { settleMs: 5000 });
+  assert.deepEqual(slow.counts(), { gotos: 1, reads: 3 }, 'settled on the third probe without a second navigation');
+
+  const never = loadedPage([{ ...ready, hasChart: false }]);
+  const started = Date.now();
+  await assert.rejects(navigate(never.page, { settleMs: 600 }), /workbench startup document/);
+  assert.ok(Date.now() - started >= 600, 'the probe kept reading for the whole window');
+  assert.equal(never.counts().gotos, 1, 'a document that never becomes ready is not navigated again');
 });
 
 // Regression guard. The staleness guards in app-events capture a sequence with
