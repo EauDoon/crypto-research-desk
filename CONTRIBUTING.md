@@ -41,5 +41,6 @@ Before opening a pull request:
 4. Do not add extra files under `.codex/agents/` — that set is the verified specialist list.
 5. Do not silently rewrite the frozen research core (`AGENTS.md`, the five TOMLs, the umbrella skill).
 6. State any change to authority, topology, output contracts, privacy, security, or compatibility.
+7. Record user-visible changes under `[Unreleased]` in [CHANGELOG.md](CHANGELOG.md). `npm run check` runs `npm run check:version`, which keeps `package.json`, the lockfile, `VERSION` and the changelog in agreement.
 
 Do not submit secrets, account details, wallet data, private datasets, copied research, paid-source content, or unlicensed assets.

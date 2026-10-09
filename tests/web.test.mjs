@@ -185,7 +185,7 @@ test('the build is deterministic and publishes only the reviewed static allowlis
   const second = await build(directory);
   assert.deepEqual(second, first);
   assert.equal(first.formatVersion, 2);
-  assert.equal(first.workbenchVersion, '1.10.0');
+  assert.equal(first.workbenchVersion, JSON.parse(await readFile(join(root, 'package.json'), 'utf8')).version);
   assert.equal(first.researchCoreVersion, '1.1.0');
   assert.equal(first.files.length, PUBLIC_FILES.length);
   assert.equal(first.files.filter(name => HASHED_ASSET.test(name)).length, HASHED_SOURCES.length);

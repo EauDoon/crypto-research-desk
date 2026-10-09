@@ -1,5 +1,11 @@
 # Changelog
 
+All notable changes to this repository are recorded here. The format follows [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/), and versions follow the [release policy](RELEASE_POLICY.md).
+
+Record user-visible changes under `[Unreleased]` as they merge. A release moves them into a `## [X.Y.Z] - YYYY-MM-DD` section with Added, Changed, Fixed and Security subsections. That version is the `package.json` repository release; the research core in `VERSION` is versioned separately. Releases up to 1.10.0 keep their original headings unchanged. The tags v1.0.0, v1.0.1 and v1.1.0 predate `package.json`, and releases 1.2.0 to 1.10.0 were not tagged. `npm run check:version` checks these rules.
+
+## [Unreleased]
+
 ## Workbench 1.10.0 (10-09-2026)
 
 - Compare sources and review assertions by identity and retain a pinned session baseline.
