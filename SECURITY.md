@@ -1,8 +1,14 @@
 # Security policy
 
-## Supported version
+## Supported versions
 
-Security fixes target the latest published major version. The browser workbench currently uses packet schema version 1. Unsupported schema versions are rejected without automatic migration.
+| Component | Supported | Where it is recorded |
+| --- | --- | --- |
+| Repository release (workbench, tooling, skills, schemas) | Latest 1.x release | `package.json`, `vX.Y.Z` tags, [CHANGELOG.md](CHANGELOG.md) |
+| Research core | 1.1.0 | `VERSION`, verified by `tools/verify_release.py` |
+| Browser packet schema | Version 1 | `schemaVersion` in each packet |
+
+Security fixes target the latest repository release. The deployed workbench reports its repository release and research core versions at `/build-info.json`. Unsupported packet schema versions are rejected without automatic migration.
 
 ## Reporting
 
@@ -33,7 +39,7 @@ This model does not establish legal compliance, encryption at rest, confidential
 ## Controls and limits
 
 - Plain text is rendered with DOM text APIs and escaped in Markdown exports. There is no HTML, script, or prompt execution path for packet content.
-- JSON imports require strict UTF-8 and reject duplicate keys, reserved prototype keys, unknown fields, oversized or complex data, nonfinite or precision-losing numbers, ill-formed Unicode, and hidden formatting controls.
+- JSON imports require strict UTF-8 and reject duplicate keys (including NFC-equivalent keys), reserved prototype keys, unknown fields, oversized or complex data, nonfinite or precision-losing numbers, ill-formed Unicode, noncharacters, line and paragraph separators, and hidden formatting controls. Source URLs reject percent-encoded controls and invalid UTF-8, invalid Punycode, and mixed Latin, Cyrillic, or Greek host labels, and are compared after canonicalization so one source cannot be recorded twice; see the [packet guide](docs/WORKBENCH.md#evidence-and-method).
 - Forecast partitions and percentage totals are checked independently of the supplied review disposition. Missing evidence, unresolved review assertions, or elapsed research horizons withhold chart display.
 - Public HTTPS links are parsed, listed local, test-only, and special-use hostnames are rejected, and canonical hostnames are displayed; source content and DNS destinations are not fetched or authenticated.
 - The static build requires strict UTF-8 text inputs, has an explicit file allowlist and canonical manifest, and verifies full hashes over emitted bytes. Source and build paths cannot be symlinks.

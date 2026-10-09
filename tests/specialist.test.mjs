@@ -71,3 +71,29 @@ test('offline CLI has explicit exits, bounded reads and generic parse errors', (
   assert.equal(missing.status, 2);
   assert.doesNotMatch(missing.stderr, /missing-sensitive-file|ENOENT|stack/);
 });
+
+test('offline CLI prints help, both versions, and the lane list for an unsupported lane', async () => {
+  const command = fileURLToPath(new URL('../tools/check-specialist.mjs', import.meta.url));
+  const run = (...args) => spawnSync(process.execPath, [command, ...args], { encoding: 'utf8' });
+  const lanes = ['chief', 'market_regime', 'fundamental_onchain', 'opportunity_scout', 'quant_portfolio', 'risk_officer', 'freeze'];
+  const pkg = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'));
+  const core = (await readFile(new URL('../VERSION', import.meta.url), 'utf8')).trim();
+
+  const version = run('--version');
+  assert.equal(version.status, 0, version.stderr);
+  assert.equal(version.stdout, 'crypto-research-desk ' + pkg.version + ' (research core ' + core + ')\n');
+  for (const flag of ['--help', '-h']) {
+    const help = run(flag);
+    assert.equal(help.status, 0, help.stderr);
+    for (const lane of lanes) assert.match(help.stdout, new RegExp('\\b' + lane + '\\b'), lane);
+    assert.match(help.stdout, /0 {2}mechanical PASS/);
+    assert.match(help.stdout, /2 {2}unusable input/);
+  }
+  for (const args of [['quant', 'secret-folder/packet.json'], ['--help', 'secret-folder/packet.json'], ['quant_portfolio'], []]) {
+    const unusable = run(...args);
+    assert.equal(unusable.status, 2, JSON.stringify(args));
+    assert.match(unusable.stderr, /Lanes: chief, market_regime/);
+    assert.doesNotMatch(unusable.stderr, /secret-folder/);
+    assert.equal(unusable.stdout, '');
+  }
+});

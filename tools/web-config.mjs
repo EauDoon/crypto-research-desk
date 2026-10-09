@@ -1,9 +1,21 @@
-export const PUBLIC_FILES = Object.freeze([
-  'index.html', '404.html', 'styles.css', 'app.js', 'packet.js', 'example.js', 'favicon.svg', 'robots.txt',
-  'app-bootstrap.js', 'app-editor.js', 'app-events.js', 'app-render.js', 'app-state.js', 'app-utils.js',
-  'packet-actions.js', 'packet-constants.js', 'packet-export.js', 'packet-format.js',
-  'packet-parse.js', 'packet-receipts.js', 'packet-validate.js',
+// The one list of published web sources. Hashed sources are in dependency
+// order: every module comes after each module it imports, so the build rewrites
+// imports to hashed names before hashing the importer. The split siblings come
+// before the re-export shims (packet.js, app.js), and example.js imports from
+// packet.js, so the packet shim is hashed first. tests/web.test.mjs checks it.
+export const HASHED_SOURCES = Object.freeze([
+  'favicon.svg', 'styles.css',
+  'packet-constants.js', 'packet-parse.js', 'packet-validate.js',
+  'packet-format.js', 'packet-export.js', 'packet-receipts.js', 'packet-actions.js',
+  'packet.js',
+  'example.js',
+  'app-utils.js', 'app-state.js', 'app-editor.js', 'app-render.js',
+  'app-events.js', 'app-bootstrap.js',
+  'app.js',
 ]);
+// Pages published under their own names, after hashed references are rewritten.
+export const STATIC_PAGES = Object.freeze(['index.html', '404.html', 'robots.txt']);
+export const PUBLIC_FILES = Object.freeze([...STATIC_PAGES, ...HASHED_SOURCES]);
 export const CSP = "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; font-src 'self'; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'; worker-src 'none'; manifest-src 'self'";
 export const SECURITY_HEADERS = Object.freeze({
   'Content-Security-Policy': CSP,

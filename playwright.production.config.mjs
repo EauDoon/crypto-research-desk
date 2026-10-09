@@ -14,6 +14,9 @@ export default defineConfig({
   fullyParallel: true,
   forbidOnly: true,
   retries: 0,
+  // One live test fetches every public file and walks the workflow; a contained
+  // Firefox navigation retry must fit inside its budget.
+  timeout: 120000,
   workers: 2,
   reporter: 'list',
   use: {

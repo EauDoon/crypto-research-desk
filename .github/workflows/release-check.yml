@@ -1,0 +1,59 @@
+name: Release check
+
+# Verifies a pushed release tag and prints its notes to the job summary.
+# vX.Y.Z tags name the package.json repository release; core-vX.Y.Z tags name
+# the VERSION research core. This workflow only reads: it never creates a
+# GitHub Release, publishes a package, or changes the repository. The attended
+# operator publishes the Release (see RELEASE_POLICY.md).
+on:
+  push:
+    tags:
+      - 'v*'
+      - 'core-v*'
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Verify release tag
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: '24'
+          cache: npm
+      - name: Tag matches package.json, CHANGELOG.md and VERSION
+        run: node tools/check-version.mjs --tag "$GITHUB_REF_NAME"
+      - name: Tagged commit is on main
+        run: git merge-base --is-ancestor HEAD origin/main
+      - name: Research core verifies
+        run: python3 -B tools/verify_release.py
+      - name: Production build reports the tagged version
+        if: startsWith(github.ref_name, 'v')
+        run: |
+          npm ci --ignore-scripts --omit=dev
+          npm run build
+          node -e '
+            const manifest = JSON.parse(require("node:fs").readFileSync("dist/build-info.json", "utf8"));
+            const expected = process.env.GITHUB_REF_NAME.slice(1);
+            if (manifest.workbenchVersion !== expected) {
+              console.error("dist/build-info.json reports workbenchVersion " + manifest.workbenchVersion + ", not " + expected + ".");
+              process.exit(1);
+            }
+            console.log("Production build: workbenchVersion " + manifest.workbenchVersion + ", researchCoreVersion "
+              + manifest.researchCoreVersion + ", artifactHash " + manifest.artifactHash);
+          '
+      - name: Release notes
+        if: startsWith(github.ref_name, 'v')
+        run: |
+          {
+            echo "## Crypto Research Desk $GITHUB_REF_NAME"
+            echo
+            node tools/check-version.mjs --notes "${GITHUB_REF_NAME#v}"
+          } >> "$GITHUB_STEP_SUMMARY"

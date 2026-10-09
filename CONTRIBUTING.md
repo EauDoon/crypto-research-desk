@@ -27,7 +27,11 @@ Run the release-core and workbench checks before opening a pull request:
 python3 -B tools/verify_release.py
 python3 -B -m unittest discover -s tests -v
 npm run check
+npx playwright install chromium firefox
+npm run test:browser
 ```
+
+On Windows, run the two Python commands as `py -B tools/verify_release.py` and `py -B -m unittest discover -s tests -v`. `npm run test:browser` rebuilds `dist/` first, then runs the Chromium and Firefox browser and accessibility suite that CI runs; the browser install is needed once per Playwright version.
 
 Before opening a pull request:
 
@@ -37,5 +41,6 @@ Before opening a pull request:
 4. Do not add extra files under `.codex/agents/` — that set is the verified specialist list.
 5. Do not silently rewrite the frozen research core (`AGENTS.md`, the five TOMLs, the umbrella skill).
 6. State any change to authority, topology, output contracts, privacy, security, or compatibility.
+7. Record user-visible changes under `[Unreleased]` in [CHANGELOG.md](CHANGELOG.md). `npm run check` runs `npm run check:version`, which keeps `package.json`, the lockfile, `VERSION` and the changelog in agreement.
 
 Do not submit secrets, account details, wallet data, private datasets, copied research, paid-source content, or unlicensed assets.

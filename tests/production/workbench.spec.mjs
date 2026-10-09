@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { test, expect } from '@playwright/test';
-import AxeBuilder from '@axe-core/playwright';
+import { checkAccessibility } from '../browser/harness.mjs';
+import { gotoOnce } from '../browser/navigation.mjs';
 import { examplePacket } from '../../web/example.js';
 import { HASHED_ASSET, SECURITY_HEADERS } from '../../tools/web-config.mjs';
 
@@ -59,12 +60,13 @@ test('production serves the reviewed artifact and complete local-only workflow',
     target.on('pageerror', error => errors.push(error.message));
   };
   watch(page);
-  expect((await page.goto('/')).status()).toBe(200);
+  // gotoOnce asserts status 200 and retries one Firefox navigation timeout
+  // (microsoft/playwright#42183), so that race alone does not turn the smoke red.
+  await gotoOnce(page, '/');
   await expect(page.locator('#asset-symbol')).toHaveText('DEMO');
   await expect(page.locator('#chart-area svg')).toBeVisible();
   await expect(page.locator('#assertion-record .assertion-summary')).toHaveCount(5);
-  const accessibility = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa']).analyze();
-  expect(accessibility.violations).toEqual([]);
+  await checkAccessibility(page);
 
   await page.locator('#new-packet').click();
   await page.locator('#close-editor').click();
@@ -102,7 +104,7 @@ test('production serves the reviewed artifact and complete local-only workflow',
   const corrupt = '{"bad":true}';
   await page.evaluate(([key, value]) => localStorage.setItem(key, value), [STORAGE_KEY, corrupt]);
   const recoveryPage = await page.context().newPage(); watch(recoveryPage);
-  await recoveryPage.goto('/');
+  await gotoOnce(recoveryPage, '/');
   await expect(recoveryPage.locator('#remember-packet')).toBeDisabled();
   const recovery = await downloaded(recoveryPage, '#recover-saved');
   expect(recovery.name).toBe('Unparsed Saved Research Draft.json');

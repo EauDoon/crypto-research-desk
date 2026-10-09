@@ -1,23 +1,20 @@
----
-name: Pull request
-about: Submit changes for review
-title: ''
-labels: ''
-assignees: ''
+## Summary
 
----
+What changes, and why.
 
-**Description**
-A clear and concise description of the changes in this PR.
+## Verification
 
-**Changes**
-- List the changes
+Commands run on the final commit, with results:
 
-**Test plan**
-How were these changes tested?
+- [ ] `py -B tools/verify_release.py` (or `python3 -B ...`) reports `VERIFIED`
+- [ ] `py -B -m unittest discover -s tests -v` passes
+- [ ] `npm run check` passes, including the version agreement check
+- [ ] `npm run test:browser` passes in Chromium and Firefox
 
-**Checklist**
-- [ ] Code follows project style
-- [ ] Tests added or updated
-- [ ] Documentation updated
-- [ ] No breaking changes
+## Boundaries
+
+- [ ] The frozen research core is untouched: `AGENTS.md`, `.codex/**`, the umbrella skill and `VERSION`, or the change is stated and justified here
+- [ ] The research-only authority boundary holds: no orders, wallets, credentials, sizing or execution paths
+- [ ] Specialists stay read-only, and the independent risk gate is unchanged
+- [ ] Any change to authority, topology, output contracts, privacy, security or compatibility is stated above
+- [ ] User-visible changes are recorded under `[Unreleased]` in `CHANGELOG.md`

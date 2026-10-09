@@ -1,9 +1,10 @@
 import assert from 'node:assert/strict';
 import { HASHED_ASSET } from '../../tools/web-config.mjs';
+import { PREVIEW_ORIGIN } from './origin.mjs';
 
 const instrumented = new WeakSet();
 function readyDocument(state) {
-  return state?.origin === 'http://127.0.0.1:4173' && state.path === '/' && state.readyState === 'complete' &&
+  return state?.origin === PREVIEW_ORIGIN && state.path === '/' && state.readyState === 'complete' &&
     typeof state.documentId === 'string' && state.documentId.length > 0 &&
     state.nativeEvents?.includes('domcontentloaded') && state.nativeEvents.includes('load') &&
     state.symbol === 'DEMO' && state.hasChart === true && state.assertionCount === 5 &&
@@ -14,16 +15,48 @@ function readyDocument(state) {
 
 // Observed in CI with Playwright 1.62.1; see microsoft/playwright#42183.
 export function isFirefoxStartupRace(evidence) {
-  const { browserName, errorName, reload, documentState, responses, failures, pending, runtimeErrors } = evidence;
+  const { browserName, errorName, reload, documentState, responses, failures, pending, runtimeErrors, expectedAssets } = evidence;
   if (browserName !== 'firefox' || errorName !== 'TimeoutError' || reload || !readyDocument(documentState) ||
       failures.length || pending.length || runtimeErrors.length ||
       responses.some(response => response.status !== 200)) return false;
   const paths = new Set(responses.map(response => response.path));
   if (paths.size !== responses.length) return false;
   if (!paths.has('/') || !paths.has(documentState.modulePath) || !paths.has(documentState.stylesheets[0].path)) return false;
-  // Every hashed asset emitted by the current build must be present.
-  for (const path of paths) if (!path.startsWith('/')) return false;
-  return true;
+  // Every hashed asset emitted by the current build must be present. The caller
+  // supplies that list; without it the navigation is never treated as recovered.
+  if (!Array.isArray(expectedAssets) || !expectedAssets.length) return false;
+  return expectedAssets.every(path => paths.has(path));
+}
+
+// Creates a context and page for one test and always closes the context, so a
+// failing assertion cannot leak a browser context into later tests.
+export async function withIsolatedPage(browser, options, run) {
+  const context = await browser.newContext(options);
+  try {
+    return await run(await context.newPage(), context);
+  } finally {
+    await context.close();
+  }
+}
+
+// A bounded navigation for pages the startup probe cannot inspect (JavaScript
+// disabled, application module blocked) and for the live smoke. In Firefox a
+// completed navigation can still time out (microsoft/playwright#42183), so a
+// TimeoutError there is logged and retried exactly once; anything else throws.
+export async function gotoOnce(page, path = '/', options = {}) {
+  const attempt = () => page.goto(path, { timeout: 10000, ...options });
+  let response;
+  try {
+    response = await attempt();
+  } catch (error) {
+    const browserName = page.context().browser()?.browserType().name();
+    if (browserName !== 'firefox' || error.name !== 'TimeoutError') throw error;
+    console.warn('Navigation diagnostics: ' + JSON.stringify({ browserName, errorName: error.name, path, url: page.url() }));
+    console.warn('Retrying Firefox navigation once (microsoft/playwright#42183).');
+    response = await attempt();
+  }
+  assert.equal(response?.status(), 200, 'navigation status for ' + path);
+  return response;
 }
 
 async function snapshot(page) {
@@ -45,7 +78,20 @@ async function snapshot(page) {
   } finally { clearTimeout(timer); }
 }
 
-export async function navigate(page, { reload = false } = {}) {
+// Reads the startup probe until the document is ready or settleMs has passed.
+// On a busy machine one bounded probe of a loaded document can time out; a
+// document that never becomes ready still fails once the window closes.
+async function settledSnapshot(page, settleMs) {
+  const deadline = Date.now() + settleMs;
+  let state = await snapshot(page);
+  while (!readyDocument(state) && Date.now() < deadline) {
+    await new Promise(resolve => setTimeout(resolve, 250));
+    state = await snapshot(page);
+  }
+  return state;
+}
+
+export async function navigate(page, { reload = false, expectedAssets, settleMs = 3000 } = {}) {
   if (!instrumented.has(page)) {
     await page.addInitScript(() => {
       const probe = { documentId: crypto.randomUUID(), events: [] };
@@ -75,10 +121,10 @@ export async function navigate(page, { reload = false } = {}) {
     assert.deepEqual(runtimeErrors, [], 'navigation runtime errors');
     assert.deepEqual(failures, [], 'navigation resource failures');
     assert.ok(responses.every(response => response.status === 200), 'navigation resource statuses');
-    if (!reload) assert.ok(readyDocument(await snapshot(page)), 'workbench startup document');
+    if (!reload) assert.ok(readyDocument(await settledSnapshot(page, settleMs)), 'workbench startup document');
   } catch (error) {
     const evidence = {
-      browserName: page.context().browser()?.browserType().name(), errorName: error.name, reload,
+      browserName: page.context().browser()?.browserType().name(), errorName: error.name, reload, expectedAssets,
       events: [...events], responses: [...responses], failures: [...failures], runtimeErrors: [...runtimeErrors],
       pending: [...pending].map(request => new URL(request.url()).pathname),
     };
@@ -95,7 +141,7 @@ export async function navigate(page, { reload = false } = {}) {
     assert.ok(responses.every(response => response.status === 200), 'recovered navigation resource statuses');
     assert.equal(pending.size, 0, 'recovered navigation pending requests');
     // A cached asset may have no new network event. Verify the executed app and loaded CSS instead.
-    const recovered = await snapshot(page);
+    const recovered = await settledSnapshot(page, settleMs);
     assert.ok(readyDocument(recovered), 'recovered navigation document');
     assert.notEqual(recovered.documentId, evidence.documentState.documentId, 'recovered navigation must create a new document');
     assert.equal(recovered.modulePath, evidence.documentState.modulePath, 'recovered navigation module identity');

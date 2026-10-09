@@ -231,13 +231,19 @@ export function sourceEditorValues() {
   ));
 }
 
+// Every export is named '(YYYY-MM-DD)SYMBOL suffix' from the packet it contains,
+// with 'Undated' when the reference capture time is unusable and no symbol part
+// when the asset is unnamed.
+export function exportFilename(source, suffix) {
+  const label = timestamp(source.reference.capturedAt) === null ? 'Undated' : source.reference.capturedAt.slice(0, 10);
+  return '(' + label + ')' + (source.asset.symbol ? source.asset.symbol + ' ' : '') + suffix;
+}
+
 export function download(contents, type, suffix, filename = null) {
   const url = URL.createObjectURL(new Blob([contents], { type }));
   const anchor = element('a');
-  const instant = timestamp(packet.reference.capturedAt);
-  const label = instant === null ? 'Undated' : packet.reference.capturedAt.slice(0, 10);
   anchor.href = url;
-  anchor.download = filename ?? '(' + label + ')' + (packet.asset.symbol ? packet.asset.symbol + ' ' : '') + suffix;
+  anchor.download = filename ?? exportFilename(packet, suffix);
   anchor.hidden = true; document.body.append(anchor); anchor.click(); anchor.remove();
   setTimeout(() => URL.revokeObjectURL(url), 10000);
 }

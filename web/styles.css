@@ -167,7 +167,7 @@ progress::-moz-progress-bar { background: #568d71; border-radius: 3px; }
 .source-host { color: var(--muted); font-family: Consolas, "Liberation Mono", monospace; font-size: 10px; overflow-wrap: anywhere; }
 .source-item p { color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
 .source-item details { margin-top: 12px; font-size: 11px; }
-.source-item summary { color: #31594c; }
+.source-item summary { color: #31594c; min-height: 24px; padding: 3px 0; }
 blockquote { border-left: 2px solid #b5cbbf; margin: 10px 0 0; padding: 4px 0 4px 15px; overflow-wrap: anywhere; color: #4d665c; font-size: 12px; }
 .source-dates { display: grid; gap: 10px; align-content: start; }
 .source-dates dd { font-size: 11px; font-weight: 400; }

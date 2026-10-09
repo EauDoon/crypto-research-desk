@@ -1,13 +1,9 @@
-import { test, expect } from '@playwright/test';
-import AxeBuilder from '@axe-core/playwright';
+import { test, expect, checkAccessibility, navigate, gotoOnce, withIsolatedPage } from './harness.mjs';
 import { examplePacket } from '../../web/example.js';
 import { MAX_PACKET_BYTES, blankPacket } from '../../web/packet.js';
-import { navigate } from './navigation.mjs';
 
 const NOW = new Date('2026-08-20T10:00:00Z');
 const STORAGE_KEY = 'crypto-research-desk.packet.v1';
-const errors = new WeakMap();
-const requests = new WeakMap();
 function research() {
   const packet = examplePacket();
   packet.kind = 'research';
@@ -36,23 +32,10 @@ async function exported(page, selector) {
   for await (const chunk of stream) chunks.push(chunk);
   return { name: download.suggestedFilename(), text: Buffer.concat(chunks).toString('utf8') };
 }
-async function a11y(page) {
-  const result = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa']).analyze();
-  expect(result.violations.map(item => ({ id: item.id, impact: item.impact, nodes: item.nodes.map(node => node.target) }))).toEqual([]);
-}
 test.beforeEach(async ({ page }) => {
-  errors.set(page, []); requests.set(page, []);
-  page.on('pageerror', error => errors.get(page).push(error.message));
-  page.on('request', request => {
-    if (!request.url().startsWith('http://127.0.0.1:4173/') && !request.url().startsWith('blob:')) requests.get(page).push(request.url());
-  });
   await page.clock.install({ time: NOW });
   await navigate(page);
   await expect(page.locator('#asset-symbol')).toHaveText('DEMO');
-});
-test.afterEach(async ({ page }) => {
-  expect(errors.get(page), 'browser runtime errors').toEqual([]);
-  expect(requests.get(page), 'unexpected external network requests').toEqual([]);
 });
 
 test('the default view is explicitly synthetic, local, and accessible', async ({ page }) => {
@@ -65,54 +48,50 @@ test('the default view is explicitly synthetic, local, and accessible', async ({
   await expect(page.locator('#chart-area svg')).toContainText('Bull floor 106');
   await expect(page.locator('#chart-area svg')).toContainText('Bear ceiling 94');
   await expect(page.locator('progress').first()).toHaveAttribute('aria-hidden', 'true');
-  await a11y(page);
+  await checkAccessibility(page);
 });
 
 test('startup fails closed when JavaScript is unavailable', async ({ browser, baseURL }) => {
-  const context = await browser.newContext({ javaScriptEnabled: false, baseURL });
-  const noScriptPage = await context.newPage();
-  const response = await noScriptPage.goto('/', { waitUntil: 'commit' });
-  expect(response?.status()).toBe(200);
-  await expect(noScriptPage.locator('html')).toHaveClass(/app-unavailable/);
-  await expect(noScriptPage.locator('#startup-status')).toContainText('Research workbench unavailable');
-  await expect(noScriptPage.locator('.requires-app:visible')).toHaveCount(0);
-  await expect(noScriptPage.getByRole('button')).toHaveCount(0);
-  await expect(noScriptPage.locator('#guide')).toBeVisible();
-  await expect(noScriptPage.locator('.page-footer')).toContainText('cannot place trades');
-  await context.close();
+  await withIsolatedPage(browser, { javaScriptEnabled: false, baseURL }, async noScriptPage => {
+    await gotoOnce(noScriptPage, '/', { waitUntil: 'commit' });
+    await expect(noScriptPage.locator('html')).toHaveClass(/app-unavailable/);
+    await expect(noScriptPage.locator('#startup-status')).toContainText('Research workbench unavailable');
+    await expect(noScriptPage.locator('.requires-app:visible')).toHaveCount(0);
+    await expect(noScriptPage.getByRole('button')).toHaveCount(0);
+    await expect(noScriptPage.locator('#guide')).toBeVisible();
+    await expect(noScriptPage.locator('.page-footer')).toContainText('cannot place trades');
+  });
 });
 
 test('startup remains fail closed when the application module cannot load', async ({ browser, baseURL }) => {
-  const context = await browser.newContext({ baseURL });
-  await context.route(/\/app(?:\.[^/]+)?\.js$/, route => route.abort());
-  const failedPage = await context.newPage();
-  await failedPage.goto('/');
-  await expect(failedPage.locator('html')).toHaveClass(/app-unavailable/);
-  await expect(failedPage.locator('#startup-status')).toBeVisible();
-  await expect(failedPage.locator('.requires-app:visible')).toHaveCount(0);
-  await context.close();
+  await withIsolatedPage(browser, { baseURL }, async (failedPage, context) => {
+    await context.route(/\/app(?:\.[^/]+)?\.js$/, route => route.abort());
+    await gotoOnce(failedPage, '/');
+    await expect(failedPage.locator('html')).toHaveClass(/app-unavailable/);
+    await expect(failedPage.locator('#startup-status')).toBeVisible();
+    await expect(failedPage.locator('.requires-app:visible')).toHaveCount(0);
+  });
 });
 
 test('startup does not shift visible content when the application module arrives', async ({ browser, baseURL, browserName }) => {
   test.skip(browserName !== 'chromium', 'Layout Shift entries are exposed by Chromium.');
-  const context = await browser.newContext({ baseURL });
-  await context.addInitScript(() => {
-    window.__cumulativeLayoutShift = 0;
-    new PerformanceObserver(list => {
-      for (const entry of list.getEntries()) {
-        if (!entry.hadRecentInput) window.__cumulativeLayoutShift += entry.value;
-      }
-    }).observe({ type: 'layout-shift', buffered: true });
+  await withIsolatedPage(browser, { baseURL }, async (measuredPage, context) => {
+    await context.addInitScript(() => {
+      window.__cumulativeLayoutShift = 0;
+      new PerformanceObserver(list => {
+        for (const entry of list.getEntries()) {
+          if (!entry.hadRecentInput) window.__cumulativeLayoutShift += entry.value;
+        }
+      }).observe({ type: 'layout-shift', buffered: true });
+    });
+    await context.route(/\/app(?:\.[^/]+)?\.js$/, async route => {
+      await new Promise(resolve => setTimeout(resolve, 750));
+      await route.continue();
+    });
+    await gotoOnce(measuredPage, '/');
+    await expect(measuredPage.locator('html')).not.toHaveClass(/app-unavailable/);
+    expect(await measuredPage.evaluate(() => window.__cumulativeLayoutShift)).toBeLessThan(0.1);
   });
-  await context.route(/\/app(?:\.[^/]+)?\.js$/, async route => {
-    await new Promise(resolve => setTimeout(resolve, 750));
-    await route.continue();
-  });
-  const measuredPage = await context.newPage();
-  await measuredPage.goto('/');
-  await expect(measuredPage.locator('html')).not.toHaveClass(/app-unavailable/);
-  expect(await measuredPage.evaluate(() => window.__cumulativeLayoutShift)).toBeLessThan(0.1);
-  await context.close();
 });
 
 test('horizon tabs support arrows, Home, End, and correct tab panels', async ({ page }) => {
@@ -132,13 +111,13 @@ test('new packets show unknown values, withhold the chart, and keep the form acc
   await page.locator('#new-packet').click();
   await expect(page.locator('#packet-editor')).toBeVisible();
   await expect(page.locator('input[name="symbol"]')).toBeFocused();
-  await a11y(page);
+  await checkAccessibility(page);
   await page.locator('#close-editor').click();
   await expect(page.locator('#new-packet')).toBeFocused();
   await expect(page.locator('#reference-price')).toContainText('UNKNOWN');
   await expect(page.locator('#structure-status')).toHaveText('INCOMPLETE');
   await expect(page.locator('#chart-area svg')).toHaveCount(0);
-  await a11y(page);
+  await checkAccessibility(page);
 });
 
 test('invalid imports preserve the open packet and report exact validation failures', async ({ page }) => {
@@ -291,7 +270,7 @@ test('imported prose stays inert and submitted reviews remain explicitly unverif
   await expect(page.locator('#source-list a').first()).toHaveAttribute('rel', 'noopener noreferrer');
   await expect(page.locator('#source-list a').first()).toHaveAccessibleName(/opens in a new tab/);
   await expect(page.locator('.source-host').first()).toHaveText('www.iana.org');
-  await a11y(page);
+  await checkAccessibility(page);
 });
 
 test('evidence records are named articles with navigable source headings', async ({ page }) => {
@@ -356,6 +335,27 @@ test('undated exports use exact portable fallback filenames', async ({ page }) =
   expect(markdown.name).toBe('(Undated)Research Brief.md');
 });
 
+test('receipt, bundle and pinned baseline exports are named from their own snapshot', async ({ page }) => {
+  expect((await exported(page, '#export-receipt')).name).toBe('(2026-08-20)DEMO Research Check Receipt.json');
+  expect((await exported(page, '#export-bundle')).name).toBe('(2026-08-20)DEMO Research Bundle.json');
+  await page.getByText('Open packet comparison', { exact: true }).click();
+  await page.locator('#pin-baseline').click();
+  expect((await exported(page, '#export-baseline')).name).toBe('(2026-08-20)DEMO Comparison Baseline.json');
+
+  // The baseline keeps the pinned packet's date after a later packet with the same asset is opened.
+  const later = blankPacket();
+  later.asset.symbol = 'DEMO'; later.reference.capturedAt = '2026-08-19T09:00:00Z';
+  await importPacket(page, later);
+  await expect(page.locator('#export-baseline')).toBeEnabled();
+  expect((await exported(page, '#export-baseline')).name).toBe('(2026-08-20)DEMO Comparison Baseline.json');
+  expect((await exported(page, '#export-receipt')).name).toBe('(2026-08-19)DEMO Research Check Receipt.json');
+
+  page.once('dialog', dialog => dialog.accept());
+  await page.locator('#new-packet').click();
+  await page.locator('#close-editor').click();
+  expect((await exported(page, '#export-receipt')).name).toBe('(Undated)Research Check Receipt.json');
+});
+
 test('export filenames keep the packet date across positive and negative UTC boundaries', async ({ page }) => {
   for (const [capturedAt, timezone, date] of [
     ['2026-08-20T00:30:00+08:00', 'Asia/Singapore', '2026-08-20'],
@@ -382,7 +382,7 @@ test('editing research inputs clears the old review and withholds the chart', as
 
 test('method and dated sources can be edited without manipulating packet JSON', async ({ page }) => {
   await page.locator('#edit-details').click();
-  await a11y(page);
+  await checkAccessibility(page);
   await page.locator('select[name="method-basis"]').selectOption('empirical');
   await page.locator('input[name="method-sampleSize"]').fill('12');
   await page.locator('textarea[name="method-description"]').fill('Twelve fictional observations reviewed manually.');
@@ -645,6 +645,16 @@ test('local saving is opt-in, survives reload, and clears only the app key', asy
   })).toBe(true);
 });
 
+test('startup logs no console warnings or errors', async ({ page }) => {
+  const messages = [];
+  page.on('console', message => {
+    if (['warning', 'error'].includes(message.type())) messages.push(message.type() + ': ' + message.text());
+  });
+  await navigate(page, { reload: true });
+  await expect(page.locator('#asset-symbol')).toHaveText('DEMO');
+  expect(messages).toEqual([]);
+});
+
 test('clearing when no saved draft exists leaves the default packet clean', async ({ page }) => {
   page.once('dialog', dialog => dialog.accept());
   await page.locator('#clear-saved').click();
@@ -660,6 +670,7 @@ test('corrupt storage is retained without replacement and saving stays off', asy
   await page.evaluate(key => localStorage.setItem(key, '{"bad":true}'), STORAGE_KEY);
   await navigate(page, { reload: true });
   await expect(page.locator('#app-error')).toContainText('not deleted or overwritten');
+  await expect(page.locator('#storage-status')).toContainText('unreadable');
   await expect(page.locator('#remember-packet')).toBeDisabled();
   await expect(page.locator('#recover-saved')).toBeVisible();
   expect(await page.evaluate(key => localStorage.getItem(key), STORAGE_KEY)).toBe('{"bad":true}');
@@ -667,7 +678,7 @@ test('corrupt storage is retained without replacement and saving stays off', asy
   expect(recovery.name).toBe('Unparsed Saved Research Draft.json');
   expect(JSON.parse(recovery.text)).toEqual({ storageKey: STORAGE_KEY, rawValue: '{"bad":true}' });
   expect(await page.evaluate(key => localStorage.getItem(key), STORAGE_KEY)).toBe('{"bad":true}');
-  await a11y(page);
+  await checkAccessibility(page);
   page.once('dialog', dialog => dialog.accept());
   await page.locator('#clear-saved').click();
   await expect(page.locator('#remember-packet')).toBeEnabled();
@@ -679,19 +690,46 @@ test('corrupt storage is retained without replacement and saving stays off', asy
   })).toBe(false);
 });
 
+test('saved drafts with empty query pairs restore unless two sources collapse into one', async ({ page }) => {
+  // A draft written by an earlier release with an empty pair on one source still restores unchanged.
+  const earlier = research();
+  earlier.sources[0].url = 'https://www.iana.org/domains/reserved?a=1&';
+  const earlierText = JSON.stringify(earlier);
+  await page.evaluate(([key, value]) => localStorage.setItem(key, value), [STORAGE_KEY, earlierText]);
+  await navigate(page, { reload: true });
+  await expect(page.locator('#storage-status')).toContainText('Restored');
+  await expect(page.locator('#remember-packet')).toBeChecked();
+  expect(await page.evaluate(key => localStorage.getItem(key), STORAGE_KEY)).toBe(earlierText);
+
+  // A draft that recorded one source twice is kept byte for byte and offered for recovery.
+  const duplicated = research();
+  duplicated.sources[1].url = 'https://www.iana.org/domains/reserved?a=1&';
+  duplicated.sources[0].url = 'https://www.iana.org/domains/reserved?a=1';
+  const duplicatedText = JSON.stringify(duplicated);
+  await page.evaluate(([key, value]) => localStorage.setItem(key, value), [STORAGE_KEY, duplicatedText]);
+  await navigate(page, { reload: true });
+  await expect(page.locator('#app-error')).toContainText('not deleted or overwritten');
+  await expect(page.locator('#remember-packet')).toBeDisabled();
+  await expect(page.locator('#recover-saved')).toBeVisible();
+  const recovery = await exported(page, '#recover-saved');
+  expect(JSON.parse(recovery.text)).toEqual({ storageKey: STORAGE_KEY, rawValue: duplicatedText });
+  expect(await page.evaluate(key => localStorage.getItem(key), STORAGE_KEY)).toBe(duplicatedText);
+});
+
 test('storage denial at startup keeps the workbench usable and saving disabled', async ({ browser, baseURL }) => {
-  const context = await browser.newContext({ baseURL });
-  await context.addInitScript(() => {
-    Storage.prototype.getItem = function () { throw new DOMException('Test storage denied', 'SecurityError'); };
+  await withIsolatedPage(browser, { baseURL }, async (deniedPage, context) => {
+    await context.addInitScript(() => {
+      Storage.prototype.getItem = function () { throw new DOMException('Test storage denied', 'SecurityError'); };
+    });
+    await navigate(deniedPage);
+    await expect(deniedPage.locator('#asset-symbol')).toHaveText('DEMO');
+    await expect(deniedPage.locator('#remember-packet')).toBeDisabled();
+    await expect(deniedPage.locator('#recover-saved')).toBeHidden();
+    await expect(deniedPage.locator('#storage-status')).toContainText('storage is unavailable');
+    await expect(deniedPage.locator('#app-error')).toContainText('storage is unavailable');
+    await expect(deniedPage.locator('#app-error')).not.toContainText('saved draft');
+    await checkAccessibility(deniedPage);
   });
-  const deniedPage = await context.newPage();
-  await navigate(deniedPage);
-  await expect(deniedPage.locator('#asset-symbol')).toHaveText('DEMO');
-  await expect(deniedPage.locator('#remember-packet')).toBeDisabled();
-  await expect(deniedPage.locator('#recover-saved')).toBeHidden();
-  await expect(deniedPage.locator('#storage-status')).toContainText('storage is unavailable');
-  await a11y(deniedPage);
-  await context.close();
 });
 
 test('failed saved-draft removal keeps its retention state visible', async ({ page }) => {
@@ -751,7 +789,7 @@ test('another tab changing storage locks destructive controls without replacing 
   await expect(page.locator('#storage-status')).toContainText('locked until reload');
   await expect(page.locator('#asset-symbol')).toHaveText('DEMO');
   expect(await page.evaluate(key => JSON.parse(localStorage.getItem(key)).thesis, STORAGE_KEY)).toBe(otherPacket.thesis);
-  await a11y(page);
+  await checkAccessibility(page);
   expect(await page.evaluate(() => {
     const event = new Event('beforeunload', { cancelable: true });
     window.dispatchEvent(event); return event.defaultPrevented;
@@ -826,6 +864,15 @@ test('mobile and desktop layouts contain overflow and keep dialog actions reacha
       .evaluate(node => node.getBoundingClientRect().width)).toBeGreaterThanOrEqual(180);
     await page.getByRole('button', { name: 'Save details', exact: true }).click();
     await expect(page.locator('#packet-editor')).toBeHidden();
+  }
+});
+
+test('source excerpt toggles keep a 24 px target at every width (WCAG 2.5.8)', async ({ page }) => {
+  for (const width of [320, 390, 768, 1440]) {
+    await page.setViewportSize({ width, height: 900 });
+    const heights = await page.locator('.source-item summary').evaluateAll(nodes => nodes.map(node => node.getBoundingClientRect().height));
+    expect(heights.length, 'source summaries at ' + width).toBeGreaterThan(0);
+    for (const height of heights) expect(height, 'summary height at ' + width).toBeGreaterThanOrEqual(24);
   }
 });
 

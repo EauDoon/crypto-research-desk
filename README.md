@@ -3,6 +3,7 @@
 [![build](https://img.shields.io/github/actions/workflow/status/EauDoon/crypto-research-desk/ci.yml?branch=main)](https://github.com/EauDoon/crypto-research-desk/actions)
 [![license](https://img.shields.io/github/license/EauDoon/crypto-research-desk)](https://github.com/EauDoon/crypto-research-desk/blob/main/LICENSE)
 [![last commit](https://img.shields.io/github/last-commit/EauDoon/crypto-research-desk)](https://github.com/EauDoon/crypto-research-desk)
+[![version](https://img.shields.io/github/package-json/v/EauDoon/crypto-research-desk?label=version)](https://github.com/EauDoon/crypto-research-desk/blob/main/CHANGELOG.md)
 
 This repository ships a local, browser-only workbench for inspecting, editing, reviewing, and exporting research-only crypto forecast packets. It loads a synthetic `DEMO` packet by default so the delivered interface can be explored without a live feed, account connection, or trading action path.
 
@@ -149,5 +150,7 @@ The desk cannot place trades, connect accounts, handle credentials, sign transac
 | [docs/EVAL.md](docs/EVAL.md) | Quality bar for each lane. |
 | [docs/ROADMAP.md](docs/ROADMAP.md) | What is built and what is next. |
 | [docs/ADDING-SKILLS.md](docs/ADDING-SKILLS.md) | How a lane grows a skill. |
+| [CHANGELOG.md](CHANGELOG.md) | What each repository release changed. |
+| [RELEASE_POLICY.md](RELEASE_POLICY.md) | Version identities, tags, and the release boundary. |
 
 The frozen research core is byte-verified. Add skills, schemas, and examples around it. Do not silently rewrite the verified files.

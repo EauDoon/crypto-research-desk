@@ -1,17 +1,10 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, checkAccessibility, navigate } from './harness.mjs';
 import { examplePacket } from '../../web/example.js';
 import { blankPacket } from '../../web/packet.js';
-import AxeBuilder from '@axe-core/playwright';
-import { navigate } from './navigation.mjs';
 const NOW = new Date('2026-08-20T10:00:00Z');
-const runtimeErrors = new WeakMap(), externalRequests = new WeakMap();
 test.beforeEach(async ({ page }) => {
-  runtimeErrors.set(page, []); externalRequests.set(page, []);
-  page.on('pageerror', error => runtimeErrors.get(page).push(error.message));
-  page.on('request', request => { if (!request.url().startsWith('http://127.0.0.1:4173/') && !request.url().startsWith('blob:')) externalRequests.get(page).push(request.url()); });
   await page.clock.install({ time: NOW }); await navigate(page);
 });
-test.afterEach(async ({ page }) => { expect(runtimeErrors.get(page)).toEqual([]); expect(externalRequests.get(page)).toEqual([]); });
 async function exported(page, selector) {
   const pending = page.waitForEvent('download'); await page.locator(selector).click();
   const stream = await (await pending).createReadStream(), chunks = [];
@@ -33,7 +26,7 @@ test('pinned comparison survives edits and is forgotten on reload', async ({ pag
 
 test('evidence row editing focuses the selected claim and returns to its rebuilt action', async ({ page }) => {
   await page.locator('#source-search').fill('activity');
-  const action = page.getByRole('button', { name: 'Edit source example-activity', exact: true });
+  const action = page.getByRole('button', { name: 'Edit this source: example-activity', exact: true });
   await action.focus(); await page.keyboard.press('Enter');
   await expect(page.locator('[name="source-1-claim"]')).toBeFocused();
   await page.locator('[name="source-1-claim"]').fill('Updated fictional activity observation.');
@@ -158,7 +151,7 @@ test('second-cycle controls remain accessible across wide and narrow layouts', a
   for (const width of [1440, 768, 390, 320]) {
     await page.setViewportSize({ width, height: 900 });
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-    expect((await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze()).violations.map(item => item.id)).toEqual([]);
+    await checkAccessibility(page);
     if (testInfo.project.name === 'chromium' && [1440, 390].includes(width)) await page.screenshot({ path: '../evidence/crypto-research-desk-' + width + '.png', fullPage: true });
   }
 });

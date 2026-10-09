@@ -1,4 +1,5 @@
 import { defineConfig, devices } from '@playwright/test';
+import { PREVIEW_ORIGIN, PREVIEW_PORT } from './tests/browser/origin.mjs';
 
 export default defineConfig({
   testDir: './tests/browser',
@@ -8,7 +9,7 @@ export default defineConfig({
   workers: process.env.CI ? 2 : 3,
   reporter: 'list',
   use: {
-    baseURL: 'http://127.0.0.1:4173',
+    baseURL: PREVIEW_ORIGIN,
     headless: true,
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
@@ -18,8 +19,8 @@ export default defineConfig({
     { name: 'firefox', use: { ...devices['Desktop Firefox'] } },
   ],
   webServer: {
-    command: 'node tools/serve.mjs --dist',
-    url: 'http://127.0.0.1:4173',
+    command: 'node tools/serve.mjs --dist --port ' + PREVIEW_PORT,
+    url: PREVIEW_ORIGIN,
     reuseExistingServer: false,
     timeout: 30000,
   },

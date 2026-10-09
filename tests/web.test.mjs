@@ -3,14 +3,17 @@ import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
 import { createHash } from 'node:crypto';
 import { request } from 'node:http';
+import { spawnSync } from 'node:child_process';
 import { copyFile, cp, lstat, mkdir, mkdtemp, readFile, readdir, realpath, rename, rm, symlink, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { build, verifyBuild } from '../tools/build.mjs';
-import { startServer } from '../tools/serve.mjs';
-import { assertSupportedNode, isSupportedNode } from '../tools/runtime.mjs';
+import { parseServeArguments, startServer } from '../tools/serve.mjs';
+import { assertSupportedNode, isSupportedNode, readReleaseVersions } from '../tools/runtime.mjs';
 import { isFirefoxStartupRace, navigate } from './browser/navigation.mjs';
-import { PUBLIC_FILES, HASHED_ASSET, SECURITY_HEADERS } from '../tools/web-config.mjs';
+import { PREVIEW_ORIGIN } from './browser/origin.mjs';
+import { PUBLIC_FILES, HASHED_SOURCES, STATIC_PAGES, HASHED_ASSET, SECURITY_HEADERS } from '../tools/web-config.mjs';
+import { checkSyntax, syntaxTargets } from '../tools/check-syntax.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const work = join(root, 'work');
@@ -74,6 +77,29 @@ test('tooling accepts Node 24.x and fails fast for other or malformed versions',
   assert.doesNotThrow(() => assertSupportedNode());
 });
 
+test('the preview server reports both versions and rejects arguments it does not understand', async () => {
+  const pkg = JSON.parse(await readFile(join(root, 'package.json'), 'utf8'));
+  const core = (await readFile(join(root, 'VERSION'), 'utf8')).trim();
+  assert.deepEqual(readReleaseVersions(root), { workbenchVersion: pkg.version, researchCoreVersion: core });
+  const serve = (...args) => spawnSync(process.execPath, [join(root, 'tools', 'serve.mjs'), ...args], { encoding: 'utf8', timeout: 15000 });
+  const version = serve('--version');
+  assert.equal(version.status, 0, version.stderr);
+  assert.equal(version.stdout, 'crypto-research-desk ' + pkg.version + ' (research core ' + core + ')\n');
+  const help = serve('--help');
+  assert.equal(help.status, 0, help.stderr);
+  assert.match(help.stdout, /--dist/);
+  assert.match(help.stdout, /--port N/);
+  // A mistyped flag exits before listening instead of serving on the default port.
+  const mistyped = serve('--prot', '4174');
+  assert.equal(mistyped.status, 1);
+  assert.match(mistyped.stderr, /^Unknown argument: --prot\n/);
+  for (const args of [['--port'], ['--port', 'x'], ['--port', '65536'], ['--port', ''], ['--dist', '--dist'], ['--version', '--dist']]) {
+    assert.ok(parseServeArguments(args).error, JSON.stringify(args));
+  }
+  assert.deepEqual(parseServeArguments([]), { port: 4173, built: false, help: false, version: false });
+  assert.deepEqual(parseServeArguments(['--dist', '--port', '0']), { port: 0, built: true, help: false, version: false });
+});
+
 test('Vercel production settings match the verified build and security configuration', async () => {
   const config = JSON.parse(await readFile(join(root, 'vercel.json'), 'utf8'));
   assert.equal(await readFile(join(root, '.vercelignore'), 'utf8'), await readFile(join(root, '.gitignore'), 'utf8'));
@@ -109,6 +135,49 @@ test('Vercel production settings match the verified build and security configura
   });
 });
 
+test('one public file list drives the build order, the manifest and the allowlist', async () => {
+  assert.deepEqual(new Set(PUBLIC_FILES), new Set([...STATIC_PAGES, ...HASHED_SOURCES]));
+  assert.equal(new Set(PUBLIC_FILES).size, PUBLIC_FILES.length, 'no file is listed twice');
+  assert.equal(STATIC_PAGES.some(name => HASHED_SOURCES.includes(name)), false);
+  const webFiles = (await readdir(join(root, 'web'))).sort();
+  assert.deepEqual([...PUBLIC_FILES].sort(), webFiles, 'every web/ file is published and every published file exists');
+  for (const name of HASHED_SOURCES) {
+    assert.ok(HASHED_ASSET.test(name.replace(/\.(\w+)$/, '.' + 'a'.repeat(64) + '.$1')), name + ' has a hashed public name');
+  }
+  // Each module may import only modules hashed before it, so its rewritten imports are final.
+  for (const [index, name] of HASHED_SOURCES.entries()) {
+    if (!name.endsWith('.js')) continue;
+    const source = await readFile(join(root, 'web', name), 'utf8');
+    const imports = [...source.matchAll(/(?:^|[\s;])(?:import|export)\b[^'"]*?['"]\.\/([^'"]+)['"]/g)].map(match => match[1]);
+    for (const imported of imports) {
+      const position = HASHED_SOURCES.indexOf(imported);
+      assert.ok(position !== -1 && position < index, name + ' imports ./' + imported + ', which must be listed earlier in HASHED_SOURCES');
+    }
+  }
+});
+
+test('the syntax check covers every shipped and test module and names the first failure', async t => {
+  const targets = syntaxTargets();
+  for (const required of ['web/app.js', 'web/packet-parse.js', 'tools/build.mjs', 'tools/check-syntax.mjs',
+    'tests/production/workbench.spec.mjs', 'tests/browser/navigation.mjs', 'playwright.production.config.mjs']) {
+    assert.ok(targets.includes(required), required);
+  }
+  assert.equal(targets.some(path => path.includes('node_modules')), false);
+  assert.equal(checkSyntax().ok, true);
+
+  await mkdir(work, { recursive: true });
+  const directory = await mkdtemp(join(work, 'syntax-test-'));
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  for (const folder of ['web', 'tools', 'tests/production', 'tests/node_modules/ignored']) await mkdir(join(directory, folder), { recursive: true });
+  await writeFile(join(directory, 'web', 'ok.js'), 'export const ok = 1;\n');
+  await writeFile(join(directory, 'tests', 'node_modules', 'ignored', 'broken.mjs'), 'export const = ;\n');
+  assert.equal(checkSyntax(directory).ok, true, 'node_modules is skipped');
+  await writeFile(join(directory, 'tests', 'production', 'smoke.spec.mjs'), 'export const = ;\n');
+  const failed = checkSyntax(directory);
+  assert.equal(failed.ok, false);
+  assert.equal(failed.file, 'tests/production/smoke.spec.mjs');
+});
+
 test('the build is deterministic and publishes only the reviewed static allowlist', async t => {
   const directory = await fixture(t);
   await writeFile(join(directory, 'web', 'private-notes.md'), 'Not part of the public build.');
@@ -116,11 +185,11 @@ test('the build is deterministic and publishes only the reviewed static allowlis
   const second = await build(directory);
   assert.deepEqual(second, first);
   assert.equal(first.formatVersion, 2);
-  assert.equal(first.workbenchVersion, '1.10.0');
+  assert.equal(first.workbenchVersion, JSON.parse(await readFile(join(root, 'package.json'), 'utf8')).version);
   assert.equal(first.researchCoreVersion, '1.1.0');
   assert.equal(first.files.length, PUBLIC_FILES.length);
-  assert.equal(first.files.filter(name => HASHED_ASSET.test(name)).length, 18);
-  assert.equal((await readdir(join(directory, 'dist'))).length, 22);
+  assert.equal(first.files.filter(name => HASHED_ASSET.test(name)).length, HASHED_SOURCES.length);
+  assert.equal((await readdir(join(directory, 'dist'))).length, PUBLIC_FILES.length + 1);
   assert.ok(!first.files.includes('private-notes.md'));
   assert.deepEqual(await verifyBuild(join(directory, 'dist')), first);
   const html = await readFile(join(directory, 'dist', 'index.html'), 'utf8');
@@ -413,7 +482,7 @@ test('built preview serves one immutable verified byte snapshot after mutation a
 });
 
 function loadedNavigationDocument(paths, documentId = 'first') {
-  return { origin: 'http://127.0.0.1:4173', path: '/', readyState: 'complete', documentId,
+  return { origin: PREVIEW_ORIGIN, path: '/', readyState: 'complete', documentId,
     nativeEvents: ['domcontentloaded', 'load'], symbol: 'DEMO', hasChart: true, assertionCount: 5,
     modulePath: paths.find(path => path.startsWith('/app.')),
     stylesheets: [{ path: paths.find(path => path.startsWith('/styles.')), rules: 100 }] };
@@ -426,7 +495,7 @@ test('Firefox navigation recovery requires the exact completed and successful st
   const baseline = {
     browserName: 'firefox', errorName: 'TimeoutError', reload: false,
     documentState: loadedNavigationDocument(paths), events: [], failures: [], pending: [], runtimeErrors: [],
-    responses: paths.map(path => ({ path, status: 200 })),
+    responses: paths.map(path => ({ path, status: 200 })), expectedAssets: paths.slice(1),
   };
   assert.equal(isFirefoxStartupRace(baseline), true, 'native events suffice when the driver drops events');
   const rejected = [
@@ -444,6 +513,9 @@ test('Firefox navigation recovery requires the exact completed and successful st
     { runtimeErrors: ['Application failed'] }, { responses: baseline.responses.slice(1) },
     { responses: baseline.responses.map((response, i) => i === 1 ? { ...response, status: 404 } : response) },
     { responses: baseline.responses.map((response, i) => i === 1 ? { ...response, path: '/unknown.js' } : response) },
+    { responses: baseline.responses.filter(response => !response.path.startsWith('/favicon.')) },
+    { expectedAssets: [...baseline.expectedAssets, '/packet-extra.' + hash + '.js'] },
+    { expectedAssets: [] }, { expectedAssets: undefined },
   ];
   for (const change of rejected) assert.equal(isFirefoxStartupRace({ ...baseline, ...change }), false, JSON.stringify(change));
 });
@@ -466,7 +538,7 @@ test('Firefox startup recovery verifies cached pages and preserves subsequent fa
       calls++;
       for (const path of paths) {
         if (calls === 2 && outcome === 'cached' && path !== '/') continue;
-        const request = { url: () => 'http://127.0.0.1:4173' + path };
+        const request = { url: () => PREVIEW_ORIGIN + path };
         page.emit('request', request);
         page.emit('response', { url: request.url, status: () => calls === 2 && outcome === 'asset' && path.startsWith('/styles.') ? 404 : 200 });
         page.emit('requestfinished', request);
@@ -476,11 +548,54 @@ test('Firefox startup recovery verifies cached pages and preserves subsequent fa
       }
       return { status: () => 200 };
     };
-    if (['success', 'cached'].includes(outcome)) await navigate(page);
-    else await assert.rejects(navigate(page), /Navigation still failed|recovered navigation/);
+    // settleMs 0: these cases test recovery identity, not probe settling.
+    const expectedAssets = paths.slice(1), options = { expectedAssets, settleMs: 0 };
+    if (['success', 'cached'].includes(outcome)) await navigate(page, options);
+    else await assert.rejects(navigate(page, options), /Navigation still failed|recovered navigation/);
     assert.equal(calls, 2, 'only one recovery attempt');
     assert.equal(page.eventNames().length, 0, 'temporary listeners are removed');
   }
+
+  // Without the build's asset list a timed-out navigation is never treated as recovered.
+  const page = new EventEmitter(); let calls = 0;
+  page.addInitScript = async () => {};
+  page.context = () => ({ browser: () => ({ browserType: () => ({ name: () => 'firefox' }) }) });
+  page.evaluate = async () => loadedNavigationDocument(paths);
+  page.goto = async () => {
+    calls++;
+    for (const path of paths) {
+      const request = { url: () => PREVIEW_ORIGIN + path };
+      page.emit('request', request);
+      page.emit('response', { url: request.url, status: () => 200 });
+      page.emit('requestfinished', request);
+    }
+    const error = new Error('Navigation timed out'); error.name = 'TimeoutError'; throw error;
+  };
+  await assert.rejects(navigate(page), /Navigation timed out/);
+  assert.equal(calls, 1, 'no recovery attempt without the expected asset list');
+});
+
+test('a slow startup probe of a loaded document settles instead of failing', async t => {
+  t.mock.method(console, 'warn', () => {});
+  const paths = ['/', '/app.' + 'a'.repeat(64) + '.js', '/styles.' + 'b'.repeat(64) + '.css'];
+  const loadedPage = probes => {
+    const page = new EventEmitter(); let gotos = 0, reads = 0;
+    page.addInitScript = async () => {};
+    page.context = () => ({ browser: () => ({ browserType: () => ({ name: () => 'firefox' }) }) });
+    page.evaluate = async () => probes[Math.min(reads++, probes.length - 1)];
+    page.goto = async () => { gotos++; return { status: () => 200 }; };
+    return { page, counts: () => ({ gotos, reads }) };
+  };
+  const ready = loadedNavigationDocument(paths);
+  const slow = loadedPage([{ unavailable: true }, { ...ready, hasChart: false }, ready]);
+  await navigate(slow.page, { settleMs: 5000 });
+  assert.deepEqual(slow.counts(), { gotos: 1, reads: 3 }, 'settled on the third probe without a second navigation');
+
+  const never = loadedPage([{ ...ready, hasChart: false }]);
+  const started = Date.now();
+  await assert.rejects(navigate(never.page, { settleMs: 600 }), /workbench startup document/);
+  assert.ok(Date.now() - started >= 600, 'the probe kept reading for the whole window');
+  assert.equal(never.counts().gotos, 1, 'a document that never becomes ready is not navigated again');
 });
 
 // Regression guard. The staleness guards in app-events capture a sequence with

@@ -4,13 +4,16 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
 
 permissions:
   contents: read
 
+# Every push to main deploys production, so each main commit keeps its own
+# uncancelled verdict. Pull request pushes still supersede each other.
 concurrency:
-  group: quality-${{ github.ref }}
-  cancel-in-progress: true
+  group: quality-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   production-build:
@@ -42,7 +45,7 @@ jobs:
         with:
           node-version: '24'
           cache: npm
-      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
         with:
           python-version: '3.13'
       - name: Install test dependencies
@@ -59,6 +62,14 @@ jobs:
         run: npx playwright install --with-deps chromium firefox
       - name: Browser and accessibility checks
         run: npm run test:browser
+      - name: Keep browser failure evidence
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: playwright-evidence-${{ github.run_attempt }}
+          path: test-results/
+          retention-days: 7
+          if-no-files-found: ignore
       - name: Check whitespace
         run: |
           git hash-object -w -t tree /dev/null >/dev/null

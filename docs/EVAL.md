@@ -111,11 +111,12 @@ Install the development dependencies with `npm ci --ignore-scripts`, then run:
 
 ```sh
 npm run check:specialist -- quant_portfolio examples/incomplete-quant.json
+npm run check:specialist -- freeze examples/freeze-receipt.json
 ```
 
 The lane is `chief`, `market_regime`, `fundamental_onchain`, `opportunity_scout`, `quant_portfolio`, `risk_officer`, or `freeze`. The offline command reads at most 320 KiB of strict UTF-8 JSON and checks the matching specialist schema, recorded chronology, horizon identity, probability arithmetic, and Risk disposition consistency. It uses the existing bounded packet parser and date/URL rules. JSON Schema validation uses Ajv, a development-only dependency excluded from the browser build.
 
-Exit 0 means the supplied record passed mechanical checks; exit 1 means it failed; exit 2 means arguments, file reading, encoding, or parsing failed. Even exit 0 always reports `delivery: UNVERIFIED`. Incomplete packets can be mechanically valid. These schemas are specialist handoffs, not importable browser packets; the browser has a separate schema-version-1 contract.
+Exit 0 means the supplied record passed mechanical checks; exit 1 means it failed; exit 2 means arguments, file reading, encoding, or parsing failed. Even exit 0 always reports `delivery: UNVERIFIED`. `npm run check:specialist -- --help` prints the usage, the seven lanes and this exit-code contract, and `-- --version` prints the repository release and research-core versions. An unsupported lane prints the same usage and exits 2; the file path is never echoed. Incomplete packets can be mechanically valid. These schemas are specialist handoffs, not importable browser packets; the browser has a separate schema-version-1 contract.
 
 The following desk-level review obligations still apply. The command never infers semantic clearance from keywords, schemas, a digest, or a PASS assertion supplied by the producer:
 
@@ -130,7 +131,7 @@ The following desk-level review obligations still apply. The command never infer
 
 `fact-kind` and `scout-state` receive schema checks. Horizon sums, ordering, incomplete shapes, recorded date ordering, and Risk verdict consistency receive deterministic checks. Authority, allocation, source-freeze truth, actual Risk isolation, source truth, and whether a Chief preserved a prior FAIL remain `UNKNOWN` in the command's manual-review record. A freeze receipt's shape does not prove its bytes were captured or hashed correctly. Verify those against the retained source material independently.
 
-CI runs valid and invalid specialist fixtures through the same checker in `npm test`. It does not invoke a model or establish forecast accuracy.
+CI runs valid and invalid specialist fixtures through the same checker in `npm test`. Every `examples/*.json` file must map to a lane and pass it, and the nested snippets in [packet-shapes.md](../examples/packet-shapes.md) are validated against their subschemas, so the [freeze receipt](../examples/freeze-receipt.md) and the other examples cannot drift from the schemas. It does not invoke a model or establish forecast accuracy.
 
 ## Manual second-model procedure
 

@@ -18,7 +18,7 @@ import {
   incrementImportSequence, setEditorOpener, setPrintDetailsState, setUnreadableSavedDraft,
   setLastValidation, setReceiptCheckSequence, applyPacket, confirmReplacement,
   saveLocally, STORAGE_KEY, field, numericInput, sourceEditorValues,
-  editableFieldForPath, clearEditorError, researchChanged, download, importFile,
+  editableFieldForPath, clearEditorError, researchChanged, download, exportFilename, importFile,
 } from './app-state.js';
 import { $, element, setText, announce, validationError, validationSignature, listInto } from './app-utils.js';
 import {
@@ -415,7 +415,7 @@ $('export-receipt').addEventListener('click', async () => {
   const snapshot = structuredClone(packet);
   try {
     const receipt = await validationReceipt(snapshot);
-    download(JSON.stringify(receipt, null, 2) + '\n', 'application/json; charset=utf-8', '', snapshot.asset.symbol + ' Research Check Receipt.json');
+    download(JSON.stringify(receipt, null, 2) + '\n', 'application/json; charset=utf-8', '', exportFilename(snapshot, 'Research Check Receipt.json'));
     announce('Check receipt prepared for the packet snapshot at click time. Export matching packet JSON to reproduce its SHA-256.');
   } catch (error) { announce('Check receipt unavailable: ' + error.message, true); }
   finally { button.disabled = false; }
@@ -431,7 +431,7 @@ $('clear-baseline').addEventListener('click', () => { incrementBaselineImportSeq
 $('export-baseline').addEventListener('click', () => {
   if (!pinnedBaseline) return;
   try {
-    download(JSON.stringify(pinnedBaseline, null, 2) + '\n', 'application/json; charset=utf-8', '', pinnedBaseline.asset.symbol + ' Comparison Baseline.json');
+    download(JSON.stringify(pinnedBaseline, null, 2) + '\n', 'application/json; charset=utf-8', '', exportFilename(pinnedBaseline, 'Comparison Baseline.json'));
     announce('Pinned baseline exported as standard packet JSON. Import it as a baseline to compare without replacing the open packet.');
   } catch (error) { announce('Baseline export failed: ' + error.message, true); }
 });
@@ -469,7 +469,7 @@ $('verify-receipt').addEventListener('click', async () => {
 });
 $('export-bundle').addEventListener('click', async () => {
   const button = $('export-bundle'); button.disabled = true; const snapshot = structuredClone(packet);
-  try { download(await exportResearchBundle(snapshot), 'application/json; charset=utf-8', '', (snapshot.asset.symbol || 'Unnamed') + ' Research Bundle.json'); announce('Packet and matching check receipt exported together. Import JSON accepts this bundle and rechecks its contents locally.'); }
+  try { download(await exportResearchBundle(snapshot), 'application/json; charset=utf-8', '', exportFilename(snapshot, 'Research Bundle.json')); announce('Packet and matching check receipt exported together. Import JSON accepts this bundle and rechecks its contents locally.'); }
   catch (error) { announce(error.message, true); }
   finally { button.disabled = false; }
 });

@@ -206,6 +206,27 @@ test('reordered query parameters cannot be recorded as separate evidence', () =>
   decoded.sources[1].url = 'https://www.iana.org/domains/reserved?a=1&b=b';
   assert.equal(validate(decoded).valid, false);
 
+  for (const [first, second] of [['?a=1', '?a=1&'], ['?a=1&b=2', '?b=2&&a=1'], ['?&a=1', '?a=1'], ['?', '?&']]) {
+    const emptyPairs = research();
+    emptyPairs.sources[0].url = 'https://www.iana.org/domains/reserved' + first;
+    emptyPairs.sources[1].url = 'https://www.iana.org/domains/reserved' + second;
+    const report = validate(emptyPairs);
+    assert.equal(report.valid, false, first + ' vs ' + second);
+    assert.ok(report.errors.some(issue => issue.path === 'sources[1].url'
+      && issue.message.includes('duplicates sources[0].url')), first + ' vs ' + second);
+  }
+  const valueless = research();
+  valueless.sources[0].url = 'https://www.iana.org/domains/reserved?a';
+  valueless.sources[1].url = 'https://www.iana.org/domains/reserved?a=';
+  assert.equal(validate(valueless).chartEligible, true, 'a value-less key is not an empty value');
+  // Packets saved before this rule keep validating unless two sources collapse into one:
+  // an empty pair on a single source is accepted and its spelling is kept.
+  const trailing = research();
+  trailing.sources[0].url = 'https://www.iana.org/domains/reserved?a=1&&';
+  const kept = parsePacket(JSON.stringify(trailing));
+  assert.equal(validate(kept).chartEligible, true, 'an empty pair on a single source stays valid');
+  assert.equal(kept.sources[0].url, 'https://www.iana.org/domains/reserved?a=1&&');
+
   const distinct = research();
   distinct.sources[0].url = 'https://www.iana.org/domains/reserved?a=1&b=2';
   distinct.sources[1].url = 'https://www.iana.org/domains/reserved?a=1&b=3';
@@ -571,6 +592,18 @@ test('object keys that match under NFC are duplicates', () => {
   assert.throws(() => parsePacket('{"caf\\u00e9":1,"cafe\\u0301":2}'), /Duplicate object key/);
   assert.equal(parsePacket('{"cafe\\u0301":1}')['cafe\u0301'], 1);
   assert.throws(() => parsePacket('{"a":1,"\\u0061":2}'), /Duplicate object key/);
+});
+
+test('duplicate-key detection stays linear on a wide object', () => {
+  const text = '{' + Array.from({ length: 9990 }, (_, index) => '"k' + index + '":0').join(',') + '}';
+  const started = performance.now();
+  const parsed = parsePacket(text);
+  const elapsed = performance.now() - started;
+  assert.equal(Object.keys(parsed).length, 9990);
+  assert.ok(elapsed < 1000, 'parsing 9,990 keys took ' + elapsed.toFixed(0) + ' ms');
+  assert.throws(() => parsePacket('{"é":1,"é":2}'), /Duplicate object key/);
+  assert.throws(() => parsePacket('{"a":1,"a":2}'), /Duplicate object key/);
+  assert.throws(() => parsePacket('{"k0":0,"k1":0,"k0":0}'), /Duplicate object key/);
 });
 
 test('canonically equivalent Unicode in a source URL is one source', () => {

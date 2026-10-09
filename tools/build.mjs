@@ -5,7 +5,7 @@ import { lstat, mkdir, mkdtemp, readFile, readdir, rename, rm, rmdir, writeFile 
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { assertSupportedNode } from './runtime.mjs';
-import { PUBLIC_FILES, HASHED_ASSET, MANAGED_FILE } from './web-config.mjs';
+import { PUBLIC_FILES, HASHED_SOURCES, STATIC_PAGES, HASHED_ASSET, MANAGED_FILE } from './web-config.mjs';
 
 assertSupportedNode();
 
@@ -214,21 +214,9 @@ export async function build(root = projectRoot, { beforePublish } = {}) {
     }
     const files = new Map();
     const names = {};
-    // Dependencies are rewritten before hashing their importers.
-    // Split siblings are processed before the entry points so that the
-    // re-export shims (app.js, packet.js) see the hashed names of every
-    // sibling they import from. example.js imports from packet.js, so the
-    // packet re-export shim is hashed first.
-    for (const name of [
-      'favicon.svg', 'styles.css',
-      'packet-constants.js', 'packet-parse.js', 'packet-validate.js',
-      'packet-format.js', 'packet-export.js', 'packet-receipts.js', 'packet-actions.js',
-      'packet.js',
-      'example.js',
-      'app-utils.js', 'app-state.js', 'app-editor.js', 'app-render.js',
-      'app-events.js', 'app-bootstrap.js',
-      'app.js',
-    ]) {
+    // Dependencies are rewritten before hashing their importers; HASHED_SOURCES
+    // is in dependency order (see web-config.mjs).
+    for (const name of HASHED_SOURCES) {
       let contents = originals[name];
       for (const [original, replacement] of Object.entries(names)) contents = contents.replaceAll('./' + original, './' + replacement);
       const extension = name.slice(name.lastIndexOf('.'));
@@ -236,7 +224,7 @@ export async function build(root = projectRoot, { beforePublish } = {}) {
       names[name] = emitted;
       files.set(emitted, contents);
     }
-    for (const name of ['index.html', '404.html', 'robots.txt']) {
+    for (const name of STATIC_PAGES) {
       let contents = originals[name];
       for (const [original, replacement] of Object.entries(names)) contents = contents.replaceAll('/' + original, '/' + replacement);
       files.set(name, contents);
@@ -271,17 +259,16 @@ function validateManifest(manifest, source) {
     || Object.keys(manifest).some((key, index) => key !== MANIFEST_KEYS[index])
     || manifest.formatVersion !== 2
     || !validSemver(manifest.workbenchVersion) || !validSemver(manifest.researchCoreVersion)
-    || !Array.isArray(manifest.files) || manifest.files.length !== 21
-    || new Set(manifest.files).size !== 21
+    || !Array.isArray(manifest.files) || manifest.files.length !== PUBLIC_FILES.length
+    || new Set(manifest.files).size !== PUBLIC_FILES.length
     || !manifest.files.every(name => typeof name === 'string' && MANAGED_FILE(name))
     || manifest.files.some((name, index) => index > 0 && asciiOrder(manifest.files[index - 1], name) >= 0)
-    || ['index.html', '404.html', 'robots.txt'].some(name => !manifest.files.includes(name))
+    || STATIC_PAGES.some(name => !manifest.files.includes(name))
     || typeof manifest.artifactHash !== 'string' || !/^[a-f0-9]{64}$/.test(manifest.artifactHash)) {
     throw new Error('Invalid build manifest.');
   }
   if (source !== manifestText(manifest)) throw new Error('Build manifest is not canonical.');
-  for (const stem of ['app', 'packet', 'example', 'styles', 'favicon', 'app-bootstrap', 'app-editor', 'app-events', 'app-render', 'app-state', 'app-utils',
-    'packet-actions', 'packet-constants', 'packet-export', 'packet-format', 'packet-parse', 'packet-receipts', 'packet-validate']) {
+  for (const stem of HASHED_SOURCES.map(name => name.slice(0, name.lastIndexOf('.')))) {
     if (manifest.files.filter(name => HASHED_ASSET.test(name) && name.startsWith(stem + '.')).length !== 1) {
       throw new Error('Missing or duplicate built asset.');
     }
@@ -301,7 +288,7 @@ export async function loadVerifiedBuild(directory = join(projectRoot, 'dist')) {
   if (manifest.researchCoreVersion !== release.researchCoreVersion) throw new Error('Built research-core version mismatch.');
   if (manifest.workbenchVersion !== release.workbenchVersion) throw new Error('Built workbench version mismatch.');
   const existing = await readdir(directory);
-  if (existing.length !== 22 || existing.some(name => name !== 'build-info.json' && !manifest.files.includes(name))) throw new Error('Unexpected public output.');
+  if (existing.length !== PUBLIC_FILES.length + 1 || existing.some(name => name !== 'build-info.json' && !manifest.files.includes(name))) throw new Error('Unexpected public output.');
   const files = new Map();
   for (const name of manifest.files) {
     await regular(join(directory, name));
