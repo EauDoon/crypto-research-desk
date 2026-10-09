@@ -1,8 +1,14 @@
 # Security policy
 
-## Supported version
+## Supported versions
 
-Security fixes target the latest published major version. The browser workbench currently uses packet schema version 1. Unsupported schema versions are rejected without automatic migration.
+| Component | Supported | Where it is recorded |
+| --- | --- | --- |
+| Repository release (workbench, tooling, skills, schemas) | Latest 1.x release | `package.json`, `vX.Y.Z` tags, [CHANGELOG.md](CHANGELOG.md) |
+| Research core | 1.1.0 | `VERSION`, verified by `tools/verify_release.py` |
+| Browser packet schema | Version 1 | `schemaVersion` in each packet |
+
+Security fixes target the latest repository release. The deployed workbench reports its repository release and research core versions at `/build-info.json`. Unsupported packet schema versions are rejected without automatic migration.
 
 ## Reporting
 
