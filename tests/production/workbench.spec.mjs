@@ -104,7 +104,8 @@ test('production serves the reviewed artifact and complete local-only workflow',
   const corrupt = '{"bad":true}';
   await page.evaluate(([key, value]) => localStorage.setItem(key, value), [STORAGE_KEY, corrupt]);
   const recoveryPage = await page.context().newPage(); watch(recoveryPage);
-  await gotoOnce(recoveryPage, '/');
+  // Same context as the first page, so / may come back as a 304 revalidation.
+  await gotoOnce(recoveryPage, '/', { allowNotModified: true });
   await expect(recoveryPage.locator('#remember-packet')).toBeDisabled();
   const recovery = await downloaded(recoveryPage, '#recover-saved');
   expect(recovery.name).toBe('Unparsed Saved Research Draft.json');

@@ -10,7 +10,7 @@ import { fileURLToPath } from 'node:url';
 import { build, verifyBuild } from '../tools/build.mjs';
 import { parseServeArguments, startServer } from '../tools/serve.mjs';
 import { assertSupportedNode, isSupportedNode, readReleaseVersions } from '../tools/runtime.mjs';
-import { isFirefoxStartupRace, navigate } from './browser/navigation.mjs';
+import { gotoOnce, isFirefoxStartupRace, navigate } from './browser/navigation.mjs';
 import { PREVIEW_ORIGIN } from './browser/origin.mjs';
 import { PUBLIC_FILES, HASHED_SOURCES, STATIC_PAGES, HASHED_ASSET, SECURITY_HEADERS } from '../tools/web-config.mjs';
 import { checkSyntax, syntaxTargets } from '../tools/check-syntax.mjs';
@@ -518,6 +518,24 @@ test('Firefox navigation recovery requires the exact completed and successful st
     { expectedAssets: [] }, { expectedAssets: undefined },
   ];
   for (const change of rejected) assert.equal(isFirefoxStartupRace({ ...baseline, ...change }), false, JSON.stringify(change));
+});
+
+test('gotoOnce accepts a 304 revalidation only when the caller allows it', async () => {
+  const pageWith = status => ({
+    goto: async () => ({ status: () => status }),
+    context: () => ({ browser: () => ({ browserType: () => ({ name: () => 'firefox' }) }) }),
+  });
+  assert.equal((await gotoOnce(pageWith(200), '/')).status(), 200);
+  assert.equal((await gotoOnce(pageWith(200), '/', { allowNotModified: true })).status(), 200);
+  assert.equal((await gotoOnce(pageWith(304), '/', { allowNotModified: true })).status(), 304);
+  await assert.rejects(gotoOnce(pageWith(304), '/'), /navigation status for \//);
+  for (const status of [204, 404, 500]) {
+    await assert.rejects(gotoOnce(pageWith(status), '/', { allowNotModified: true }), /navigation status for \//, String(status));
+  }
+  let seen;
+  const recording = { ...pageWith(200), goto: async (path, options) => { seen = options; return { status: () => 200 }; } };
+  await gotoOnce(recording, '/', { allowNotModified: true, waitUntil: 'commit' });
+  assert.deepEqual(seen, { timeout: 10000, waitUntil: 'commit' }, 'allowNotModified is not passed to page.goto');
 });
 
 test('Firefox startup recovery verifies cached pages and preserves subsequent failures', async t => {
