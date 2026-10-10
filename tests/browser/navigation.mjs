@@ -43,7 +43,11 @@ export async function withIsolatedPage(browser, options, run) {
 // disabled, application module blocked) and for the live smoke. In Firefox a
 // completed navigation can still time out (microsoft/playwright#42183), so a
 // TimeoutError there is logged and retried exactly once; anything else throws.
-export async function gotoOnce(page, path = '/', options = {}) {
+// The status must be 200. allowNotModified also accepts 304, for a page whose
+// browser context already holds the document: production serves / with
+// must-revalidate, and Firefox reports the revalidation as 304 where Chromium
+// reports the cached 200.
+export async function gotoOnce(page, path = '/', { allowNotModified = false, ...options } = {}) {
   const attempt = () => page.goto(path, { timeout: 10000, ...options });
   let response;
   try {
@@ -55,6 +59,7 @@ export async function gotoOnce(page, path = '/', options = {}) {
     console.warn('Retrying Firefox navigation once (microsoft/playwright#42183).');
     response = await attempt();
   }
+  if (allowNotModified && response?.status() === 304) return response;
   assert.equal(response?.status(), 200, 'navigation status for ' + path);
   return response;
 }

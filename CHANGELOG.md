@@ -6,6 +6,10 @@ Record user-visible changes under `[Unreleased]` as they merge. A release moves 
 
 ## [Unreleased]
 
+### Fixed
+
+- The live production smoke no longer fails in Firefox when its second page reopens `/` in the same browser context. Production serves `/` with `must-revalidate`, and Firefox reports that revalidation as 304 where Chromium reports the cached 200. Only that navigation accepts a 304; every other navigation still requires 200. The 1.11.0 deployment itself was healthy: Chromium passed the same smoke.
+
 ## [1.11.0] - 2026-10-09
 
 This release records everything merged since 1.10.0 plus its own changes. Packet schema 1, the five read-only specialists, the four forecast horizons, the independent risk gate, the browser storage key and research core 1.1.0 are unchanged.
