@@ -13,7 +13,7 @@ import {
   baselineImportSequence, receiptCheckSequence, editorMode, editorInitial, importSequence,
   lastValidation, editorOpener, printDetailsState, unreadableSavedDraft, chartOverflowCleanup,
   scenarioOverflowCleanups, editor, form, reviewLabels, methodLabels, sourceFields, scenarioFields,
-  setPinnedBaseline, setComparisonBaseline, incrementBaselineImportSequence, setDirty, setUndoHistory,
+  setPinnedBaseline, setComparisonBaseline, incrementBaselineImportSequence, setDirty,
   popUndo, setChartOverflowCleanup, setScenarioOverflowCleanups, setEditorMode, setEditorInitial,
   setActiveHorizon, setEditorOpener, setLastValidation, setPrintDetailsState, setUnreadableSavedDraft,
   setReceiptCheckSequence, setOnClearComparison, setOnRenderPinnedBaseline, setOnClearSensitivity,

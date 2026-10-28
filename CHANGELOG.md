@@ -6,6 +6,11 @@ Record user-visible changes under `[Unreleased]` as they merge. A release moves 
 
 ## [Unreleased]
 
+### Changed
+
+- The expiry refresh now calls the shared `validationSignature` helper in `web/app-utils.js` instead of rebuilding the same ten-field signature inline, so the helper is the only place that defines what a refresh compares against.
+- Ten exports in `web/app-state.js` that nothing reads are now module-private: `setUndoHistory`, `pushUndo`, `canonical`, `reviewSignature`, `clearInvalidMarker` and the five render hooks. The dead imports of `setUndoHistory` and `clearInvalidMarker` are gone from `web/app-render.js` and `web/app-editor.js`. No packet, output or review behaviour changes.
+
 ### Fixed
 
 - The live production smoke no longer fails in Firefox when its second page reopens `/` in the same browser context. Production serves `/` with `must-revalidate`, and Firefox reports that revalidation as 304 where Chromium reports the cached 200. Only that navigation accepts a 304; every other navigation still requires 200. The 1.11.0 deployment itself was healthy: Chromium passed the same smoke.

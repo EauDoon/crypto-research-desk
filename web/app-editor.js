@@ -2,7 +2,7 @@ import { HORIZONS, SCENARIOS, REVIEW_ASSERTIONS, parsePacket, endAt } from './pa
 import {
   packet, importSequence, editorMode, editorInitial, editor, form, methodLabels, sourceFields, scenarioFields,
   setEditorMode, setEditorInitial, setImportSequence, setEditorOpener,
-  clearInvalidMarker, clearEditorError, markInvalid, sourceEditorValues,
+  clearEditorError, markInvalid, sourceEditorValues,
   applyPacket, confirmReplacement, editableFieldForPath,
 } from './app-state.js';
 import { $, element, setText, announce, validationError } from './app-utils.js';

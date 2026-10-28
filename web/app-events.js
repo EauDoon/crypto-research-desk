@@ -39,9 +39,7 @@ function refreshExpiry() {
   // Compare against the serialized validation signature, not the lastValidation
   // mutable binding, because a refresh interval in another module can read a
   // stale snapshot and skip re-rendering the live UI.
-  const signature = JSON.stringify([report.valid, report.complete, report.chartEligible,
-    report.errorCount, report.gapCount, report.warningCount,
-    report.omittedIssueCounts, report.errors, report.gaps, report.warnings]);
+  const signature = validationSignature(report);
   if (lastValidation === signature) { renderOverview(now); return now; }
   const activeId = document.activeElement?.id;
   // Keep scenario controls and open editor fields intact when only time has changed.
