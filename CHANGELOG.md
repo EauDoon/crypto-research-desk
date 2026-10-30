@@ -8,6 +8,7 @@ Record user-visible changes under `[Unreleased]` as they merge. A release moves 
 
 ### Added
 
+- `npm run check:packet`, an offline checker for the schema-version-1 packets the workbench imports. It applies the browser's own parser, validator and receipt rules without a page: a valid packet prints its `crypto-research-check-receipt.v1` receipt in exactly the format of the browser download, an invalid packet prints the validator's errors and exits 1, a packet bundle must match its own receipt as on import, `--receipt` verifies a saved receipt, and `--require-chart` fails unless the chart gate is open. A desk run on a host without a browser can now confirm its packet before handing it over. [examples/demo-packet.json](examples/demo-packet.json) is the **Load demo** packet as a file.
 - Tests that require each validation rule to report its own issue at its own path, in the browser packet validator and in `check:specialist`. Disabling one rule at a time used to leave the suite green for 26 of the validator's 76 checks and 6 of the checker's 13 semantic rules, including the rule that keeps a `deliver` disposition with unresolved unknowns off the chart. Four validator checks still survive because another check rejects the same input first.
 
 ### Changed

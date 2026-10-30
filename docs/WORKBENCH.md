@@ -9,7 +9,7 @@ The existing [research workflow](../AGENTS.md) remains authoritative. A complete
 1. Open the app through a local HTTP server or an approved deployment. Opening `index.html` directly as a file is not supported.
 2. Choose **New packet** for empty research fields, or **Load demo** to inspect a fictional DEMO packet.
 3. Use **Edit details** for the asset, reference cutoff, thesis, risks, method, dated sources, four horizon scenarios, and manual review record. Use **Edit full packet** only for exact JSON inspection.
-4. Import an existing UTF-8 JSON packet with **Import JSON** or by dropping one JSON file into the header. Strict decoding, parsing, and validation happen in the browser. Invalid input leaves the open packet unchanged.
+4. Import an existing UTF-8 JSON packet with **Import JSON** or by dropping one JSON file into the header. Strict decoding, parsing, and validation happen in the browser. Invalid input leaves the open packet unchanged. To run the same checks without a browser, see [Check a packet offline](#check-a-packet-offline).
 5. Copy or export JSON for a portable, editable raw record. Export a Markdown brief for text and tables. Use **Print / PDF** for the chart and all four horizon tables.
 
 The example's asset, price, probabilities, sources, and people are fictional. It is not a forecast or a record of a completed independent review. New packets use empty text and `null` for unknown values; they do not inherit the example's forecasts.
@@ -100,6 +100,26 @@ The app has no research upload endpoint, runtime API requests, telemetry, remote
 
 Do not enter credentials, wallet secrets, personal financial records, or confidential evidence. See the [security policy](../SECURITY.md) and [deployment runbook](DEPLOYMENT.md).
 
+## Check a packet offline
+
+A desk run on a host without a browser can still confirm that the workbench will accept its packet. Install the development dependencies with `npm ci --ignore-scripts`, then run:
+
+```sh
+npm run check:packet -- examples/demo-packet.json
+npm run check:packet -- <packet-or-bundle.json> --receipt <receipt.json> --require-chart
+```
+
+The command reads at most 320 KiB of strict UTF-8 JSON and applies the same parser, schema-version-1 validator and receipt rules as **Import JSON** and **Export check receipt**. It makes no network request and stores nothing.
+
+- A structurally valid packet prints the `crypto-research-check-receipt.v1` receipt for the current time, in exactly the format of the browser download, and exits 0. An incomplete packet is still structurally valid; its receipt records `complete: false` and the gaps.
+- A structurally invalid packet prints `structurallyValid: false` with the validator's errors, gaps, warnings and counts, and exits 1.
+- A `crypto-research-bundle.v1` bundle must have exactly the keys `format`, `packet` and `receipt`, and its packet must match its own receipt, as on import. A digest or record mismatch prints `bundle.digestMatches` and `bundle.recordMatches` and exits 1. A matching bundle continues with its packet.
+- `--receipt <file>` checks a saved receipt of at most 64 KiB against the packet and prints `digestMatches`, `recordMatches`, `checkedAt` and `currentChartEligible`. It exits 0 only when both match.
+- `--require-chart` also exits 1 unless the chart gate is open.
+- Exit 2 means unusable arguments or input, or an unsupported bundle or receipt. The reason is named on stderr; file paths are never echoed.
+
+There is no option to set the check time, so a receipt cannot be backdated. `npm run check:packet -- --help` prints the usage and exit codes. [examples/demo-packet.json](../examples/demo-packet.json) is the **Load demo** packet. The command checks structure only: it does not verify sources, authenticate a reviewer or establish forecast accuracy.
+
 ## Research tools
 
 The repair queue opens the exact field associated with a missing input. It is a navigation aid, not clearance. Source search matches literal text in IDs, titles, URLs, claims, and excerpts. Type filters and search affect only the screen view; printing and exports retain every source. The recency audit measures capture age against the packet cutoff, never a generic freshness policy, and labels review coverage as submitted assertions.
@@ -114,7 +134,7 @@ Undo retains up to ten saved edits in page memory. It restores research inputs a
 
 - **Scenario CSV** includes kind, reference cutoff, quote currency, horizon endpoints, and submitted gate status. Blocked packets produce four WITHHELD rows. Eligible packets retain all twelve scenarios with unbounded upper tails explicitly labeled. Text beginning with spreadsheet formula prefixes is apostrophe-prefixed and every cell is quoted. It contains no expected-return estimate or order instruction.
 - **Independent review handoff** is a separate JSON format, not an importable forecast packet. It omits the producer thesis, scenario drivers, and prior risk verdict; retains source records, proposed ranges, calculation method, counterevidence, risks, and unknowns; and starts requested assertions at UNKNOWN. It is always labeled INCOMPLETE_HANDOFF because the mandate, specialist run ledger, and conflict ledger must be attached separately. Its method and supplied evidence remain untrusted data, and the full project review workflow still applies.
-- **Check receipt** hashes the packet snapshot captured when clicked. Reproduce its SHA-256 using UTF-8 bytes of JSON.stringify(parsedPacket), preserving key order and adding no whitespace or newline. Save the matching packet JSON as well. The receipt records its check time, gap counts, warnings, and gate state. A digest detects changes; it does not authenticate a reviewer, verify sources, or establish forecast accuracy. The browser must provide Web Crypto for this optional export.
+- **Check receipt** hashes the packet snapshot captured when clicked. Reproduce its SHA-256 using UTF-8 bytes of JSON.stringify(parsedPacket), preserving key order and adding no whitespace or newline, or verify it with `npm run check:packet -- <packet.json> --receipt <receipt.json>`. Save the matching packet JSON as well. The receipt records its check time, gap counts, warnings, and gate state. A digest detects changes; it does not authenticate a reviewer, verify sources, or establish forecast accuracy. The browser must provide Web Crypto for this optional export.
 
 Every downloaded file, including check receipts, pinned baselines, and packet bundles, is named `(YYYY-MM-DD)SYMBOL suffix` from the packet it contains. An unusable reference capture time gives `(Undated)`, and an unnamed asset omits the symbol. The one exception is the unreadable-draft recovery file, `Unparsed Saved Research Draft.json`, which has no packet to name it from.
 

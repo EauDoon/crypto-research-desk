@@ -4,24 +4,30 @@ import { readdir, readFile } from 'node:fs/promises';
 import Ajv2020 from 'ajv/dist/2020.js';
 import { checkSpecialist } from '../tools/check-specialist.mjs';
 import { parsePacket } from '../web/packet-parse.js';
-import { safeSourceUrl, timestamp } from '../web/packet-validate.js';
+import { safeSourceUrl, timestamp, validatePacket } from '../web/packet-validate.js';
 
-// Every runnable example is a checked specialist input, so the examples cannot
-// drift from the contracts they illustrate. A new examples/*.json file must be
-// given a lane here.
+// Every runnable example is a checked input, so the examples cannot drift from
+// the contracts they illustrate. A new examples/*.json file must be given a
+// specialist lane or be listed as a schema-version-1 workbench packet here.
 const EXAMPLE_LANES = Object.freeze({
   'incomplete-quant.json': 'quant_portfolio',
   'freeze-receipt.json': 'freeze',
 });
+const WORKBENCH_PACKETS = Object.freeze(['demo-packet.json']);
 const examples = new URL('../examples/', import.meta.url);
 
-test('every JSON example is mapped to a lane and passes the offline specialist check', async () => {
+test('every JSON example is mapped to a lane or the workbench and passes its offline check', async () => {
   const files = (await readdir(examples)).filter(name => name.endsWith('.json')).sort();
-  assert.deepEqual(files, Object.keys(EXAMPLE_LANES).sort(), 'every examples/*.json file has exactly one lane');
+  assert.deepEqual(files, [...Object.keys(EXAMPLE_LANES), ...WORKBENCH_PACKETS].sort(), 'every examples/*.json file has exactly one contract');
   for (const [name, lane] of Object.entries(EXAMPLE_LANES)) {
     const result = checkSpecialist(lane, parsePacket(await readFile(new URL(name, examples), 'utf8')));
     assert.equal(result.mechanical, 'PASS', name + ': ' + JSON.stringify(result.errors));
     assert.equal(result.delivery, 'UNVERIFIED', name);
+  }
+  for (const name of WORKBENCH_PACKETS) {
+    const report = validatePacket(parsePacket(await readFile(new URL(name, examples), 'utf8')));
+    assert.equal(report.valid, true, name + ': ' + JSON.stringify(report.errors));
+    assert.equal(report.complete, true, name);
   }
 });
 
