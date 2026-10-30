@@ -151,7 +151,7 @@ A run ledger records the `question`, `mode`, `cutoff`, an `incomplete` label and
 A conflict ledger records a `cutoff` and one row per repeated claim with at least two `observations` (`lane`, exact `value` as a string, `url`, `capturedAt`), a `resolution` and a nonblank `reason`. The checker establishes:
 
 - `consistent` requires identical observation values, and every other resolution requires at least two distinct values (`resolution-contradicts-observations`).
-- `resolved` requires the `opened` source and a `resolvedValue` equal to `opened.value` (`resolved-value-not-from-opened-source`), so a blend or average of the observations fails. `resolvedValue` appears only on resolved rows, and a consistent row has no `opened` source.
+- `resolved` requires the `opened` source and a `resolvedValue` equal to `opened.value` (`resolved-value-not-from-opened-source`), so a resolved value that differs from the recorded opened-source value fails. Whether `opened.value` was really read from the opened page, rather than averaged or typed in, stays manual review. `resolvedValue` appears only on resolved rows, and a consistent row has no `opened` source.
 - Observation and opened-source capture times fall at or before the cutoff (`capture-after-cutoff`).
 
 Neither lane establishes that a worker actually ran, that the recorded model or effort is true, that an opened page says what the row records, or that the ledger is complete. Those stay manual review.

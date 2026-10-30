@@ -393,7 +393,7 @@ test('each run-ledger rule fires on its own violation and accepts repairs and re
   assert.deepEqual(checkSpecialist('run_ledger', monitoring).errors, [], 'monitoring_update applies no handoff order');
 });
 
-test('each conflict-ledger rule fires on its own violation and never accepts a blend', () => {
+test('each conflict-ledger rule fires on its own violation and requires the recorded opened-source value', () => {
   const cases = [
     [p => { p.conflicts[1].resolution = 'consistent'; }, '/conflicts/1', 'resolution-contradicts-observations'],
     [p => { p.conflicts[0].observations[1].value = p.conflicts[0].observations[0].value; p.conflicts[0].resolvedValue = p.conflicts[0].opened.value = '1250000000'; },
@@ -411,6 +411,11 @@ test('each conflict-ledger rule fires on its own violation and never accepts a b
   agreeing.conflicts[1] = { ...agreeing.conflicts[1], resolution: 'consistent', reason: 'Both lanes recorded the same figure.' };
   agreeing.conflicts[1].observations[1].value = agreeing.conflicts[1].observations[0].value;
   assert.deepEqual(checkSpecialist('conflict_ledger', agreeing).errors, [], 'a consistent row of agreeing values passes');
+  // A blend typed in as the opened value is mechanically consistent; only manual review can catch it.
+  const typed = structuredClone(conflictLedger); typed.conflicts[0].opened.value = typed.conflicts[0].resolvedValue = '1215000000';
+  const typedResult = checkSpecialist('conflict_ledger', typed);
+  assert.deepEqual(typedResult.errors, []);
+  assert.equal(typedResult.manual['source-truth'], 'UNKNOWN');
 });
 
 test('the ledger schemas reject coordinators, unknown modes and incomplete resolution records', () => {
