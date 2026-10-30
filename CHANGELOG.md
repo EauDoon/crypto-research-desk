@@ -6,6 +6,10 @@ Record user-visible changes under `[Unreleased]` as they merge. A release moves 
 
 ## [Unreleased]
 
+## [1.12.0] - 2026-10-30
+
+This release adds offline checks for workbench packets, freeze receipts against their retained bytes, run and conflict ledgers, and the Chief's accepted research states, and makes `check:specialist` name what is wrong. Packet schema 1, the five read-only specialists, the four forecast horizons, the independent risk gate, the browser storage key and research core 1.1.0 are unchanged. Every new record field is optional, and specialist records, packets, check receipts and packet bundles saved by 1.11.0 still pass, import and verify.
+
 ### Added
 
 - Chief records can now carry their accepted research states. The Chief's documented product is one brief and accepted research states, but the chief schema had no field for states, so the named fail mode of a FAIL verdict with `decision_candidate` could only be caught by reading. An optional `states` array records each subject's state with the Risk verdict and delivery disposition it follows, and `check:specialist -- chief` fails a `decision_candidate` under a FAIL or UNKNOWN verdict or a repair or withhold disposition, a blank subject or reason, and a subject given two states, ignoring case, spacing and look-alike letters. Chief records without `states` pass exactly as before.
@@ -198,5 +202,6 @@ One stricter rule affects saved data: a packet whose sources differ only by empt
 - Added fail-closed authority, evidence, conflict, source, and state controls.
 - Added an exact core-file verifier and local regression tests.
 
-[Unreleased]: https://github.com/EauDoon/crypto-research-desk/compare/v1.11.0...HEAD
+[Unreleased]: https://github.com/EauDoon/crypto-research-desk/compare/v1.12.0...HEAD
+[1.12.0]: https://github.com/EauDoon/crypto-research-desk/compare/v1.11.0...v1.12.0
 [1.11.0]: https://github.com/EauDoon/crypto-research-desk/compare/v1.1.0...v1.11.0
