@@ -78,7 +78,7 @@ Use the **smallest useful set**. Do not force all five lanes into a narrow quest
 5. Freeze calculation inputs. Hand packets to Quant.
 6. Chief drafts one brief. States remain proposed.
 7. Independent Risk reviews evidence **without producer rationale**.
-8. Chief repairs, narrows, or labels incomplete, then assigns accepted states consistent with the Risk verdict.
+8. Chief repairs, narrows, or labels incomplete, then assigns accepted states consistent with the Risk verdict. Record them in the Chief record's `states` array; `npm run check:specialist -- chief <file>` rejects a `decision_candidate` under a FAIL or UNKNOWN verdict or a repair or withhold disposition.
 9. One brief to the Capital Principal.
 
 **Named-ticker forecast:** Market Regime -> Quant -> Chief -> Risk. Four horizons from one cutoff: 12 hours, 24 hours, 3 days, 7 days. Probabilities total 100% **within** each horizon and are never added across horizons.

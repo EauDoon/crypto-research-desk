@@ -50,6 +50,7 @@ test('nested packet-shape snippets validate against their specialist subschemas'
     'Scout candidate (recommended_state only)': (await schema('opportunity_scout')).properties.candidates.items,
     'Risk assertion': (await schema('risk_officer')).properties.assertions.items,
     'Conflict ledger row': (await schema('conflict_ledger')).properties.conflicts.items,
+    'Chief accepted state': (await schema('chief')).properties.states.items,
   };
   assert.deepEqual(Object.keys(snippets).sort(), Object.keys(targets).sort(), 'every snippet has a subschema');
   const ajv = new Ajv2020({ allErrors: true, ownProperties: true });

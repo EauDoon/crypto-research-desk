@@ -431,3 +431,47 @@ test('the ledger schemas reject coordinators, unknown modes and incomplete resol
   skipped.workers.push({ agent: 'opportunity_scout', model: 'example-model', effort: 'example-effort', task: 'Example task.', state: 'skipped' });
   assert.deepEqual(checkSpecialist('run_ledger', skipped).errors, [], 'a skipped row needs no times');
 });
+
+const chiefBrief = { summary: 'Example', cutoff: quant.cutoff, thesis: '', unknowns: ['Missing evidence'] };
+const statedChief = { ...chiefBrief, states: [
+  { subject: 'EXAMPLE-A', state: 'decision_candidate', riskVerdict: 'WARN', riskDelivery: 'deliver_with_warning', reason: 'Risk warned on liquidity depth.' },
+  { subject: 'EXAMPLE-B', state: 'monitor', riskVerdict: 'UNKNOWN', riskDelivery: 'withhold', reason: 'Material evidence is not frozen.' },
+] };
+
+test('a Chief record may carry accepted research states, and a record without them still passes', () => {
+  assert.deepEqual(checkSpecialist('chief', chiefBrief).errors, [], 'records from the last release are unchanged');
+  assert.deepEqual(checkSpecialist('chief', statedChief).errors, []);
+  const cleared = structuredClone(statedChief); cleared.states[0].riskVerdict = 'PASS'; cleared.states[0].riskDelivery = 'deliver';
+  assert.deepEqual(checkSpecialist('chief', cleared).errors, []);
+  for (const state of ['reject', 'monitor', 'deep_dive', 'invalidated']) {
+    const held = structuredClone(statedChief); held.states[0].state = state; held.states[0].riskVerdict = 'FAIL'; held.states[0].riskDelivery = 'withhold';
+    assert.deepEqual(checkSpecialist('chief', held).errors, [], state + ' may follow a FAIL');
+  }
+});
+
+test('each Chief state rule fires on its own violation and names its path', () => {
+  const cases = [
+    [p => { p.states[0].riskVerdict = 'FAIL'; }, '/states/0', 'failed-or-unknown-risk-blocks-decision-candidate'],
+    [p => { p.states[0].riskVerdict = 'UNKNOWN'; }, '/states/0', 'failed-or-unknown-risk-blocks-decision-candidate'],
+    [p => { p.states[0].riskDelivery = 'repair'; }, '/states/0', 'failed-or-unknown-risk-blocks-decision-candidate'],
+    [p => { p.states[0].riskDelivery = 'withhold'; }, '/states/0', 'failed-or-unknown-risk-blocks-decision-candidate'],
+    [p => { p.states[1].reason = ' '; }, '/states/1', 'nonblank-state-record'],
+    [p => { p.states[1].subject = ' '; }, '/states/1', 'nonblank-state-record'],
+    [p => { p.states[1].subject = p.states[0].subject; }, '/states/1', 'one-state-per-subject'],
+  ];
+  for (const [mutate, path, rule] of cases) {
+    const record = structuredClone(statedChief); mutate(record);
+    assert.deepEqual(checkSpecialist('chief', record).errors, [{ path, rule }], mutate.toString());
+  }
+  const rejects = [
+    [p => { p.states[0].state = 'buy'; }, '/states/0/state', 'enum'],
+    [p => { delete p.states[0].riskVerdict; }, '/states/0', 'required'],
+    [p => { p.states[0].size = 'large'; }, '/states/0', 'additionalProperties'],
+    [p => { p.states[0].riskDelivery = 'execute'; }, '/states/0/riskDelivery', 'enum'],
+  ];
+  for (const [mutate, path, rule] of rejects) {
+    const record = structuredClone(statedChief); mutate(record);
+    const errors = checkSpecialist('chief', record).errors;
+    assert.ok(errors.some(error => error.path === path && error.rule === rule), mutate.toString() + ' ' + JSON.stringify(errors));
+  }
+});

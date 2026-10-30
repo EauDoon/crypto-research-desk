@@ -205,6 +205,57 @@
         "type": "string"
       }
     },
+    "states": {
+      "type": "array",
+      "maxItems": 64,
+      "description": "Accepted research states, assigned only after Independent Risk. Each records the Risk verdict and delivery disposition it follows.",
+      "items": {
+        "type": "object",
+        "required": [
+          "subject",
+          "state",
+          "riskVerdict",
+          "riskDelivery",
+          "reason"
+        ],
+        "properties": {
+          "subject": {
+            "type": "string",
+            "minLength": 1
+          },
+          "state": {
+            "enum": [
+              "reject",
+              "monitor",
+              "deep_dive",
+              "decision_candidate",
+              "invalidated"
+            ]
+          },
+          "riskVerdict": {
+            "enum": [
+              "PASS",
+              "WARN",
+              "FAIL",
+              "UNKNOWN"
+            ]
+          },
+          "riskDelivery": {
+            "enum": [
+              "deliver",
+              "deliver_with_warning",
+              "repair",
+              "withhold"
+            ]
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "additionalProperties": false
+      }
+    },
     "sources": {
       "type": "array",
       "items": {

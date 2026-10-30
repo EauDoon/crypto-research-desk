@@ -8,6 +8,8 @@ Specialist horizons require all four IDs in order and an explicit `incomplete` b
 
 Optional top-level `scenarios` use `{ "label": "Example", "probability": 100, "driver": "Fictional condition" }`; a nonempty table totals 100. Optional `method` records use `basis`, `description`, `sourceWindow`, `observationFrequency`, `sampleSize`, `transformations`, `regimeAdjustment`, `eventAssumptions`, and `limitations`. Sample size may be null for judgmental methods only. This is recorded methodology, not proof of calibration.
 
+A Chief record may list its accepted research states in an optional `states` array. Each row names the `subject`, the `state`, the Independent Risk `riskVerdict` and `riskDelivery` it follows, and a `reason`. A `decision_candidate` under a FAIL or UNKNOWN verdict, or under a `repair` or `withhold` disposition, fails, and each subject has one state.
+
 Two pseudo-lanes check the run's own records. A `run_ledger` lists one row per specialist run with its `agent`, `model`, `effort`, `task`, terminal `state` and times; [run-ledger.json](run-ledger.json) is the worked named-ticker run. A `conflict_ledger` records each repeated claim with at least two observations and a `resolution` of `consistent`, `resolved`, `both_presented` or `unknown`; a resolved row carries the `opened` source and a `resolvedValue` equal to that source's value, never a blend. [conflict-ledger.json](conflict-ledger.json) holds one resolved row and one presented both ways.
 
 Risk requires exactly one of each of its five assertion IDs. Non-PASS assertions need repair text. FAIL or UNKNOWN assertions/verdicts cannot coexist with a delivery disposition. Source capture cannot follow the common cutoff, and publication cannot follow capture. Timestamps use the same calendar-checked, known-offset format as the workbench. Freeze byte counts are nonnegative safe integers. Unknown nested fields are rejected.
@@ -21,6 +23,18 @@ Risk requires exactly one of each of its five assertion IDs. Non-PASS assertions
   "thesis": "Fictional relative-value gap after a dated unlock.",
   "catalyst": "Token unlock window stated on the opened canonical page.",
   "quarantineReason": "liquidity"
+}
+```
+
+## Chief accepted state
+
+```json
+{
+  "subject": "EXAMPLE",
+  "state": "monitor",
+  "riskVerdict": "UNKNOWN",
+  "riskDelivery": "withhold",
+  "reason": "Liquidity depth was not frozen, so the candidate stays on monitor."
 }
 ```
 

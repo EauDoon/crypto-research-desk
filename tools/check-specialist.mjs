@@ -129,6 +129,19 @@ export function checkSpecialist(lane, packet, { capture = null } = {}) {
         if (!row.evidence.trim() || (row.result !== 'PASS' && !row.repair.trim())) fail('/assertions/' + index, 'evidence-and-repair-required');
       }
     }
+    if (lane === 'chief') {
+      // Accepted states follow Independent Risk: FAIL, UNKNOWN, repair or withhold blocks decision_candidate.
+      const subjects = new Set();
+      for (const [index, row] of (packet.states ?? []).entries()) {
+        const path = '/states/' + index;
+        if (row.state === 'decision_candidate' && (['FAIL', 'UNKNOWN'].includes(row.riskVerdict) || ['repair', 'withhold'].includes(row.riskDelivery))) {
+          fail(path, 'failed-or-unknown-risk-blocks-decision-candidate');
+        }
+        if (!row.subject.trim() || !row.reason.trim()) fail(path, 'nonblank-state-record');
+        if (subjects.has(row.subject)) fail(path, 'one-state-per-subject');
+        subjects.add(row.subject);
+      }
+    }
     if (lane === 'run_ledger') checkRunLedger(packet, fail);
     if (lane === 'conflict_ledger') checkConflictLedger(packet, cutoff, fail);
     // Matching bytes show the receipt describes this capture, not where or when it was captured.
