@@ -162,6 +162,16 @@ test('receipts and bundles saved by 1.11.0 with the old missing-time wording sti
   assert.equal((await verifyReceipt(JSON.stringify(swapped), blank)).recordMatches, false, 'other fields keep their wording');
 });
 
+test('a receipt is unsigned: its checkedAt is not proof of when the check ran', async t => {
+  const { write } = await scratch(t);
+  const receipt = await validationReceipt(examplePacket());
+  const edited = { ...receipt, checkedAt: '2026-08-21T00:00:00.000Z' };
+  const result = run(demoPath, '--receipt', await write('edited.json', JSON.stringify(edited, null, 2) + '\n'));
+  assert.equal(result.status, 0, result.stdout);
+  assert.equal(JSON.parse(result.stdout).checkedAt, edited.checkedAt, 'an edited, earlier check time still verifies');
+  assert.match(receipt.limitation, /not a signature/);
+});
+
 test('unusable inputs and arguments exit 2 with the reason named and no path echoed', async t => {
   const { directory, write } = await scratch(t);
   const cases = [

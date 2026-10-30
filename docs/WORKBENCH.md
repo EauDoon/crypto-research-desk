@@ -119,7 +119,7 @@ The command reads at most 320 KiB of strict UTF-8 JSON and applies the same pars
 - `--require-chart` also exits 1 unless the chart gate is open.
 - Exit 2 means unusable arguments or input, or an unsupported bundle or receipt. The reason is named on stderr; file paths are never echoed.
 
-There is no option to set the check time, so a receipt cannot be backdated. `npm run check:packet -- --help` prints the usage and exit codes. [examples/demo-packet.json](../examples/demo-packet.json) is the **Load demo** packet. The command checks structure only: it does not verify sources, authenticate a reviewer or establish forecast accuracy.
+The command takes no option to set the check time, but a receipt is unsigned JSON: its `checkedAt` is not proof of when the check ran, and a receipt with an edited `checkedAt` still verifies when the recorded checks match the packet at that time. `npm run check:packet -- --help` prints the usage and exit codes. [examples/demo-packet.json](../examples/demo-packet.json) is the **Load demo** packet. The command checks structure only: it does not verify sources, authenticate a reviewer or establish forecast accuracy.
 
 ## Research tools
 
