@@ -106,12 +106,13 @@ A desk run on a host without a browser can still confirm that the workbench will
 
 ```sh
 npm run check:packet -- examples/demo-packet.json
+npm run --silent check:packet -- <packet.json> > <receipt.json>
 npm run check:packet -- <packet-or-bundle.json> --receipt <receipt.json> --require-chart
 ```
 
 The command reads at most 320 KiB of strict UTF-8 JSON and applies the same parser, schema-version-1 validator and receipt rules as **Import JSON** and **Export check receipt**. It makes no network request and stores nothing.
 
-- A structurally valid packet prints the `crypto-research-check-receipt.v1` receipt for the current time, in exactly the format of the browser download, and exits 0. An incomplete packet is still structurally valid; its receipt records `complete: false` and the gaps.
+- A structurally valid packet prints the `crypto-research-check-receipt.v1` receipt for the current time, in exactly the format of the browser download, and exits 0. To save it for a later `--receipt` check, use `npm run --silent` as above: npm 11, which ships with Node 24, prints its run banner to standard output, and a banner in the saved file makes the receipt unreadable. An incomplete packet is still structurally valid; its receipt records `complete: false` and the gaps.
 - A structurally invalid packet prints `structurallyValid: false` with the validator's errors, gaps, warnings and counts, and exits 1.
 - A `crypto-research-bundle.v1` bundle must have exactly the keys `format`, `packet` and `receipt`, and its packet must match its own receipt, as on import. A digest or record mismatch prints `bundle.digestMatches` and `bundle.recordMatches` and exits 1. A matching bundle continues with its packet.
 - `--receipt <file>` checks a saved receipt of at most 64 KiB against the packet and prints `digestMatches`, `recordMatches`, `checkedAt` and `currentChartEligible`. It exits 0 only when both match.

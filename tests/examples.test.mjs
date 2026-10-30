@@ -62,3 +62,30 @@ test('nested packet-shape snippets validate against their specialist subschemas'
     assert.equal(validate(snippets[heading]), true, heading + ': ' + JSON.stringify(validate.errors));
   }
 });
+
+// npm 11, bundled with the supported Node 24, prints its run banner to stdout, so a
+// redirected `npm run` writes that banner and the local file path into the saved file.
+test('every documented npm run command that saves its output to a file uses --silent', async () => {
+  const root = new URL('../', import.meta.url);
+  const skip = new Set(['.git', 'node_modules', 'dist', 'test-results', 'work', 'captures']);
+  const files = [];
+  const walk = async directory => {
+    for (const entry of await readdir(directory, { withFileTypes: true })) {
+      if (skip.has(entry.name)) continue;
+      const url = new URL(entry.name + (entry.isDirectory() ? '/' : ''), directory);
+      if (entry.isDirectory()) await walk(url);
+      else if (/\.(?:md|mjs)$/.test(entry.name)) files.push(url);
+    }
+  };
+  await walk(root);
+  const redirected = /\bnpm run (?!--silent\b)[^\n`'"]*\s>\s*[^\s>&]/g;
+  const offenders = [];
+  let commands = 0;
+  for (const url of files) {
+    const text = await readFile(url, 'utf8');
+    commands += (text.match(/\bnpm run --silent [^\n`'"]*\s>\s*[^\s>&]/g) ?? []).length;
+    for (const match of text.matchAll(redirected)) offenders.push(url.pathname.slice(root.pathname.length) + ': ' + match[0]);
+  }
+  assert.deepEqual(offenders, []);
+  assert.ok(commands >= 2, 'the freeze and check receipt save commands are documented');
+});
