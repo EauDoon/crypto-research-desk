@@ -81,6 +81,11 @@ function checkConflictLedger(ledger, cutoff, fail) {
   }
 }
 
+// True when a record is bounded portable JSON that passes its lane's schema, the point at
+// which a freeze receipt's sha256 and bytes are well formed enough to compare.
+const passesSchema = (lane, packet) => validators.has(lane) && portableJson(packet)
+  && new TextEncoder().encode(JSON.stringify(packet)).length <= MAX_PACKET_BYTES && validators.get(lane)(packet);
+
 // These checks establish recorded structure and arithmetic, never evidence truth or clearance.
 // options.capture is the { sha256, bytes } of a retained capture, compared with a
 // freeze receipt once that receipt passes its schema.
@@ -175,12 +180,13 @@ const usage = [
   'With --bytes, a schema-valid freeze receipt is also compared with the retained capture: its',
   'SHA-256 and length are computed from the file and reported in retained as MATCH or MISMATCH.',
   'A mismatch is a mechanical FAIL. Matching bytes do not prove the source URL or capture time.',
+  'A receipt that fails its schema reports that FAIL, and the capture is not read.',
   '',
   'Exit codes:',
   '  0  mechanical PASS; delivery stays UNVERIFIED and manual review is still required',
   '  1  mechanical FAIL',
   '  2  unusable input: unknown lane, wrong arguments, --bytes with another lane, an unreadable',
-  '     capture, or an unreadable, oversized or unparsable file',
+  '     capture for a schema-valid receipt, or an unreadable, oversized or unparsable file',
 ].join('\n') + '\n';
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
@@ -199,7 +205,9 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   } else try {
     const [lane, path, , capturePath] = args;
     const packet = await readJsonFile(path, MAX_JSON_INPUT_BYTES);
-    const capture = capturePath === undefined ? null : await hashFile(capturePath);
+    // The capture is read only once the receipt passes its schema, so schema errors are
+    // reported first and a large capture is never hashed for a receipt that cannot match.
+    const capture = capturePath !== undefined && passesSchema(lane, packet) ? await hashFile(capturePath) : null;
     const result = checkSpecialist(lane, packet, { capture });
     process.stdout.write(JSON.stringify(result, null, 2) + '\n');
     process.exitCode = result.mechanical === 'PASS' ? 0 : 1;

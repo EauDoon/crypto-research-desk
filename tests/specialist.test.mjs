@@ -297,6 +297,9 @@ test('check:specialist --bytes compares a freeze receipt with the retained captu
   const invalid = JSON.parse(runChecker('freeze', invalidPath, '--bytes', capture).stdout);
   assert.deepEqual(invalid.errors, [{ path: '/sha256', rule: 'pattern', detail: { pattern: '^[a-f0-9]{64}$' } }]);
   assert.equal('retained' in invalid, false, 'retained bytes are compared only for a schema-valid receipt');
+  const unread = runChecker('freeze', invalidPath, '--bytes', join(directory, 'missing-sensitive.bin'));
+  assert.equal(unread.status, 1, 'the capture is read only after the receipt passes its schema');
+  assert.deepEqual(JSON.parse(unread.stdout).errors, invalid.errors);
 
   const quantPath = fileURLToPath(new URL('../examples/incomplete-quant.json', import.meta.url));
   for (const [args, reason] of [
