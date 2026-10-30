@@ -6,6 +6,10 @@ Record user-visible changes under `[Unreleased]` as they merge. A release moves 
 
 ## [Unreleased]
 
+### Added
+
+- Tests that require each validation rule to report its own issue at its own path, in the browser packet validator and in `check:specialist`. Disabling one rule at a time used to leave the suite green for 26 of the validator's 76 checks and 6 of the checker's 13 semantic rules, including the rule that keeps a `deliver` disposition with unresolved unknowns off the chart. Four validator checks still survive because another check rejects the same input first.
+
 ### Changed
 
 - The expiry refresh now calls the shared `validationSignature` helper in `web/app-utils.js` instead of rebuilding the same ten-field signature inline, so the helper is the only place that defines what a refresh compares against.
