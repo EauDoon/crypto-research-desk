@@ -51,8 +51,9 @@ export function setPacket(next) { packet = next; }
 export function setActiveHorizon(next) { activeHorizon = next; }
 export function setOrigin(next) { origin = next; }
 export function setDirty(next) { dirty = next; }
-export function setUndoHistory(next) { undoHistory = next; }
-export function pushUndo(snapshot) {
+// Module-private: applyPacket in this file is the only caller of both.
+function setUndoHistory(next) { undoHistory = next; }
+function pushUndo(snapshot) {
   undoHistory.push(snapshot);
   if (undoHistory.length > 10) undoHistory.shift();
 }
@@ -89,14 +90,16 @@ export function saveLocally() {
     announce('Browser storage is unavailable or full. Your open packet remains in memory; export a backup.', true);
   }
 }
-export function canonical(value) {
+// Module-private: the review and dirty-state guards in this file are the
+// only readers of the canonical form and of the review signature.
+function canonical(value) {
   if (Array.isArray(value)) return value.map(canonical);
   if (value !== null && typeof value === 'object') {
     return Object.fromEntries(Object.keys(value).sort().map(key => [key, canonical(value[key])]));
   }
   return value;
 }
-export function reviewSignature(value) {
+function reviewSignature(value) {
   if (value === null || typeof value !== 'object' || Array.isArray(value)) return JSON.stringify(canonical(value));
   // Normalize sourceIds whitespace too. The form submit handler trims each id,
   // so a packet whose sourceIds contain leading/trailing whitespace is
@@ -207,7 +210,8 @@ export function editableFieldForPath(path) {
   if (assertion) return field('assertion-' + (assertion[1] ?? '0') + '-' + (assertion[2] ?? 'result'));
   return null;
 }
-export function clearInvalidMarker(target) {
+// Module-private: clearEditorError in this file is the only caller.
+function clearInvalidMarker(target) {
   target.removeAttribute('aria-invalid');
   const describedBy = (target.getAttribute('aria-describedby') || '').split(/\s+/)
     .filter(id => id && id !== 'editor-error');
@@ -270,11 +274,13 @@ export async function importFile(file) {
 // Hooks installed by the render module at evaluation time. The state module
 // holds the hook names; the render module assigns them. This breaks the
 // otherwise-circular import between applyPacket (state) and render* (render).
-export let onClearComparison = () => {};
-export let onRenderPinnedBaseline = () => {};
-export let onClearSensitivity = () => {};
-export let onClearReceiptCheck = () => {};
-export let onRender = () => {};
+// The bindings stay module-private: the render module reaches them only
+// through the setters below.
+let onClearComparison = () => {};
+let onRenderPinnedBaseline = () => {};
+let onClearSensitivity = () => {};
+let onClearReceiptCheck = () => {};
+let onRender = () => {};
 export function setOnClearComparison(fn) { onClearComparison = fn; }
 export function setOnRenderPinnedBaseline(fn) { onRenderPinnedBaseline = fn; }
 export function setOnClearSensitivity(fn) { onClearSensitivity = fn; }
