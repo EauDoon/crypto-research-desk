@@ -731,3 +731,20 @@ test('each validation rule reports its own issue at its own path', () => {
     assert.equal(report[kind === 'errors' ? 'valid' : 'chartEligible'], false, mutate.toString());
   }
 });
+
+// The repair queue and the brief show each gap as 'path: message'. A missing
+// publication or review time used to read 'Capture time is UNKNOWN.', naming a
+// different field from the one the operator has to fill.
+test('a missing time names the field that is missing', () => {
+  const messageAt = (packet, path) => validate(packet).gaps.find(issue => issue.path === path)?.message;
+  const blank = blankPacket();
+  assert.equal(messageAt(blank, 'reference.capturedAt'), 'Capture time is UNKNOWN.');
+  const packet = research();
+  packet.sources[0].publishedAt = '';
+  packet.sources[1].capturedAt = '';
+  packet.riskReview.reviewedAt = '';
+  assert.equal(messageAt(packet, 'sources[0].publishedAt'), 'Publication time is UNKNOWN.');
+  assert.equal(messageAt(packet, 'sources[1].capturedAt'), 'Capture time is UNKNOWN.');
+  assert.equal(messageAt(packet, 'riskReview.reviewedAt'), 'Review time is UNKNOWN.');
+  assert.equal(validate(packet).chartEligible, false);
+});

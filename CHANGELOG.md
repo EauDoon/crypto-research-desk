@@ -13,6 +13,7 @@ Record user-visible changes under `[Unreleased]` as they merge. A release moves 
 
 ### Fixed
 
+- A missing source publication time or review time is reported as `Publication time is UNKNOWN.` or `Review time is UNKNOWN.` in the repair queue, the brief and the repair worksheet. Both used to read `Capture time is UNKNOWN.`, naming a different field from the one to fill. Missing capture times keep their message, and no validity, completeness or chart decision changes.
 - The live production smoke no longer fails in Firefox when its second page reopens `/` in the same browser context. Production serves `/` with `must-revalidate`, and Firefox reports that revalidation as 304 where Chromium reports the cached 200. Only that navigation accepts a 304; every other navigation still requires 200. The 1.11.0 deployment itself was healthy: Chromium passed the same smoke.
 
 ## [1.11.0] - 2026-10-09
