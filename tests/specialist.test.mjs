@@ -126,7 +126,7 @@ test('offline CLI has explicit exits, bounded reads and named parse errors', () 
 test('offline CLI prints help, both versions, and the lane list for an unsupported lane', async () => {
   const command = fileURLToPath(new URL('../tools/check-specialist.mjs', import.meta.url));
   const run = (...args) => spawnSync(process.execPath, [command, ...args], { encoding: 'utf8' });
-  const lanes = ['chief', 'market_regime', 'fundamental_onchain', 'opportunity_scout', 'quant_portfolio', 'risk_officer', 'freeze'];
+  const lanes = ['chief', 'market_regime', 'fundamental_onchain', 'opportunity_scout', 'quant_portfolio', 'risk_officer', 'freeze', 'run_ledger', 'conflict_ledger'];
   const pkg = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'));
   const core = (await readFile(new URL('../VERSION', import.meta.url), 'utf8')).trim();
 
@@ -322,4 +322,112 @@ test('the library compares retained bytes only for the freeze lane and a schema-
   assert.deepEqual(checkSpecialist('freeze', freeze, { capture: { ...capture, bytes: 129 } }).errors, [{ path: '/bytes', rule: 'retained-byte-count-mismatch' }]);
   assert.equal('retained' in checkSpecialist('freeze', freeze), false);
   assert.equal('retained' in checkSpecialist('quant_portfolio', quant, { capture }), false);
+});
+
+const runLedger = JSON.parse(await readFile(new URL('../examples/run-ledger.json', import.meta.url), 'utf8'));
+const conflictLedger = JSON.parse(await readFile(new URL('../examples/conflict-ledger.json', import.meta.url), 'utf8'));
+const worker = (agent, start, end, state = 'completed') => ({ agent, model: 'example-model', effort: 'example-effort', task: 'Example task.',
+  state, startedAt: '2026-09-10T' + start + ':00Z', endedAt: '2026-09-10T' + end + ':00Z' });
+const ledger = (mode, workers, incomplete = false) => ({ question: 'Example question.', mode, cutoff: '2026-09-10T12:00:00Z', incomplete, workers, unknowns: [] });
+const fullScan = ledger('full_scan', [worker('market_regime', '12:00', '12:10'), worker('fundamental_onchain', '12:00', '12:15'),
+  worker('opportunity_scout', '12:00', '12:12'), worker('quant_portfolio', '12:20', '12:30'), worker('risk_officer', '12:40', '12:50')]);
+
+test('the run and conflict ledger examples pass their lanes', () => {
+  for (const [lane, record] of [['run_ledger', runLedger], ['conflict_ledger', conflictLedger], ['run_ledger', fullScan]]) {
+    const result = checkSpecialist(lane, record);
+    assert.deepEqual(result.errors, [], lane);
+    assert.equal(result.delivery, 'UNVERIFIED');
+  }
+});
+
+test('each run-ledger mode requires its lanes and names a missing one', () => {
+  const baselines = {
+    full_scan: fullScan,
+    ticker_forecast: ledger('ticker_forecast', [worker('market_regime', '12:00', '12:10'), worker('quant_portfolio', '12:20', '12:30'), worker('risk_officer', '12:40', '12:50')]),
+    focused_asset: ledger('focused_asset', [worker('fundamental_onchain', '12:00', '12:10')]),
+    opportunity_hunt: ledger('opportunity_hunt', [worker('opportunity_scout', '12:00', '12:10'), worker('risk_officer', '12:20', '12:30')]),
+    risk_review: ledger('risk_review', [worker('risk_officer', '12:00', '12:10')]),
+  };
+  const required = { full_scan: ['market_regime', 'fundamental_onchain', 'opportunity_scout', 'quant_portfolio', 'risk_officer'],
+    ticker_forecast: ['market_regime', 'quant_portfolio', 'risk_officer'], focused_asset: ['fundamental_onchain'],
+    opportunity_hunt: ['opportunity_scout', 'risk_officer'], risk_review: ['risk_officer'] };
+  for (const [mode, baseline] of Object.entries(baselines)) {
+    assert.deepEqual(checkSpecialist('run_ledger', baseline).errors, [], 'baseline for ' + mode);
+    for (const lane of required[mode]) {
+      const record = structuredClone(baseline);
+      record.workers = record.workers.filter(row => row.agent !== lane);
+      assert.deepEqual(checkSpecialist('run_ledger', record).errors, [{ path: '/workers', rule: 'required-lane-missing', detail: { lane } }], mode + ' without ' + lane);
+    }
+  }
+  assert.deepEqual(checkSpecialist('run_ledger', ledger('monitoring_update', [])).errors, [{ path: '/workers', rule: 'worker-row-required' }]);
+  assert.deepEqual(checkSpecialist('run_ledger', ledger('monitoring_update', [worker('market_regime', '12:00', '12:10')])).errors, []);
+});
+
+test('each run-ledger rule fires on its own violation and accepts repairs and re-runs', () => {
+  const cases = [
+    [p => { p.workers[4].state = 'failed'; }, '/incomplete', 'incomplete-label-required', { lane: 'risk_officer' }],
+    [p => { p.workers[4] = { ...p.workers[4], state: 'skipped' }; delete p.workers[4].startedAt; delete p.workers[4].endedAt; },
+      '/incomplete', 'incomplete-label-required', { lane: 'risk_officer' }],
+    [p => { p.workers[0].endedAt = '2026-09-10T11:59:00Z'; }, '/workers/0', 'ended-before-started'],
+    [p => { p.workers[3].startedAt = '2026-09-10T12:11:00Z'; }, '/workers', 'quant-before-inputs'],
+    [p => { p.workers[4].startedAt = '2026-09-10T12:25:00Z'; }, '/workers', 'risk-before-producers'],
+  ];
+  for (const [mutate, path, rule, detail] of cases) {
+    const record = structuredClone(fullScan); mutate(record);
+    assert.deepEqual(checkSpecialist('run_ledger', record).errors, [detail ? { path, rule, detail } : { path, rule }], mutate.toString());
+  }
+  const labelled = structuredClone(fullScan); labelled.workers[4].state = 'failed'; labelled.incomplete = true;
+  assert.deepEqual(checkSpecialist('run_ledger', labelled).errors, [], 'an incomplete label satisfies a failed required lane');
+  const repaired = structuredClone(fullScan);
+  repaired.workers.push(worker('fundamental_onchain', '12:55', '13:00'), worker('quant_portfolio', '13:01', '13:05'));
+  assert.deepEqual(checkSpecialist('run_ledger', repaired).errors, [], 'a repair re-run after Risk still passes');
+  const retried = structuredClone(fullScan);
+  retried.workers.splice(3, 0, worker('quant_portfolio', '12:05', '12:08', 'failed'));
+  assert.deepEqual(checkSpecialist('run_ledger', retried).errors, [], 'an early failed attempt does not count as the ordered run');
+  const review = ledger('risk_review', [worker('risk_officer', '12:00', '12:10'), worker('market_regime', '12:20', '12:30')]);
+  assert.deepEqual(checkSpecialist('run_ledger', review).errors, [], 'risk_review applies no handoff order');
+  const monitoring = ledger('monitoring_update', [worker('quant_portfolio', '12:00', '12:10'), worker('market_regime', '12:20', '12:30')]);
+  assert.deepEqual(checkSpecialist('run_ledger', monitoring).errors, [], 'monitoring_update applies no handoff order');
+});
+
+test('each conflict-ledger rule fires on its own violation and never accepts a blend', () => {
+  const cases = [
+    [p => { p.conflicts[1].resolution = 'consistent'; }, '/conflicts/1', 'resolution-contradicts-observations'],
+    [p => { p.conflicts[0].observations[1].value = p.conflicts[0].observations[0].value; p.conflicts[0].resolvedValue = p.conflicts[0].opened.value = '1250000000'; },
+      '/conflicts/0', 'resolution-contradicts-observations'],
+    [p => { p.conflicts[1].observations[1].value = p.conflicts[1].observations[0].value; }, '/conflicts/1', 'resolution-contradicts-observations'],
+    [p => { p.conflicts[0].resolvedValue = '1215000000'; }, '/conflicts/0/resolvedValue', 'resolved-value-not-from-opened-source'],
+    [p => { p.conflicts[0].observations[1].capturedAt = '2026-09-10T12:30:00Z'; }, '/conflicts/0/observations/1', 'capture-after-cutoff'],
+    [p => { p.conflicts[0].opened.capturedAt = '2026-09-10T12:30:00Z'; }, '/conflicts/0/opened', 'capture-after-cutoff'],
+  ];
+  for (const [mutate, path, rule] of cases) {
+    const record = structuredClone(conflictLedger); mutate(record);
+    assert.deepEqual(checkSpecialist('conflict_ledger', record).errors, [{ path, rule }], mutate.toString());
+  }
+  const agreeing = structuredClone(conflictLedger);
+  agreeing.conflicts[1] = { ...agreeing.conflicts[1], resolution: 'consistent', reason: 'Both lanes recorded the same figure.' };
+  agreeing.conflicts[1].observations[1].value = agreeing.conflicts[1].observations[0].value;
+  assert.deepEqual(checkSpecialist('conflict_ledger', agreeing).errors, [], 'a consistent row of agreeing values passes');
+});
+
+test('the ledger schemas reject coordinators, unknown modes and incomplete resolution records', () => {
+  const rejects = [
+    ['run_ledger', fullScan, p => { p.workers[0].agent = 'chief'; }, '/workers/0/agent', 'enum'],
+    ['run_ledger', fullScan, p => { p.mode = 'deep_scan'; }, '/mode', 'enum'],
+    ['run_ledger', fullScan, p => { delete p.workers[0].endedAt; }, '/workers/0', 'required'],
+    ['run_ledger', fullScan, p => { p.workers[0].task = '  '; }, '/workers/0/task', 'pattern'],
+    ['conflict_ledger', conflictLedger, p => { delete p.conflicts[0].opened; }, '/conflicts/0', 'required'],
+    ['conflict_ledger', conflictLedger, p => { p.conflicts[1].resolvedValue = '410000000'; }, '/conflicts/1/resolvedValue', 'false schema'],
+    ['conflict_ledger', conflictLedger, p => { p.conflicts[0].resolution = 'consistent'; delete p.conflicts[0].resolvedValue; }, '/conflicts/0/opened', 'false schema'],
+    ['conflict_ledger', conflictLedger, p => { p.conflicts[0].observations.pop(); }, '/conflicts/0/observations', 'minItems'],
+  ];
+  for (const [lane, original, mutate, path, rule] of rejects) {
+    const record = structuredClone(original); mutate(record);
+    const result = checkSpecialist(lane, record);
+    assert.equal(result.mechanical, 'FAIL', mutate.toString());
+    assert.ok(result.errors.some(error => error.path === path && error.rule === rule), mutate.toString() + ' ' + JSON.stringify(result.errors));
+  }
+  const skipped = structuredClone(fullScan);
+  skipped.workers.push({ agent: 'opportunity_scout', model: 'example-model', effort: 'example-effort', task: 'Example task.', state: 'skipped' });
+  assert.deepEqual(checkSpecialist('run_ledger', skipped).errors, [], 'a skipped row needs no times');
 });

@@ -7,7 +7,8 @@ import { portableJson } from '../web/packet-parse.js';
 import { safeSourceUrl, timestamp } from '../web/packet-validate.js';
 import { InputError, hashFile, readJsonFile, versionLine } from './runtime.mjs';
 
-const lanes = ['chief', 'market_regime', 'fundamental_onchain', 'opportunity_scout', 'quant_portfolio', 'risk_officer', 'freeze'];
+const lanes = ['chief', 'market_regime', 'fundamental_onchain', 'opportunity_scout', 'quant_portfolio', 'risk_officer', 'freeze',
+  'run_ledger', 'conflict_ledger'];
 const ajv = new Ajv2020({ allErrors: true, ownProperties: true });
 ajv.addFormat('date-time', value => timestamp(value) !== null);
 ajv.addFormat('uri', value => safeSourceUrl(value) !== null);
@@ -29,6 +30,55 @@ function schemaDetail(issue) {
   if (!names.length) return undefined;
   return Object.fromEntries(names.map(name => [name, name === 'additionalProperty'
     ? [...String(issue.params[name])].slice(0, MAX_DETAIL_CODE_POINTS).join('') : issue.params[name]]));
+}
+
+const SPECIALISTS = Object.freeze(['market_regime', 'fundamental_onchain', 'opportunity_scout', 'quant_portfolio', 'risk_officer']);
+const PRODUCERS = Object.freeze(['market_regime', 'fundamental_onchain', 'opportunity_scout']);
+// Lanes each run mode must record, from the umbrella skill's mode table and the charter.
+const REQUIRED_LANES = Object.freeze({
+  full_scan: SPECIALISTS, ticker_forecast: ['market_regime', 'quant_portfolio', 'risk_officer'], focused_asset: ['fundamental_onchain'],
+  opportunity_hunt: ['opportunity_scout', 'risk_officer'], risk_review: ['risk_officer'], monitoring_update: [],
+});
+// Modes with a staged handoff: producers, then Quant, then Independent Risk.
+const STAGED_MODES = new Set(['full_scan', 'ticker_forecast', 'focused_asset', 'opportunity_hunt']);
+
+function checkRunLedger(ledger, fail) {
+  const rows = ledger.workers, required = REQUIRED_LANES[ledger.mode];
+  if (!rows.length && !required.length) fail('/workers', 'worker-row-required');
+  for (const lane of required) {
+    const own = rows.filter(row => row.agent === lane);
+    if (!own.length) fail('/workers', 'required-lane-missing', { lane });
+    else if (!ledger.incomplete && !own.some(row => row.state === 'completed')) fail('/incomplete', 'incomplete-label-required', { lane });
+  }
+  for (const [index, row] of rows.entries()) {
+    if (row.startedAt && row.endedAt && timestamp(row.endedAt) < timestamp(row.startedAt)) fail('/workers/' + index, 'ended-before-started');
+  }
+  if (!STAGED_MODES.has(ledger.mode)) return;
+  // Witness rules: some completed downstream row must start after a completed row of
+  // every upstream lane that completed. Later repair and re-run rows stay allowed.
+  const completed = lane => rows.filter(row => row.agent === lane && row.state === 'completed');
+  const witnessed = (downstream, upstream) => {
+    const inputs = upstream.filter(lane => completed(lane).length);
+    const runs = completed(downstream);
+    return !runs.length || !inputs.length || runs.some(run => inputs.every(lane =>
+      completed(lane).some(input => timestamp(input.endedAt) <= timestamp(run.startedAt))));
+  };
+  if (!witnessed('quant_portfolio', PRODUCERS)) fail('/workers', 'quant-before-inputs');
+  if (!witnessed('risk_officer', SPECIALISTS.filter(lane => lane !== 'risk_officer'))) fail('/workers', 'risk-before-producers');
+}
+
+// A conflict is resolved at the opened source or presented both ways, never averaged.
+function checkConflictLedger(ledger, cutoff, fail) {
+  for (const [index, row] of ledger.conflicts.entries()) {
+    const path = '/conflicts/' + index;
+    const distinct = new Set(row.observations.map(observation => observation.value)).size;
+    if ((row.resolution === 'consistent') !== (distinct === 1)) fail(path, 'resolution-contradicts-observations');
+    if (row.resolution === 'resolved' && row.resolvedValue !== row.opened.value) fail(path + '/resolvedValue', 'resolved-value-not-from-opened-source');
+    for (const [item, observation] of row.observations.entries()) {
+      if (cutoff !== null && timestamp(observation.capturedAt) > cutoff) fail(path + '/observations/' + item, 'capture-after-cutoff');
+    }
+    if (row.opened && cutoff !== null && timestamp(row.opened.capturedAt) > cutoff) fail(path + '/opened', 'capture-after-cutoff');
+  }
 }
 
 // These checks establish recorded structure and arithmetic, never evidence truth or clearance.
@@ -79,6 +129,8 @@ export function checkSpecialist(lane, packet, { capture = null } = {}) {
         if (!row.evidence.trim() || (row.result !== 'PASS' && !row.repair.trim())) fail('/assertions/' + index, 'evidence-and-repair-required');
       }
     }
+    if (lane === 'run_ledger') checkRunLedger(packet, fail);
+    if (lane === 'conflict_ledger') checkConflictLedger(packet, cutoff, fail);
     // Matching bytes show the receipt describes this capture, not where or when it was captured.
     if (lane === 'freeze' && capture) {
       retained = { bytes: packet.bytes === capture.bytes ? 'MATCH' : 'MISMATCH', sha256: packet.sha256 === capture.sha256 ? 'MATCH' : 'MISMATCH' };

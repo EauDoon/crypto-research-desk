@@ -12,6 +12,8 @@ import { safeSourceUrl, timestamp, validatePacket } from '../web/packet-validate
 const EXAMPLE_LANES = Object.freeze({
   'incomplete-quant.json': 'quant_portfolio',
   'freeze-receipt.json': 'freeze',
+  'run-ledger.json': 'run_ledger',
+  'conflict-ledger.json': 'conflict_ledger',
 });
 const WORKBENCH_PACKETS = Object.freeze(['demo-packet.json']);
 const examples = new URL('../examples/', import.meta.url);
@@ -47,6 +49,7 @@ test('nested packet-shape snippets validate against their specialist subschemas'
   const targets = {
     'Scout candidate (recommended_state only)': (await schema('opportunity_scout')).properties.candidates.items,
     'Risk assertion': (await schema('risk_officer')).properties.assertions.items,
+    'Conflict ledger row': (await schema('conflict_ledger')).properties.conflicts.items,
   };
   assert.deepEqual(Object.keys(snippets).sort(), Object.keys(targets).sort(), 'every snippet has a subschema');
   const ajv = new Ajv2020({ allErrors: true, ownProperties: true });

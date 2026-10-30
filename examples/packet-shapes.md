@@ -8,6 +8,8 @@ Specialist horizons require all four IDs in order and an explicit `incomplete` b
 
 Optional top-level `scenarios` use `{ "label": "Example", "probability": 100, "driver": "Fictional condition" }`; a nonempty table totals 100. Optional `method` records use `basis`, `description`, `sourceWindow`, `observationFrequency`, `sampleSize`, `transformations`, `regimeAdjustment`, `eventAssumptions`, and `limitations`. Sample size may be null for judgmental methods only. This is recorded methodology, not proof of calibration.
 
+Two pseudo-lanes check the run's own records. A `run_ledger` lists one row per specialist run with its `agent`, `model`, `effort`, `task`, terminal `state` and times; [run-ledger.json](run-ledger.json) is the worked named-ticker run. A `conflict_ledger` records each repeated claim with at least two observations and a `resolution` of `consistent`, `resolved`, `both_presented` or `unknown`; a resolved row carries the `opened` source and a `resolvedValue` equal to that source's value, never a blend. [conflict-ledger.json](conflict-ledger.json) holds one resolved row and one presented both ways.
+
 Risk requires exactly one of each of its five assertion IDs. Non-PASS assertions need repair text. FAIL or UNKNOWN assertions/verdicts cannot coexist with a delivery disposition. Source capture cannot follow the common cutoff, and publication cannot follow capture. Timestamps use the same calendar-checked, known-offset format as the workbench. Freeze byte counts are nonnegative safe integers. Unknown nested fields are rejected.
 
 ## Scout candidate (recommended_state only)
@@ -19,6 +21,23 @@ Risk requires exactly one of each of its five assertion IDs. Non-PASS assertions
   "thesis": "Fictional relative-value gap after a dated unlock.",
   "catalyst": "Token unlock window stated on the opened canonical page.",
   "quarantineReason": "liquidity"
+}
+```
+
+## Conflict ledger row
+
+```json
+{
+  "claim": "EXAMPLE. Circulating supply of the fictional stablecoin.",
+  "unit": "USD",
+  "observations": [
+    { "lane": "market_regime", "value": "1250000000", "url": "https://www.example.com/aggregator/supply", "capturedAt": "2026-09-10T10:00:00Z" },
+    { "lane": "fundamental_onchain", "value": "1180000000", "url": "https://www.example.org/explorer/supply", "capturedAt": "2026-09-10T10:30:00Z" }
+  ],
+  "resolution": "resolved",
+  "opened": { "url": "https://www.example.net/issuer/attestation", "capturedAt": "2026-09-10T11:00:00Z", "value": "1180000000" },
+  "resolvedValue": "1180000000",
+  "reason": "The issuer page was opened directly. The aggregator counts a bridged supply twice."
 }
 ```
 

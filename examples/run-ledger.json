@@ -1,0 +1,39 @@
+{
+  "question": "EXAMPLE. Produce a risk-cleared BTC four-horizon forecast from one exact fictional reference. Treat a bull cycle as a hypothesis. If a horizon cannot be supported, mark it incomplete.",
+  "mode": "ticker_forecast",
+  "cutoff": "2026-09-10T12:00:00Z",
+  "incomplete": true,
+  "workers": [
+    {
+      "agent": "market_regime",
+      "model": "example-model",
+      "effort": "example-effort",
+      "task": "Classify the regime at the cutoff from frozen prints, or return unknown.",
+      "state": "completed",
+      "startedAt": "2026-09-10T12:05:00Z",
+      "endedAt": "2026-09-10T12:20:00Z"
+    },
+    {
+      "agent": "quant_portfolio",
+      "model": "example-model",
+      "effort": "example-effort",
+      "task": "Build four horizons from the fictional 100000 reference. Mark unsupported horizons incomplete.",
+      "state": "completed",
+      "startedAt": "2026-09-10T12:25:00Z",
+      "endedAt": "2026-09-10T12:40:00Z"
+    },
+    {
+      "agent": "risk_officer",
+      "model": "example-model",
+      "effort": "example-effort",
+      "task": "Review the evidence and the four horizons without producer rationale. Record the five assertions.",
+      "state": "completed",
+      "startedAt": "2026-09-10T12:50:00Z",
+      "endedAt": "2026-09-10T13:05:00Z"
+    }
+  ],
+  "unknowns": [
+    "EXAMPLE. Fictional run. The model and effort values are placeholders, not a record of any host.",
+    "Quant horizons are incomplete data-gap tables, so the product is labelled incomplete."
+  ]
+}

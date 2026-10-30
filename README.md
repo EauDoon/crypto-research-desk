@@ -73,8 +73,8 @@ Use the **smallest useful set**. Do not force all five lanes into a narrow quest
 
 1. Lock the question, cutoff, universe, and mandate gaps.
 2. Run Market Regime, Fundamentals, and Opportunity Scout **in parallel**, isolated.
-3. Record a run ledger (agent, model, effort, task, terminal state).
-4. Build a same-claim conflict ledger. Direct-open the canonical source for mismatches. Never average conflicts away.
+3. Record a run ledger (agent, model, effort, task, terminal state). Check it with `npm run check:specialist -- run_ledger <file>`.
+4. Build a same-claim conflict ledger. Direct-open the canonical source for mismatches. Never average conflicts away. Check it with `npm run check:specialist -- conflict_ledger <file>`.
 5. Freeze calculation inputs. Hand packets to Quant.
 6. Chief drafts one brief. States remain proposed.
 7. Independent Risk reviews evidence **without producer rationale**.
@@ -145,7 +145,7 @@ The desk cannot place trades, connect accounts, handle credentials, sign transac
 | [.codex/agents](.codex/agents) | Frozen Codex specialist TOMLs. Do not add extra files in that folder. |
 | [.agents/workers](.agents/workers) | Spawn file per specialist. Attach this, do not rewrite the role. |
 | [.agents/skills](.agents/skills) | Umbrella skill plus one folder per named procedure. Grow these. |
-| [schemas/](schemas/) | Specialist packet JSON schemas, including freeze receipts. |
+| [schemas/](schemas/) | Specialist packet JSON schemas, including freeze receipts and the run and conflict ledgers. |
 | [examples/](examples/) | Requests, packet shapes, freeze receipts, the demo workbench packet, and worked runs. |
 | [tools/](tools/) | Offline checkers: `check:specialist` for specialist records, `check:packet` for workbench packets and bundles, `freeze:receipt` for source freeze receipts built from retained captures, and `check:version`; plus the build and preview server. |
 | [docs/SKILLS.md](docs/SKILLS.md) | Skill catalog. |

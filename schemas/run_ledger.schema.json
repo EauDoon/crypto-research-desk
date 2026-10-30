@@ -1,0 +1,117 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "description": "Run ledger: one row per specialist function run, with model, effort, task contract and terminal state. Re-runs and repairs add rows.",
+  "required": [
+    "question",
+    "mode",
+    "cutoff",
+    "incomplete",
+    "workers",
+    "unknowns"
+  ],
+  "properties": {
+    "question": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "\\S"
+    },
+    "mode": {
+      "enum": [
+        "full_scan",
+        "focused_asset",
+        "ticker_forecast",
+        "opportunity_hunt",
+        "monitoring_update",
+        "risk_review"
+      ]
+    },
+    "cutoff": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "incomplete": {
+      "type": "boolean"
+    },
+    "workers": {
+      "type": "array",
+      "maxItems": 64,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "agent",
+          "model",
+          "effort",
+          "task",
+          "state"
+        ],
+        "properties": {
+          "agent": {
+            "enum": [
+              "market_regime",
+              "fundamental_onchain",
+              "opportunity_scout",
+              "quant_portfolio",
+              "risk_officer"
+            ]
+          },
+          "model": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "\\S"
+          },
+          "effort": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "\\S"
+          },
+          "task": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "\\S"
+          },
+          "state": {
+            "enum": [
+              "completed",
+              "failed",
+              "skipped",
+              "cancelled"
+            ]
+          },
+          "startedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "endedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "if": {
+          "properties": {
+            "state": {
+              "const": "skipped"
+            }
+          },
+          "required": [
+            "state"
+          ]
+        },
+        "else": {
+          "required": [
+            "startedAt",
+            "endedAt"
+          ]
+        }
+      }
+    },
+    "unknowns": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}

@@ -30,4 +30,4 @@ EXAMPLE. Produce a risk-cleared BTC four-horizon forecast from one exact fiction
 - `liquidity`: UNKNOWN — No 2% depth print.
 - `invalidation`: PASS — Observable invalidation is stated: a primary freeze that supports expansion.
 
-Load the same example in the desk with the Example control. Copy a lane packet from the inspector. Do not treat the 100000 reference as a live print.
+This is a written workflow example, separate from the browser's Load demo fixture (DEMO at a fictional 100 USD reference). Its run ledger is [run-ledger.json](run-ledger.json), and its incomplete Quant packet is [incomplete-quant.json](incomplete-quant.json); check them with `npm run check:specialist -- run_ledger examples/run-ledger.json` and `npm run check:specialist -- quant_portfolio examples/incomplete-quant.json`. Do not treat the 100000 reference as a live print.
