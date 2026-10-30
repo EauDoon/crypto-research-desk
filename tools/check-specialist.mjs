@@ -1,11 +1,11 @@
-import { open, readFile } from 'node:fs/promises';
+import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import Ajv2020 from 'ajv/dist/2020.js';
 import { MAX_JSON_INPUT_BYTES, MAX_PACKET_BYTES } from '../web/packet-constants.js';
-import { parsePacket, portableJson } from '../web/packet-parse.js';
+import { portableJson } from '../web/packet-parse.js';
 import { safeSourceUrl, timestamp } from '../web/packet-validate.js';
-import { versionLine } from './runtime.mjs';
+import { InputError, readJsonFile, versionLine } from './runtime.mjs';
 
 const lanes = ['chief', 'market_regime', 'fundamental_onchain', 'opportunity_scout', 'quant_portfolio', 'risk_officer', 'freeze'];
 const ajv = new Ajv2020({ allErrors: true, ownProperties: true });
@@ -15,14 +15,30 @@ const validators = new Map(await Promise.all(lanes.map(async lane => [lane,
   ajv.compile(JSON.parse(await readFile(new URL('../schemas/' + lane + '.schema.json', import.meta.url), 'utf8'))),
 ])));
 
+// Ajv parameters worth showing for each keyword. Every value except an
+// unexpected property name comes from the schema, not from the checked record.
+const DETAIL_PARAMS = Object.freeze({
+  required: ['missingProperty'], additionalProperties: ['additionalProperty'], enum: ['allowedValues'], const: ['allowedValue'],
+  type: ['type'], format: ['format'], pattern: ['pattern'],
+  ...Object.fromEntries(['minimum', 'maximum', 'exclusiveMinimum', 'exclusiveMaximum', 'minLength', 'maxLength', 'minItems', 'maxItems']
+    .map(keyword => [keyword, ['limit']])),
+});
+const MAX_DETAIL_CODE_POINTS = 120;
+function schemaDetail(issue) {
+  const names = (DETAIL_PARAMS[issue.keyword] ?? []).filter(name => Object.hasOwn(issue.params ?? {}, name));
+  if (!names.length) return undefined;
+  return Object.fromEntries(names.map(name => [name, name === 'additionalProperty'
+    ? [...String(issue.params[name])].slice(0, MAX_DETAIL_CODE_POINTS).join('') : issue.params[name]]));
+}
+
 // These checks establish recorded structure and arithmetic, never evidence truth or clearance.
 export function checkSpecialist(lane, packet) {
   const errors = [];
-  const fail = (path, rule) => { if (errors.length < 80) errors.push({ path, rule }); };
+  const fail = (path, rule, detail) => { if (errors.length < 80) errors.push(detail === undefined ? { path, rule } : { path, rule, detail }); };
   const validate = validators.get(lane);
   if (!validate) fail('', 'unsupported-lane');
   else if (!portableJson(packet) || new TextEncoder().encode(JSON.stringify(packet)).length > MAX_PACKET_BYTES) fail('', 'bounded-portable-json');
-  else if (!validate(packet)) for (const issue of validate.errors) fail(issue.instancePath, issue.keyword);
+  else if (!validate(packet)) for (const issue of validate.errors) fail(issue.instancePath, issue.keyword, schemaDetail(issue));
   else {
     const cutoff = timestamp(packet.cutoff);
     for (const [index, source] of (packet.sources ?? []).entries()) {
@@ -75,6 +91,10 @@ const usage = [
   '',
   'Lanes: ' + lanes.join(', '),
   '',
+  'Output: JSON with mechanical, delivery, errors, manual and limitation. Each error has a',
+  'path and a rule. A schema error also has a detail naming the missing or unexpected field,',
+  'the allowed values, the expected type or format, the pattern or the limit.',
+  '',
   'Exit codes:',
   '  0  mechanical PASS; delivery stays UNVERIFIED and manual review is still required',
   '  1  mechanical FAIL',
@@ -93,21 +113,13 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
     process.exitCode = 2;
   } else try {
     const [lane, path] = args;
-    const file = await open(path, 'r');
-    let text;
-    try {
-      if (!(await file.stat()).isFile()) throw new Error('file');
-      const bytes = Buffer.alloc(MAX_JSON_INPUT_BYTES + 1);
-      let length = 0, count;
-      while (length < bytes.length && (count = (await file.read(bytes, length, bytes.length - length, null)).bytesRead)) length += count;
-      if (length > MAX_JSON_INPUT_BYTES) throw new Error('size');
-      text = new TextDecoder('utf-8', { fatal: true }).decode(bytes.subarray(0, length));
-    } finally { await file.close(); }
-    const result = checkSpecialist(lane, parsePacket(text));
+    const result = checkSpecialist(lane, await readJsonFile(path, MAX_JSON_INPUT_BYTES));
     process.stdout.write(JSON.stringify(result, null, 2) + '\n');
     process.exitCode = result.mechanical === 'PASS' ? 0 : 1;
-  } catch {
-    process.stderr.write('Cannot check packet. Use npm run check:specialist -- <lane> <UTF-8 JSON file>, at most 320 KiB.\n');
+  } catch (error) {
+    // Only InputError messages are printed: they name the cause and never carry the path.
+    const reason = error instanceof InputError ? error.message : 'The file cannot be read.';
+    process.stderr.write('Cannot check packet: ' + reason + '\nUse npm run check:specialist -- <lane> <UTF-8 JSON file>, at most 320 KiB.\n');
     process.exitCode = 2;
   }
 }

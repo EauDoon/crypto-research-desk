@@ -1,9 +1,21 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { spawnSync } from 'node:child_process';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { checkSpecialist } from '../tools/check-specialist.mjs';
+
+const work = fileURLToPath(new URL('../work/', import.meta.url));
+const checker = fileURLToPath(new URL('../tools/check-specialist.mjs', import.meta.url));
+const runChecker = (...args) => spawnSync(process.execPath, [checker, ...args], { encoding: 'utf8' });
+// Temporary inputs live under the ignored work/ folder and are removed after each test.
+async function scratch(t) {
+  await mkdir(work, { recursive: true });
+  const directory = await mkdtemp(join(work, 'specialist-test-'));
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  return directory;
+}
 
 const quant = JSON.parse(await readFile(new URL('../examples/incomplete-quant.json', import.meta.url), 'utf8'));
 const risk = { verdict: 'PASS', delivery: 'deliver', notes: 'Synthetic check only.', assertions:
@@ -96,7 +108,7 @@ test('each semantic rule fires on its own violation and names its path', () => {
   }
 });
 
-test('offline CLI has explicit exits, bounded reads and generic parse errors', () => {
+test('offline CLI has explicit exits, bounded reads and named parse errors', () => {
   const command = new URL('../tools/check-specialist.mjs', import.meta.url);
   const run = (...args) => spawnSync(process.execPath, [fileURLToPath(command), ...args], { encoding: 'utf8' });
   const fixture = fileURLToPath(new URL('../examples/incomplete-quant.json', import.meta.url));
@@ -133,5 +145,63 @@ test('offline CLI prints help, both versions, and the lane list for an unsupport
     assert.match(unusable.stderr, /Lanes: chief, market_regime/);
     assert.doesNotMatch(unusable.stderr, /secret-folder/);
     assert.equal(unusable.stdout, '');
+  }
+});
+
+test('offline CLI names why an input is unusable and never echoes its path', async t => {
+  const directory = await scratch(t);
+  const write = async (name, content) => { const path = join(directory, name); await writeFile(path, content); return path; };
+  const cases = [
+    [join(directory, 'missing-sensitive.json'), /The file cannot be opened\./],
+    [directory, /The path is not a regular file\./],
+    [await write('large-sensitive.json', Buffer.alloc(320 * 1024 + 1, 0x20)), /The file is larger than 320 KiB\./],
+    [await write('bytes-sensitive.json', Buffer.from([0xff, 0xfe, 0x7b, 0x7d])), /The file is not valid UTF-8\./],
+    [await write('duplicate-sensitive.json', '{"url": 1, "url": 2}'), /Duplicate object key is not allowed\. At character \d+\./],
+    [await write('trailing-sensitive.json', '{} []'), /Unexpected content after the packet\./],
+    [await write('truncated-sensitive.json', '{"url": '), /Expected a JSON value\./],
+  ];
+  for (const [path, reason] of cases) {
+    const result = runChecker('freeze', path);
+    assert.equal(result.status, 2, String(reason));
+    assert.match(result.stderr, /^Cannot check packet: /, String(reason));
+    assert.match(result.stderr, reason);
+    assert.match(result.stderr, /Use npm run check:specialist -- <lane> <UTF-8 JSON file>, at most 320 KiB\./);
+    assert.doesNotMatch(result.stderr, /sensitive|specialist-test|ENOENT|EISDIR|EPERM|\.mjs:\d/, String(reason));
+    assert.equal(result.stdout, '', String(reason));
+  }
+  const exact = await write('exact.json', JSON.stringify(freeze).padEnd(320 * 1024, ' '));
+  assert.equal(runChecker('freeze', exact).status, 0, 'a file of exactly 320 KiB is read');
+});
+
+test('schema errors name the missing, unexpected or allowed field without changing path or rule', async () => {
+  const schema = JSON.parse(await readFile(new URL('../schemas/quant_portfolio.schema.json', import.meta.url), 'utf8'));
+  const noBytes = structuredClone(freeze); delete noBytes.bytes;
+  assert.deepEqual(checkSpecialist('freeze', noBytes).errors, [{ path: '', rule: 'required', detail: { missingProperty: 'bytes' } }]);
+  assert.deepEqual(checkSpecialist('freeze', { ...freeze, mirror: 'x' }).errors,
+    [{ path: '', rule: 'additionalProperties', detail: { additionalProperty: 'mirror' } }]);
+  const long = checkSpecialist('freeze', { ...freeze, ['k'.repeat(500)]: 1 }).errors;
+  assert.deepEqual(long, [{ path: '', rule: 'additionalProperties', detail: { additionalProperty: 'k'.repeat(120) } }]);
+  const astral = checkSpecialist('freeze', { ...freeze, ['\u{1F600}'.repeat(130)]: 1 }).errors[0].detail.additionalProperty;
+  assert.equal(astral, '\u{1F600}'.repeat(120), 'truncation keeps whole code points');
+  assert.deepEqual(checkSpecialist('freeze', { ...freeze, sha256: 'abc' }).errors,
+    [{ path: '/sha256', rule: 'pattern', detail: { pattern: '^[a-f0-9]{64}$' } }]);
+  assert.deepEqual(checkSpecialist('freeze', { ...freeze, bytes: '128' }).errors, [{ path: '/bytes', rule: 'type', detail: { type: 'integer' } }]);
+  assert.deepEqual(checkSpecialist('freeze', { ...freeze, bytes: -1 }).errors, [{ path: '/bytes', rule: 'minimum', detail: { limit: 0 } }]);
+  assert.deepEqual(checkSpecialist('freeze', { ...freeze, capturedAt: '2026-02-30T12:00:00Z' }).errors,
+    [{ path: '/capturedAt', rule: 'format', detail: { format: 'date-time' } }]);
+  const rumor = { ...structuredClone(quant), facts: [{ claim: 'Example', kind: 'rumor' }] };
+  assert.deepEqual(checkSpecialist('quant_portfolio', rumor).errors,
+    [{ path: '/facts/0/kind', rule: 'enum', detail: { allowedValues: schema.properties.facts.items.properties.kind.enum } }]);
+  const both = structuredClone(quant); delete both.unknowns; both.extra = true;
+  assert.deepEqual(checkSpecialist('quant_portfolio', both).errors, [
+    { path: '', rule: 'required', detail: { missingProperty: 'unknowns' } },
+    { path: '', rule: 'additionalProperties', detail: { additionalProperty: 'extra' } },
+  ]);
+  const short = structuredClone(quant); short.horizons.pop();
+  assert.deepEqual(checkSpecialist('quant_portfolio', short).errors, [{ path: '/horizons', rule: 'minItems', detail: { limit: 4 } }]);
+  const shapeless = checkSpecialist('quant_portfolio', { ...structuredClone(quant), horizons: [{}, {}, {}, {}] }).errors;
+  assert.ok(shapeless.some(error => error.rule === 'oneOf'));
+  for (const error of shapeless) {
+    if (!['required', 'const', 'type', 'enum'].includes(error.rule)) assert.equal('detail' in error, false, error.rule + ' carries no detail');
   }
 });
