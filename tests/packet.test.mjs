@@ -672,3 +672,62 @@ test('raw and percent-encoded non-separator characters are one source', () => {
     assert.equal(validate(packet).chartEligible, true, second);
   }
 });
+
+// Regression guard. rejectMutations only asks whether a mutated packet is still
+// valid or chart eligible, and most packets it builds break more than one rule,
+// so deleting a single rule left the suite green for twenty of the validator's
+// checks. Among them: a deliver disposition with unresolved unknowns reached the
+// chart, an assertion result outside PASS/WARN/FAIL/UNKNOWN cleared the gate, a
+// complete horizon could drop its Bull interval, and a lowercase symbol or a
+// negative reference price validated. Each case starts from a packet without the
+// issue, breaks one thing, and requires that rule's issue at its own path.
+test('each validation rule reports its own issue at its own path', () => {
+  const delivered = () => {
+    const packet = research(); packet.unknowns = []; packet.riskReview.status = 'deliver';
+    packet.riskReview.assertions.forEach(assertion => { assertion.result = 'PASS'; assertion.repair = ''; });
+    return packet;
+  };
+  const cases = [
+    ['errors', 'asset.symbol', p => { p.asset.symbol = 'demo'; }],
+    ['errors', 'asset.quoteCurrency', p => { p.asset.quoteCurrency = 'usd'; }],
+    ['errors', 'reference.price', p => { p.reference.price = -100; }],
+    ['errors', 'reference.price', p => { p.reference.price = 0; }],
+    ['errors', 'method.basis', p => { p.method.basis = 'intuition'; p.method.sampleSize = 10; }],
+    ['errors', 'method.sampleSize', p => { p.method.basis = 'empirical'; p.method.sampleSize = 1.5; }],
+    ['errors', 'method.sampleSize', p => { p.method.basis = 'empirical'; p.method.sampleSize = 0; }],
+    ['errors', 'sources[1].id', p => { p.sources[1].id = p.sources[0].id; }],
+    ['errors', 'horizons[0].endAt', p => { p.horizons[0].endAt = 'soon'; }],
+    ['errors', 'horizons[0].status', p => { p.horizons[0].status = 'done'; }],
+    ['errors', 'horizons[0].scenarios', p => {
+      const bull = p.horizons[0].scenarios.pop(); p.horizons[0].scenarios[1].probability += bull.probability;
+    }],
+    ['errors', 'horizons[0].gapReason', p => { p.horizons[0].gapReason = 'Liquidity data is still missing.'; }],
+    ['errors', 'horizons[0].scenarios[1].upper', p => {
+      p.horizons[0].scenarios[1].upper = 90; p.horizons[0].scenarios[2].lower = 90;
+    }],
+    ['errors', 'horizons[0].scenarios[0].probability', p => {
+      p.horizons[0].scenarios[0].probability = 150; p.horizons[0].scenarios[1].probability = -50; p.horizons[0].scenarios[2].probability = 0;
+    }],
+    ['errors', 'horizons[0].scenarios[0].probability', p => {
+      p.horizons[0].scenarios[0].probability = 25.004; p.horizons[0].scenarios[1].probability = 49.996;
+    }],
+    ['errors', 'horizons[0].scenarios[0].confidence', p => { p.horizons[0].scenarios[0].confidence = 'certain'; }],
+    ['errors', 'riskReview.status', p => { p.riskReview.status = 'approved'; }],
+    ['errors', 'riskReview.assertions[0].result', p => { p.riskReview.assertions[0].result = 'OK'; }, delivered],
+    ['errors', 'riskReview.assertions[0].severity', p => { p.riskReview.assertions[0].severity = 'critical'; }],
+    ['gaps', 'risks', p => { p.risks = []; }],
+    ['gaps', 'sources', p => { p.sources = []; p.riskReview.sourceIds = []; }],
+    ['gaps', 'horizons[0].endAt', p => { p.horizons[0].endAt = ''; }],
+    ['gaps', 'riskReview', p => { p.riskReview.status = 'repair'; }],
+    ['gaps', 'riskReview', p => { p.riskReview.status = 'withhold'; }],
+    ['gaps', 'riskReview', p => { p.unknowns = ['A material input remains unresolved.']; }, delivered],
+  ];
+  for (const [kind, path, mutate, base = research] of cases) {
+    const original = base();
+    assert.equal(validate(original)[kind].some(issue => issue.path === path), false, 'baseline: ' + path);
+    const packet = base(); mutate(packet);
+    const report = validate(packet);
+    assert.ok(report[kind].some(issue => issue.path === path), mutate.toString());
+    assert.equal(report[kind === 'errors' ? 'valid' : 'chartEligible'], false, mutate.toString());
+  }
+});
