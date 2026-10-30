@@ -5,7 +5,7 @@ import Ajv2020 from 'ajv/dist/2020.js';
 import { MAX_JSON_INPUT_BYTES, MAX_PACKET_BYTES } from '../web/packet-constants.js';
 import { portableJson } from '../web/packet-parse.js';
 import { safeSourceUrl, timestamp } from '../web/packet-validate.js';
-import { InputError, readJsonFile, versionLine } from './runtime.mjs';
+import { InputError, hashFile, readJsonFile, versionLine } from './runtime.mjs';
 
 const lanes = ['chief', 'market_regime', 'fundamental_onchain', 'opportunity_scout', 'quant_portfolio', 'risk_officer', 'freeze'];
 const ajv = new Ajv2020({ allErrors: true, ownProperties: true });
@@ -32,8 +32,11 @@ function schemaDetail(issue) {
 }
 
 // These checks establish recorded structure and arithmetic, never evidence truth or clearance.
-export function checkSpecialist(lane, packet) {
+// options.capture is the { sha256, bytes } of a retained capture, compared with a
+// freeze receipt once that receipt passes its schema.
+export function checkSpecialist(lane, packet, { capture = null } = {}) {
   const errors = [];
+  let retained = null;
   const fail = (path, rule, detail) => { if (errors.length < 80) errors.push(detail === undefined ? { path, rule } : { path, rule, detail }); };
   const validate = validators.get(lane);
   if (!validate) fail('', 'unsupported-lane');
@@ -76,14 +79,21 @@ export function checkSpecialist(lane, packet) {
         if (!row.evidence.trim() || (row.result !== 'PASS' && !row.repair.trim())) fail('/assertions/' + index, 'evidence-and-repair-required');
       }
     }
+    // Matching bytes show the receipt describes this capture, not where or when it was captured.
+    if (lane === 'freeze' && capture) {
+      retained = { bytes: packet.bytes === capture.bytes ? 'MATCH' : 'MISMATCH', sha256: packet.sha256 === capture.sha256 ? 'MATCH' : 'MISMATCH' };
+      if (retained.bytes === 'MISMATCH') fail('/bytes', 'retained-byte-count-mismatch');
+      if (retained.sha256 === 'MISMATCH') fail('/sha256', 'retained-sha256-mismatch');
+    }
   }
-  return { mechanical: errors.length ? 'FAIL' : 'PASS', delivery: 'UNVERIFIED', errors,
+  return { mechanical: errors.length ? 'FAIL' : 'PASS', delivery: 'UNVERIFIED', errors, ...(retained ? { retained } : {}),
     manual: Object.fromEntries(['authority', 'allocation', 'source-freeze', 'risk-isolation', 'fail-intact', 'source-truth'].map(id => [id, 'UNKNOWN'])),
     limitation: 'Local schema, chronology and arithmetic checks only. Manual evidence review is required; this result never authorizes delivery or financial action.' };
 }
 
 const usage = [
   'Usage: npm run check:specialist -- <lane> <UTF-8 JSON file>',
+  '       npm run check:specialist -- freeze <receipt.json> --bytes <retained capture file>',
   '       npm run check:specialist -- --help | --version',
   '',
   'Checks one specialist record offline: its JSON Schema, recorded chronology and arithmetic.',
@@ -95,10 +105,15 @@ const usage = [
   'path and a rule. A schema error also has a detail naming the missing or unexpected field,',
   'the allowed values, the expected type or format, the pattern or the limit.',
   '',
+  'With --bytes, a schema-valid freeze receipt is also compared with the retained capture: its',
+  'SHA-256 and length are computed from the file and reported in retained as MATCH or MISMATCH.',
+  'A mismatch is a mechanical FAIL. Matching bytes do not prove the source URL or capture time.',
+  '',
   'Exit codes:',
   '  0  mechanical PASS; delivery stays UNVERIFIED and manual review is still required',
   '  1  mechanical FAIL',
-  '  2  unusable input: unknown lane, wrong arguments, or an unreadable, oversized or unparsable file',
+  '  2  unusable input: unknown lane, wrong arguments, --bytes with another lane, an unreadable',
+  '     capture, or an unreadable, oversized or unparsable file',
 ].join('\n') + '\n';
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
@@ -107,13 +122,18 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
     process.stdout.write(usage);
   } else if (args.length === 1 && args[0] === '--version') {
     process.stdout.write(versionLine(fileURLToPath(new URL('..', import.meta.url))) + '\n');
-  } else if (!validators.has(args[0]) || args.length !== 2) {
-    // The arguments are never echoed: the second one is a local file path.
+  } else if (!validators.has(args[0]) || !(args.length === 2 || (args.length === 4 && args[2] === '--bytes'))) {
+    // The arguments are never echoed: the second and fourth are local file paths.
     process.stderr.write('Cannot check packet: name one supported lane and one file.\n\n' + usage);
     process.exitCode = 2;
+  } else if (args.length === 4 && args[0] !== 'freeze') {
+    process.stderr.write('Cannot check packet: --bytes applies only to the freeze lane.\n\n' + usage);
+    process.exitCode = 2;
   } else try {
-    const [lane, path] = args;
-    const result = checkSpecialist(lane, await readJsonFile(path, MAX_JSON_INPUT_BYTES));
+    const [lane, path, , capturePath] = args;
+    const packet = await readJsonFile(path, MAX_JSON_INPUT_BYTES);
+    const capture = capturePath === undefined ? null : await hashFile(capturePath);
+    const result = checkSpecialist(lane, packet, { capture });
     process.stdout.write(JSON.stringify(result, null, 2) + '\n');
     process.exitCode = result.mechanical === 'PASS' ? 0 : 1;
   } catch (error) {

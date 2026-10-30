@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { checkSpecialist } from '../tools/check-specialist.mjs';
@@ -204,4 +205,121 @@ test('schema errors name the missing, unexpected or allowed field without changi
   for (const error of shapeless) {
     if (!['required', 'const', 'type', 'enum'].includes(error.rule)) assert.equal('detail' in error, false, error.rule + ' carries no detail');
   }
+});
+
+const freezeTool = fileURLToPath(new URL('../tools/freeze-receipt.mjs', import.meta.url));
+const runFreeze = (...args) => spawnSync(process.execPath, [freezeTool, ...args], { encoding: 'utf8' });
+const captureBytes = Buffer.from('<html><body>Fictional retained capture for the freeze tests.</body></html>\n');
+
+test('freeze:receipt computes sha256 and bytes from the retained capture and prints a receipt the freeze lane accepts', async t => {
+  const directory = await scratch(t);
+  const capture = join(directory, 'capture-sensitive.html');
+  await writeFile(capture, captureBytes);
+  const made = runFreeze(capture, '--url', 'https://www.example.com/research', '--captured-at', '2026-09-10T12:00:00Z',
+    '--content-type', 'text/html', '--etag', '"v1"', '--note', 'Fictional capture.');
+  assert.equal(made.status, 0, made.stderr);
+  assert.equal(made.stdout.endsWith('}\n'), true);
+  const receipt = JSON.parse(made.stdout);
+  assert.deepEqual(receipt, { url: 'https://www.example.com/research', canonicalUrl: 'https://www.example.com/research',
+    capturedAt: '2026-09-10T12:00:00Z', sha256: createHash('sha256').update(captureBytes).digest('hex'), bytes: captureBytes.length,
+    contentType: 'text/html', etag: '"v1"', note: 'Fictional capture.' });
+  assert.equal(checkSpecialist('freeze', receipt).mechanical, 'PASS');
+  const canonical = JSON.parse(runFreeze(capture, '--url', 'https://www.example.com/r?utm=1', '--canonical-url', 'https://www.example.com/r',
+    '--captured-at', '2026-09-10T20:00:00+08:00').stdout);
+  assert.deepEqual([canonical.url, canonical.canonicalUrl, 'contentType' in canonical], ['https://www.example.com/r?utm=1', 'https://www.example.com/r', false]);
+  assert.doesNotMatch(made.stdout + made.stderr, /capture-sensitive|specialist-test/);
+});
+
+test('freeze:receipt refuses an unusable receipt or input without printing a receipt', async t => {
+  const directory = await scratch(t);
+  const capture = join(directory, 'capture-sensitive.html');
+  await writeFile(capture, captureBytes);
+  const insecure = runFreeze(capture, '--url', 'http://www.example.com/research', '--captured-at', '2026-09-10T12:00:00Z');
+  assert.equal(insecure.status, 1);
+  assert.deepEqual(JSON.parse(insecure.stdout).errors.map(error => error.path).sort(), ['/canonicalUrl', '/url']);
+  assert.equal('sha256' in JSON.parse(insecure.stdout), false, 'the check result, not a receipt');
+  const offsetless = runFreeze(capture, '--url', 'https://www.example.com/research', '--captured-at', '2026-09-10T12:00:00');
+  assert.equal(offsetless.status, 1);
+  assert.deepEqual(JSON.parse(offsetless.stdout).errors, [{ path: '/capturedAt', rule: 'format', detail: { format: 'date-time' } }]);
+  for (const args of [
+    [capture, '--url', 'https://www.example.com/research'],
+    [capture, '--captured-at', '2026-09-10T12:00:00Z'],
+    [capture, '--url', 'https://www.example.com/a', '--url', 'https://www.example.com/b', '--captured-at', '2026-09-10T12:00:00Z'],
+    [capture, '--url', '--captured-at', '2026-09-10T12:00:00Z'],
+    [capture, '--url', 'https://www.example.com/research', '--captured-at', '2026-09-10T12:00:00Z', '--frobnicate', 'x'],
+    ['--url', 'https://www.example.com/research', '--captured-at', '2026-09-10T12:00:00Z'],
+  ]) {
+    const result = runFreeze(...args);
+    assert.equal(result.status, 2, JSON.stringify(args.slice(1)));
+    assert.equal(result.stdout, '');
+    assert.match(result.stderr, /^Cannot build receipt: /);
+    assert.doesNotMatch(result.stderr, /capture-sensitive|specialist-test/);
+  }
+  for (const [path, reason] of [[join(directory, 'missing-sensitive.bin'), /The capture file cannot be opened\./], [directory, /The capture path is not a regular file\./]]) {
+    const result = runFreeze(path, '--url', 'https://www.example.com/research', '--captured-at', '2026-09-10T12:00:00Z');
+    assert.equal(result.status, 2);
+    assert.match(result.stderr, reason);
+    assert.doesNotMatch(result.stderr, /sensitive|specialist-test|ENOENT|EISDIR/);
+    assert.equal(result.stdout, '');
+  }
+  const help = runFreeze('--help');
+  assert.equal(help.status, 0);
+  assert.match(help.stdout, /--captured-at <ISO time with offset>/);
+  assert.match(runFreeze('--version').stdout, /^crypto-research-desk \S+ \(research core \S+\)\n$/);
+});
+
+test('check:specialist --bytes compares a freeze receipt with the retained capture', async t => {
+  const directory = await scratch(t);
+  const capture = join(directory, 'capture-sensitive.html');
+  await writeFile(capture, captureBytes);
+  const receiptPath = join(directory, 'receipt-sensitive.json');
+  await writeFile(receiptPath, runFreeze(capture, '--url', 'https://www.example.com/research', '--captured-at', '2026-09-10T12:00:00Z').stdout);
+  const match = runChecker('freeze', receiptPath, '--bytes', capture);
+  assert.equal(match.status, 0, match.stderr);
+  const matched = JSON.parse(match.stdout);
+  assert.deepEqual(matched.retained, { bytes: 'MATCH', sha256: 'MATCH' });
+  assert.deepEqual(Object.keys(matched), ['mechanical', 'delivery', 'errors', 'retained', 'manual', 'limitation']);
+  assert.equal(matched.manual['source-freeze'], 'UNKNOWN', 'matching bytes do not prove the source or capture time');
+
+  const flipped = Buffer.from(captureBytes); flipped[0] ^= 1;
+  await writeFile(capture, flipped);
+  const changed = runChecker('freeze', receiptPath, '--bytes', capture);
+  assert.equal(changed.status, 1);
+  assert.deepEqual(JSON.parse(changed.stdout).errors, [{ path: '/sha256', rule: 'retained-sha256-mismatch' }]);
+  assert.deepEqual(JSON.parse(changed.stdout).retained, { bytes: 'MATCH', sha256: 'MISMATCH' });
+
+  await writeFile(capture, Buffer.concat([captureBytes, Buffer.from('x')]));
+  assert.deepEqual(JSON.parse(runChecker('freeze', receiptPath, '--bytes', capture).stdout).errors,
+    [{ path: '/bytes', rule: 'retained-byte-count-mismatch' }, { path: '/sha256', rule: 'retained-sha256-mismatch' }]);
+
+  const invalidPath = join(directory, 'invalid-sensitive.json');
+  await writeFile(invalidPath, JSON.stringify({ ...freeze, sha256: 'abc' }));
+  const invalid = JSON.parse(runChecker('freeze', invalidPath, '--bytes', capture).stdout);
+  assert.deepEqual(invalid.errors, [{ path: '/sha256', rule: 'pattern', detail: { pattern: '^[a-f0-9]{64}$' } }]);
+  assert.equal('retained' in invalid, false, 'retained bytes are compared only for a schema-valid receipt');
+
+  const quantPath = fileURLToPath(new URL('../examples/incomplete-quant.json', import.meta.url));
+  for (const [args, reason] of [
+    [['quant_portfolio', quantPath, '--bytes', capture], /--bytes applies only to the freeze lane\./],
+    [['freeze', receiptPath, '--bytes'], /name one supported lane and one file/],
+    [['freeze', receiptPath, '--bytes', join(directory, 'missing-sensitive.bin')], /The capture file cannot be opened\./],
+    [['freeze', receiptPath, '--bytes', directory], /The capture path is not a regular file\./],
+  ]) {
+    const result = runChecker(...args);
+    assert.equal(result.status, 2, String(reason));
+    assert.match(result.stderr, reason);
+    assert.doesNotMatch(result.stderr, /sensitive|specialist-test|ENOENT|EISDIR/);
+    assert.equal(result.stdout, '');
+  }
+  const plain = runChecker('freeze', fileURLToPath(new URL('../examples/freeze-receipt.json', import.meta.url)));
+  assert.equal(plain.status, 0);
+  assert.equal('retained' in JSON.parse(plain.stdout), false, 'the two-argument run is unchanged');
+});
+
+test('the library compares retained bytes only for the freeze lane and a schema-valid receipt', () => {
+  const capture = { sha256: freeze.sha256, bytes: freeze.bytes };
+  assert.deepEqual(checkSpecialist('freeze', freeze, { capture }).retained, { bytes: 'MATCH', sha256: 'MATCH' });
+  assert.deepEqual(checkSpecialist('freeze', freeze, { capture: { ...capture, bytes: 129 } }).errors, [{ path: '/bytes', rule: 'retained-byte-count-mismatch' }]);
+  assert.equal('retained' in checkSpecialist('freeze', freeze), false);
+  assert.equal('retained' in checkSpecialist('quant_portfolio', quant, { capture }), false);
 });

@@ -1,4 +1,5 @@
-import { readFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { createReadStream, readFileSync } from 'node:fs';
 import { open, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { parsePacket } from '../web/packet-parse.js';
@@ -55,4 +56,17 @@ export async function readJsonFile(path, limit) {
     try { text = new TextDecoder('utf-8', { fatal: true }).decode(bytes.subarray(0, length)); } catch { throw new InputError('The file is not valid UTF-8.'); }
   } finally { await file.close(); }
   try { return parsePacket(text); } catch (error) { throw new InputError(error.message); }
+}
+
+// Streams a file through SHA-256, so retained captures of any size can be hashed.
+export async function hashFile(path) {
+  const kind = await stat(path).catch(() => null);
+  if (!kind) throw new InputError('The capture file cannot be opened.');
+  if (!kind.isFile()) throw new InputError('The capture path is not a regular file.');
+  const hash = createHash('sha256');
+  let bytes = 0;
+  try {
+    for await (const chunk of createReadStream(path)) { hash.update(chunk); bytes += chunk.length; }
+  } catch { throw new InputError('The capture file cannot be read.'); }
+  return { sha256: hash.digest('hex'), bytes };
 }

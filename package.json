@@ -17,6 +17,7 @@
     "test:production": "playwright test --config playwright.production.config.mjs",
     "check:specialist": "node tools/check-specialist.mjs",
     "check:packet": "node tools/check-packet.mjs",
+    "freeze:receipt": "node tools/freeze-receipt.mjs",
     "check:version": "node tools/check-version.mjs"
   },
   "devDependencies": {

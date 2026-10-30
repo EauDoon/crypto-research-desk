@@ -147,7 +147,7 @@ The desk cannot place trades, connect accounts, handle credentials, sign transac
 | [.agents/skills](.agents/skills) | Umbrella skill plus one folder per named procedure. Grow these. |
 | [schemas/](schemas/) | Specialist packet JSON schemas, including freeze receipts. |
 | [examples/](examples/) | Requests, packet shapes, freeze receipts, the demo workbench packet, and worked runs. |
-| [tools/](tools/) | Offline checkers: `check:specialist` for specialist records, `check:packet` for workbench packets and bundles, and `check:version`; plus the build and preview server. |
+| [tools/](tools/) | Offline checkers: `check:specialist` for specialist records, `check:packet` for workbench packets and bundles, `freeze:receipt` for source freeze receipts built from retained captures, and `check:version`; plus the build and preview server. |
 | [docs/SKILLS.md](docs/SKILLS.md) | Skill catalog. |
 | [docs/EVAL.md](docs/EVAL.md) | Quality bar for each lane. |
 | [docs/ROADMAP.md](docs/ROADMAP.md) | What is built and what is next. |

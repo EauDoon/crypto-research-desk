@@ -17,4 +17,13 @@ The same receipt as a checkable specialist input is [freeze-receipt.json](freeze
 npm run check:specialist -- freeze examples/freeze-receipt.json
 ```
 
-A mechanical PASS checks the shape only. It does not prove the bytes were captured or hashed correctly.
+That run checks the receipt's shape only. The bytes behind this fictional receipt do not exist, so it cannot be checked further.
+
+For a real capture, keep the exact bytes the desk fetched under `captures/`, which git ignores. Build the receipt from those bytes so the sha256 and byte count are computed, never typed in, and check a receipt against them later:
+
+```sh
+npm run freeze:receipt -- captures/page.html --url https://www.example.com/research/demo-btc --captured-at 2026-09-10T12:00:00Z --content-type text/html > captures/page.freeze.json
+npm run check:specialist -- freeze captures/page.freeze.json --bytes captures/page.html
+```
+
+`freeze:receipt` checks the receipt with the freeze lane before printing it and refuses an http URL or a capture time without an offset. With `--bytes`, the checker reports `retained` as MATCH or MISMATCH for the byte count and the sha256, and any mismatch is a mechanical FAIL. Matching bytes show that the receipt describes the retained file. They do not prove the file came from that URL at that time, so `source-freeze` stays UNKNOWN in the manual record.

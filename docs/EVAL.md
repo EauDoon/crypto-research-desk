@@ -112,6 +112,8 @@ Install the development dependencies with `npm ci --ignore-scripts`, then run:
 ```sh
 npm run check:specialist -- quant_portfolio examples/incomplete-quant.json
 npm run check:specialist -- freeze examples/freeze-receipt.json
+npm run freeze:receipt -- captures/page.html --url https://www.example.com/page --captured-at 2026-09-10T12:00:00Z
+npm run check:specialist -- freeze <receipt.json> --bytes captures/page.html
 ```
 
 The lane is `chief`, `market_regime`, `fundamental_onchain`, `opportunity_scout`, `quant_portfolio`, `risk_officer`, or `freeze`. The offline command reads at most 320 KiB of strict UTF-8 JSON and checks the matching specialist schema, recorded chronology, horizon identity, probability arithmetic, and Risk disposition consistency. It uses the existing bounded packet parser and date/URL rules. JSON Schema validation uses Ajv, a development-only dependency excluded from the browser build.
@@ -129,7 +131,7 @@ The following desk-level review obligations still apply. The command never infer
 7. `fail-intact` — Chief does not rewrite FAIL into a buy.
 8. `source-freeze` — current facts need a sha256 receipt or they stay unfrozen.
 
-`fact-kind` and `scout-state` receive schema checks. Horizon sums, ordering, incomplete shapes, recorded date ordering, and Risk verdict consistency receive deterministic checks. Authority, allocation, source-freeze truth, actual Risk isolation, source truth, and whether a Chief preserved a prior FAIL remain `UNKNOWN` in the command's manual-review record. A freeze receipt's shape does not prove its bytes were captured or hashed correctly. Verify those against the retained source material independently.
+`fact-kind` and `scout-state` receive schema checks. Horizon sums, ordering, incomplete shapes, recorded date ordering, and Risk verdict consistency receive deterministic checks. Authority, allocation, source-freeze truth, actual Risk isolation, source truth, and whether a Chief preserved a prior FAIL remain `UNKNOWN` in the command's manual-review record. A freeze receipt's shape alone does not prove its bytes were captured or hashed correctly. `npm run freeze:receipt -- <capture> --url <URL> --captured-at <time>` builds the receipt from the retained capture, so the sha256 and byte count are computed rather than typed, and checks it with the freeze lane before printing it. `check:specialist -- freeze <receipt> --bytes <capture>` streams the retained file through SHA-256 once the receipt passes its schema, reports `retained` as MATCH or MISMATCH for the byte count and the digest, and fails with `retained-byte-count-mismatch` or `retained-sha256-mismatch` on a difference. `--bytes` with another lane, a missing operand or an unreadable capture exits 2. Matching bytes do not prove the capture came from that URL at that time, so `source-freeze` stays `UNKNOWN`. Keep retained captures under `captures/`, which git ignores.
 
 CI runs valid and invalid specialist fixtures through the same checker in `npm test`. Every `examples/*.json` file must map to a lane and pass it, and the nested snippets in [packet-shapes.md](../examples/packet-shapes.md) are validated against their subschemas, so the [freeze receipt](../examples/freeze-receipt.md) and the other examples cannot drift from the schemas. It does not invoke a model or establish forecast accuracy.
 
