@@ -6,6 +6,10 @@ Record user-visible changes under `[Unreleased]` as they merge. A release moves 
 
 ## [Unreleased]
 
+### Added
+
+- Tests that require each validation rule to report its own issue at its own path, in the browser packet validator and in `check:specialist`. Disabling one rule at a time used to leave the suite green for 26 of the validator's 76 checks and 6 of the checker's 13 semantic rules, including the rule that keeps a `deliver` disposition with unresolved unknowns off the chart. Four validator checks still survive because another check rejects the same input first.
+
 ### Changed
 
 - The expiry refresh now calls the shared `validationSignature` helper in `web/app-utils.js` instead of rebuilding the same ten-field signature inline, so the helper is the only place that defines what a refresh compares against.
@@ -13,6 +17,7 @@ Record user-visible changes under `[Unreleased]` as they merge. A release moves 
 
 ### Fixed
 
+- A missing source publication time or review time is reported as `Publication time is UNKNOWN.` or `Review time is UNKNOWN.` in the repair queue, the brief and the repair worksheet. Both used to read `Capture time is UNKNOWN.`, naming a different field from the one to fill. Missing capture times keep their message, and no validity, completeness or chart decision changes.
 - The live production smoke no longer fails in Firefox when its second page reopens `/` in the same browser context. Production serves `/` with `must-revalidate`, and Firefox reports that revalidation as 304 where Chromium reports the cached 200. Only that navigation accepts a 304; every other navigation still requires 200. The 1.11.0 deployment itself was healthy: Chromium passed the same smoke.
 
 ## [1.11.0] - 2026-10-09

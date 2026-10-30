@@ -262,9 +262,9 @@ export function validatePacket(packet, now = Date.now()) {
     }
     return true;
   }
-  function date(value, path, required = true) {
+  function date(value, path, required = true, label = 'Capture time') {
     if (value === '' && !required) return null;
-    if (value === '') { gap(path, 'Capture time is UNKNOWN.'); return null; }
+    if (value === '') { gap(path, label + ' is UNKNOWN.'); return null; }
     const instant = timestamp(value);
     if (instant === null) error(path, 'Use a real ISO timestamp with seconds and an explicit UTC offset.');
     else if (instant > now + 300000) error(path, 'Timestamp is in the future.');
@@ -328,7 +328,7 @@ export function validatePacket(packet, now = Date.now()) {
         if (packet.kind === 'research' && /(?:^|\.)example\.(com|org|net)$/.test(new URL(sourceUrl).hostname)) gap(path + '.url', 'Example domains do not support real research.');
       }
       if (!['primary', 'secondary'].includes(source.type)) error(path + '.type', 'Choose primary or secondary.');
-      const published = date(source.publishedAt, path + '.publishedAt');
+      const published = date(source.publishedAt, path + '.publishedAt', true, 'Publication time');
       const captured = date(source.capturedAt, path + '.capturedAt');
       if (published !== null && captured !== null && published > captured) error(path, 'Publication cannot be after capture.');
       if (captured !== null && cutoff !== null && captured > cutoff) error(path + '.capturedAt', 'Evidence must be captured by the common forecast cutoff.');
@@ -390,7 +390,7 @@ export function validatePacket(packet, now = Date.now()) {
     const final = review.status !== 'pending';
     line(review.reviewer, 'riskReview.reviewer', final, 100);
     text(review.notes, 'riskReview.notes', final);
-    const reviewed = date(review.reviewedAt, 'riskReview.reviewedAt', final);
+    const reviewed = date(review.reviewedAt, 'riskReview.reviewedAt', final, 'Review time');
     if (final && present(review.reviewer) && present(packet.preparedBy)
       && aliasKey(review.reviewer) === aliasKey(packet.preparedBy)) error('riskReview.reviewer', 'The preparer cannot be their own independent reviewer.');
     if (reviewed !== null && latestEvidence !== null && reviewed < latestEvidence) error('riskReview.reviewedAt', 'The review predates the evidence or reference cutoff.');
