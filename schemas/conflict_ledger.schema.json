@@ -1,0 +1,171 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "description": "Same-claim conflict ledger. A conflict is resolved at the opened source or both values are presented; it is never averaged.",
+  "required": [
+    "cutoff",
+    "conflicts",
+    "unknowns"
+  ],
+  "properties": {
+    "cutoff": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "conflicts": {
+      "type": "array",
+      "maxItems": 64,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "claim",
+          "observations",
+          "resolution",
+          "reason"
+        ],
+        "properties": {
+          "claim": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "\\S"
+          },
+          "unit": {
+            "type": "string"
+          },
+          "window": {
+            "type": "string"
+          },
+          "observations": {
+            "type": "array",
+            "minItems": 2,
+            "maxItems": 16,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "lane",
+                "value",
+                "url",
+                "capturedAt"
+              ],
+              "properties": {
+                "lane": {
+                  "enum": [
+                    "market_regime",
+                    "fundamental_onchain",
+                    "opportunity_scout",
+                    "quant_portfolio",
+                    "risk_officer"
+                  ]
+                },
+                "value": {
+                  "type": "string"
+                },
+                "url": {
+                  "type": "string",
+                  "format": "uri"
+                },
+                "capturedAt": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              }
+            }
+          },
+          "resolution": {
+            "enum": [
+              "consistent",
+              "resolved",
+              "both_presented",
+              "unknown"
+            ]
+          },
+          "opened": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "url",
+              "capturedAt",
+              "value"
+            ],
+            "properties": {
+              "url": {
+                "type": "string",
+                "format": "uri"
+              },
+              "capturedAt": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "value": {
+                "type": "string"
+              },
+              "sha256": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              }
+            }
+          },
+          "resolvedValue": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "\\S"
+          }
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "resolution": {
+                  "const": "resolved"
+                }
+              },
+              "required": [
+                "resolution"
+              ]
+            },
+            "then": {
+              "required": [
+                "opened",
+                "resolvedValue"
+              ]
+            },
+            "else": {
+              "properties": {
+                "resolvedValue": false
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "resolution": {
+                  "const": "consistent"
+                }
+              },
+              "required": [
+                "resolution"
+              ]
+            },
+            "then": {
+              "properties": {
+                "opened": false
+              }
+            }
+          }
+        ]
+      }
+    },
+    "unknowns": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}

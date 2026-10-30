@@ -1,13 +1,14 @@
-import { open, readFile } from 'node:fs/promises';
+import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import Ajv2020 from 'ajv/dist/2020.js';
 import { MAX_JSON_INPUT_BYTES, MAX_PACKET_BYTES } from '../web/packet-constants.js';
-import { parsePacket, portableJson } from '../web/packet-parse.js';
+import { aliasKey, portableJson } from '../web/packet-parse.js';
 import { safeSourceUrl, timestamp } from '../web/packet-validate.js';
-import { versionLine } from './runtime.mjs';
+import { InputError, hashFile, readJsonFile, versionLine } from './runtime.mjs';
 
-const lanes = ['chief', 'market_regime', 'fundamental_onchain', 'opportunity_scout', 'quant_portfolio', 'risk_officer', 'freeze'];
+const lanes = ['chief', 'market_regime', 'fundamental_onchain', 'opportunity_scout', 'quant_portfolio', 'risk_officer', 'freeze',
+  'run_ledger', 'conflict_ledger'];
 const ajv = new Ajv2020({ allErrors: true, ownProperties: true });
 ajv.addFormat('date-time', value => timestamp(value) !== null);
 ajv.addFormat('uri', value => safeSourceUrl(value) !== null);
@@ -15,14 +16,87 @@ const validators = new Map(await Promise.all(lanes.map(async lane => [lane,
   ajv.compile(JSON.parse(await readFile(new URL('../schemas/' + lane + '.schema.json', import.meta.url), 'utf8'))),
 ])));
 
+// Ajv parameters worth showing for each keyword. Every value except an
+// unexpected property name comes from the schema, not from the checked record.
+const DETAIL_PARAMS = Object.freeze({
+  required: ['missingProperty'], additionalProperties: ['additionalProperty'], enum: ['allowedValues'], const: ['allowedValue'],
+  type: ['type'], format: ['format'], pattern: ['pattern'],
+  ...Object.fromEntries(['minimum', 'maximum', 'exclusiveMinimum', 'exclusiveMaximum', 'minLength', 'maxLength', 'minItems', 'maxItems']
+    .map(keyword => [keyword, ['limit']])),
+});
+const MAX_DETAIL_CODE_POINTS = 120;
+function schemaDetail(issue) {
+  const names = (DETAIL_PARAMS[issue.keyword] ?? []).filter(name => Object.hasOwn(issue.params ?? {}, name));
+  if (!names.length) return undefined;
+  return Object.fromEntries(names.map(name => [name, name === 'additionalProperty'
+    ? [...String(issue.params[name])].slice(0, MAX_DETAIL_CODE_POINTS).join('') : issue.params[name]]));
+}
+
+const SPECIALISTS = Object.freeze(['market_regime', 'fundamental_onchain', 'opportunity_scout', 'quant_portfolio', 'risk_officer']);
+const PRODUCERS = Object.freeze(['market_regime', 'fundamental_onchain', 'opportunity_scout']);
+// Lanes each run mode must record, from the umbrella skill's mode table and the charter.
+const REQUIRED_LANES = Object.freeze({
+  full_scan: SPECIALISTS, ticker_forecast: ['market_regime', 'quant_portfolio', 'risk_officer'], focused_asset: ['fundamental_onchain'],
+  opportunity_hunt: ['opportunity_scout', 'risk_officer'], risk_review: ['risk_officer'], monitoring_update: [],
+});
+// Modes with a staged handoff: producers, then Quant, then Independent Risk.
+const STAGED_MODES = new Set(['full_scan', 'ticker_forecast', 'focused_asset', 'opportunity_hunt']);
+
+function checkRunLedger(ledger, fail) {
+  const rows = ledger.workers, required = REQUIRED_LANES[ledger.mode];
+  if (!rows.length && !required.length) fail('/workers', 'worker-row-required');
+  for (const lane of required) {
+    const own = rows.filter(row => row.agent === lane);
+    if (!own.length) fail('/workers', 'required-lane-missing', { lane });
+    else if (!ledger.incomplete && !own.some(row => row.state === 'completed')) fail('/incomplete', 'incomplete-label-required', { lane });
+  }
+  for (const [index, row] of rows.entries()) {
+    if (row.startedAt && row.endedAt && timestamp(row.endedAt) < timestamp(row.startedAt)) fail('/workers/' + index, 'ended-before-started');
+  }
+  if (!STAGED_MODES.has(ledger.mode)) return;
+  // Witness rules: some completed downstream row must start after a completed row of
+  // every upstream lane that completed. Later repair and re-run rows stay allowed.
+  const completed = lane => rows.filter(row => row.agent === lane && row.state === 'completed');
+  const witnessed = (downstream, upstream) => {
+    const inputs = upstream.filter(lane => completed(lane).length);
+    const runs = completed(downstream);
+    return !runs.length || !inputs.length || runs.some(run => inputs.every(lane =>
+      completed(lane).some(input => timestamp(input.endedAt) <= timestamp(run.startedAt))));
+  };
+  if (!witnessed('quant_portfolio', PRODUCERS)) fail('/workers', 'quant-before-inputs');
+  if (!witnessed('risk_officer', SPECIALISTS.filter(lane => lane !== 'risk_officer'))) fail('/workers', 'risk-before-producers');
+}
+
+// A conflict is resolved at the opened source or presented both ways, never averaged.
+function checkConflictLedger(ledger, cutoff, fail) {
+  for (const [index, row] of ledger.conflicts.entries()) {
+    const path = '/conflicts/' + index;
+    const distinct = new Set(row.observations.map(observation => observation.value)).size;
+    if ((row.resolution === 'consistent') !== (distinct === 1)) fail(path, 'resolution-contradicts-observations');
+    if (row.resolution === 'resolved' && row.resolvedValue !== row.opened.value) fail(path + '/resolvedValue', 'resolved-value-not-from-opened-source');
+    for (const [item, observation] of row.observations.entries()) {
+      if (cutoff !== null && timestamp(observation.capturedAt) > cutoff) fail(path + '/observations/' + item, 'capture-after-cutoff');
+    }
+    if (row.opened && cutoff !== null && timestamp(row.opened.capturedAt) > cutoff) fail(path + '/opened', 'capture-after-cutoff');
+  }
+}
+
+// True when a record is bounded portable JSON that passes its lane's schema, the point at
+// which a freeze receipt's sha256 and bytes are well formed enough to compare.
+const passesSchema = (lane, packet) => validators.has(lane) && portableJson(packet)
+  && new TextEncoder().encode(JSON.stringify(packet)).length <= MAX_PACKET_BYTES && validators.get(lane)(packet);
+
 // These checks establish recorded structure and arithmetic, never evidence truth or clearance.
-export function checkSpecialist(lane, packet) {
+// options.capture is the { sha256, bytes } of a retained capture, compared with a
+// freeze receipt once that receipt passes its schema.
+export function checkSpecialist(lane, packet, { capture = null } = {}) {
   const errors = [];
-  const fail = (path, rule) => { if (errors.length < 80) errors.push({ path, rule }); };
+  let retained = null;
+  const fail = (path, rule, detail) => { if (errors.length < 80) errors.push(detail === undefined ? { path, rule } : { path, rule, detail }); };
   const validate = validators.get(lane);
   if (!validate) fail('', 'unsupported-lane');
   else if (!portableJson(packet) || new TextEncoder().encode(JSON.stringify(packet)).length > MAX_PACKET_BYTES) fail('', 'bounded-portable-json');
-  else if (!validate(packet)) for (const issue of validate.errors) fail(issue.instancePath, issue.keyword);
+  else if (!validate(packet)) for (const issue of validate.errors) fail(issue.instancePath, issue.keyword, schemaDetail(issue));
   else {
     const cutoff = timestamp(packet.cutoff);
     for (const [index, source] of (packet.sources ?? []).entries()) {
@@ -60,14 +134,38 @@ export function checkSpecialist(lane, packet) {
         if (!row.evidence.trim() || (row.result !== 'PASS' && !row.repair.trim())) fail('/assertions/' + index, 'evidence-and-repair-required');
       }
     }
+    if (lane === 'chief') {
+      // Accepted states follow Independent Risk: FAIL, UNKNOWN, repair or withhold blocks decision_candidate.
+      // Subjects compare as the workbench compares names: case, width, confusables and spacing ignored.
+      const subjects = new Set();
+      for (const [index, row] of (packet.states ?? []).entries()) {
+        const path = '/states/' + index;
+        if (row.state === 'decision_candidate' && (['FAIL', 'UNKNOWN'].includes(row.riskVerdict) || ['repair', 'withhold'].includes(row.riskDelivery))) {
+          fail(path, 'failed-or-unknown-risk-blocks-decision-candidate');
+        }
+        if (!row.subject.trim() || !row.reason.trim()) fail(path, 'nonblank-state-record');
+        const subject = aliasKey(row.subject);
+        if (subjects.has(subject)) fail(path, 'one-state-per-subject');
+        subjects.add(subject);
+      }
+    }
+    if (lane === 'run_ledger') checkRunLedger(packet, fail);
+    if (lane === 'conflict_ledger') checkConflictLedger(packet, cutoff, fail);
+    // Matching bytes show the receipt describes this capture, not where or when it was captured.
+    if (lane === 'freeze' && capture) {
+      retained = { bytes: packet.bytes === capture.bytes ? 'MATCH' : 'MISMATCH', sha256: packet.sha256 === capture.sha256 ? 'MATCH' : 'MISMATCH' };
+      if (retained.bytes === 'MISMATCH') fail('/bytes', 'retained-byte-count-mismatch');
+      if (retained.sha256 === 'MISMATCH') fail('/sha256', 'retained-sha256-mismatch');
+    }
   }
-  return { mechanical: errors.length ? 'FAIL' : 'PASS', delivery: 'UNVERIFIED', errors,
+  return { mechanical: errors.length ? 'FAIL' : 'PASS', delivery: 'UNVERIFIED', errors, ...(retained ? { retained } : {}),
     manual: Object.fromEntries(['authority', 'allocation', 'source-freeze', 'risk-isolation', 'fail-intact', 'source-truth'].map(id => [id, 'UNKNOWN'])),
     limitation: 'Local schema, chronology and arithmetic checks only. Manual evidence review is required; this result never authorizes delivery or financial action.' };
 }
 
 const usage = [
   'Usage: npm run check:specialist -- <lane> <UTF-8 JSON file>',
+  '       npm run check:specialist -- freeze <receipt.json> --bytes <retained capture file>',
   '       npm run check:specialist -- --help | --version',
   '',
   'Checks one specialist record offline: its JSON Schema, recorded chronology and arithmetic.',
@@ -75,10 +173,20 @@ const usage = [
   '',
   'Lanes: ' + lanes.join(', '),
   '',
+  'Output: JSON with mechanical, delivery, errors, manual and limitation. Each error has a',
+  'path and a rule. A schema error also has a detail naming the missing or unexpected field,',
+  'the allowed values, the expected type or format, the pattern or the limit.',
+  '',
+  'With --bytes, a schema-valid freeze receipt is also compared with the retained capture: its',
+  'SHA-256 and length are computed from the file and reported in retained as MATCH or MISMATCH.',
+  'A mismatch is a mechanical FAIL. Matching bytes do not prove the source URL or capture time.',
+  'A receipt that fails its schema reports that FAIL, and the capture is not read.',
+  '',
   'Exit codes:',
   '  0  mechanical PASS; delivery stays UNVERIFIED and manual review is still required',
   '  1  mechanical FAIL',
-  '  2  unusable input: unknown lane, wrong arguments, or an unreadable, oversized or unparsable file',
+  '  2  unusable input: unknown lane, wrong arguments, --bytes with another lane, an unreadable',
+  '     capture for a schema-valid receipt, or an unreadable, oversized or unparsable file',
 ].join('\n') + '\n';
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
@@ -87,27 +195,26 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
     process.stdout.write(usage);
   } else if (args.length === 1 && args[0] === '--version') {
     process.stdout.write(versionLine(fileURLToPath(new URL('..', import.meta.url))) + '\n');
-  } else if (!validators.has(args[0]) || args.length !== 2) {
-    // The arguments are never echoed: the second one is a local file path.
+  } else if (!validators.has(args[0]) || !(args.length === 2 || (args.length === 4 && args[2] === '--bytes'))) {
+    // The arguments are never echoed: the second and fourth are local file paths.
     process.stderr.write('Cannot check packet: name one supported lane and one file.\n\n' + usage);
     process.exitCode = 2;
+  } else if (args.length === 4 && args[0] !== 'freeze') {
+    process.stderr.write('Cannot check packet: --bytes applies only to the freeze lane.\n\n' + usage);
+    process.exitCode = 2;
   } else try {
-    const [lane, path] = args;
-    const file = await open(path, 'r');
-    let text;
-    try {
-      if (!(await file.stat()).isFile()) throw new Error('file');
-      const bytes = Buffer.alloc(MAX_JSON_INPUT_BYTES + 1);
-      let length = 0, count;
-      while (length < bytes.length && (count = (await file.read(bytes, length, bytes.length - length, null)).bytesRead)) length += count;
-      if (length > MAX_JSON_INPUT_BYTES) throw new Error('size');
-      text = new TextDecoder('utf-8', { fatal: true }).decode(bytes.subarray(0, length));
-    } finally { await file.close(); }
-    const result = checkSpecialist(lane, parsePacket(text));
+    const [lane, path, , capturePath] = args;
+    const packet = await readJsonFile(path, MAX_JSON_INPUT_BYTES);
+    // The capture is read only once the receipt passes its schema, so schema errors are
+    // reported first and a large capture is never hashed for a receipt that cannot match.
+    const capture = capturePath !== undefined && passesSchema(lane, packet) ? await hashFile(capturePath) : null;
+    const result = checkSpecialist(lane, packet, { capture });
     process.stdout.write(JSON.stringify(result, null, 2) + '\n');
     process.exitCode = result.mechanical === 'PASS' ? 0 : 1;
-  } catch {
-    process.stderr.write('Cannot check packet. Use npm run check:specialist -- <lane> <UTF-8 JSON file>, at most 320 KiB.\n');
+  } catch (error) {
+    // Only InputError messages are printed: they name the cause and never carry the path.
+    const reason = error instanceof InputError ? error.message : 'The file cannot be read.';
+    process.stderr.write('Cannot check packet: ' + reason + '\nUse npm run check:specialist -- <lane> <UTF-8 JSON file>, at most 320 KiB.\n');
     process.exitCode = 2;
   }
 }

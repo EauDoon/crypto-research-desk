@@ -29,6 +29,7 @@ The included `web/example.js` fixture gives a reproducible path through the ship
 3. Click `New packet`. The `Edit research details` dialog opens with blank fields. Close it to see `UNKNOWN`, `INCOMPLETE`, and `Chart withheld`. Use `Load demo` to restore the fixture.
 4. With the demo loaded, click `Edit details`. The `Independent review record (self-reported)` section exposes `Disposition`, `Reviewer alias`, `Reviewed at (ISO, with offset)`, `Review notes`, and `Select sources actually reviewed`. Change a research field and click `Save details` to see `Research inputs changed. The previous review was reset to pending; record a new independent review before chart display.` The page then shows `Pending review`, `INCOMPLETE`, and `Chart withheld` until a new review record is supplied. To record a new review, complete those fields and the five assertion records, then save again.
 5. Use `Export JSON`, `Export packet bundle`, `Export check receipt`, `Export scenario CSV`, `Export brief`, or `Print / PDF` to retain the packet, local check, scenarios, brief, or print view. `Export independent review handoff` creates the rationale-stripped review input. Every fixture value is synthetic and does not establish forecast validity, expected returns, or real returns.
+6. Without a browser, `npm run check:packet -- examples/demo-packet.json` checks the same DEMO packet with the workbench's import rules and prints its check receipt. Pass an exported packet or bundle instead, add `--receipt <receipt.json>` to verify a saved receipt, or `--require-chart` to fail unless the chart gate is open. See [Check a packet offline](docs/WORKBENCH.md#check-a-packet-offline).
 
 ## What this repo is for
 
@@ -72,12 +73,12 @@ Use the **smallest useful set**. Do not force all five lanes into a narrow quest
 
 1. Lock the question, cutoff, universe, and mandate gaps.
 2. Run Market Regime, Fundamentals, and Opportunity Scout **in parallel**, isolated.
-3. Record a run ledger (agent, model, effort, task, terminal state).
-4. Build a same-claim conflict ledger. Direct-open the canonical source for mismatches. Never average conflicts away.
+3. Record a run ledger (agent, model, effort, task, terminal state). Check it with `npm run check:specialist -- run_ledger <file>`.
+4. Build a same-claim conflict ledger. Direct-open the canonical source for mismatches. Never average conflicts away. Check it with `npm run check:specialist -- conflict_ledger <file>`.
 5. Freeze calculation inputs. Hand packets to Quant.
 6. Chief drafts one brief. States remain proposed.
 7. Independent Risk reviews evidence **without producer rationale**.
-8. Chief repairs, narrows, or labels incomplete, then assigns accepted states consistent with the Risk verdict.
+8. Chief repairs, narrows, or labels incomplete, then assigns accepted states consistent with the Risk verdict. Record them in the Chief record's `states` array; `npm run check:specialist -- chief <file>` rejects a `decision_candidate` under a FAIL or UNKNOWN verdict or a repair or withhold disposition.
 9. One brief to the Capital Principal.
 
 **Named-ticker forecast:** Market Regime -> Quant -> Chief -> Risk. Four horizons from one cutoff: 12 hours, 24 hours, 3 days, 7 days. Probabilities total 100% **within** each horizon and are never added across horizons.
@@ -144,8 +145,9 @@ The desk cannot place trades, connect accounts, handle credentials, sign transac
 | [.codex/agents](.codex/agents) | Frozen Codex specialist TOMLs. Do not add extra files in that folder. |
 | [.agents/workers](.agents/workers) | Spawn file per specialist. Attach this, do not rewrite the role. |
 | [.agents/skills](.agents/skills) | Umbrella skill plus one folder per named procedure. Grow these. |
-| [schemas/](schemas/) | Specialist packet JSON schemas, including freeze receipts. |
-| [examples/](examples/) | Requests, packet shapes, freeze receipts, and worked runs. |
+| [schemas/](schemas/) | Specialist packet JSON schemas, including freeze receipts and the run and conflict ledgers. |
+| [examples/](examples/) | Requests, packet shapes, freeze receipts, the demo workbench packet, and worked runs. |
+| [tools/](tools/) | Offline checkers: `check:specialist` for specialist records, `check:packet` for workbench packets and bundles, `freeze:receipt` for source freeze receipts built from retained captures, and `check:version`; plus the build and preview server. |
 | [docs/SKILLS.md](docs/SKILLS.md) | Skill catalog. |
 | [docs/EVAL.md](docs/EVAL.md) | Quality bar for each lane. |
 | [docs/ROADMAP.md](docs/ROADMAP.md) | What is built and what is next. |

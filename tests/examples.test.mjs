@@ -4,24 +4,32 @@ import { readdir, readFile } from 'node:fs/promises';
 import Ajv2020 from 'ajv/dist/2020.js';
 import { checkSpecialist } from '../tools/check-specialist.mjs';
 import { parsePacket } from '../web/packet-parse.js';
-import { safeSourceUrl, timestamp } from '../web/packet-validate.js';
+import { safeSourceUrl, timestamp, validatePacket } from '../web/packet-validate.js';
 
-// Every runnable example is a checked specialist input, so the examples cannot
-// drift from the contracts they illustrate. A new examples/*.json file must be
-// given a lane here.
+// Every runnable example is a checked input, so the examples cannot drift from
+// the contracts they illustrate. A new examples/*.json file must be given a
+// specialist lane or be listed as a schema-version-1 workbench packet here.
 const EXAMPLE_LANES = Object.freeze({
   'incomplete-quant.json': 'quant_portfolio',
   'freeze-receipt.json': 'freeze',
+  'run-ledger.json': 'run_ledger',
+  'conflict-ledger.json': 'conflict_ledger',
 });
+const WORKBENCH_PACKETS = Object.freeze(['demo-packet.json']);
 const examples = new URL('../examples/', import.meta.url);
 
-test('every JSON example is mapped to a lane and passes the offline specialist check', async () => {
+test('every JSON example is mapped to a lane or the workbench and passes its offline check', async () => {
   const files = (await readdir(examples)).filter(name => name.endsWith('.json')).sort();
-  assert.deepEqual(files, Object.keys(EXAMPLE_LANES).sort(), 'every examples/*.json file has exactly one lane');
+  assert.deepEqual(files, [...Object.keys(EXAMPLE_LANES), ...WORKBENCH_PACKETS].sort(), 'every examples/*.json file has exactly one contract');
   for (const [name, lane] of Object.entries(EXAMPLE_LANES)) {
     const result = checkSpecialist(lane, parsePacket(await readFile(new URL(name, examples), 'utf8')));
     assert.equal(result.mechanical, 'PASS', name + ': ' + JSON.stringify(result.errors));
     assert.equal(result.delivery, 'UNVERIFIED', name);
+  }
+  for (const name of WORKBENCH_PACKETS) {
+    const report = validatePacket(parsePacket(await readFile(new URL(name, examples), 'utf8')));
+    assert.equal(report.valid, true, name + ': ' + JSON.stringify(report.errors));
+    assert.equal(report.complete, true, name);
   }
 });
 
@@ -41,6 +49,8 @@ test('nested packet-shape snippets validate against their specialist subschemas'
   const targets = {
     'Scout candidate (recommended_state only)': (await schema('opportunity_scout')).properties.candidates.items,
     'Risk assertion': (await schema('risk_officer')).properties.assertions.items,
+    'Conflict ledger row': (await schema('conflict_ledger')).properties.conflicts.items,
+    'Chief accepted state': (await schema('chief')).properties.states.items,
   };
   assert.deepEqual(Object.keys(snippets).sort(), Object.keys(targets).sort(), 'every snippet has a subschema');
   const ajv = new Ajv2020({ allErrors: true, ownProperties: true });
@@ -51,4 +61,31 @@ test('nested packet-shape snippets validate against their specialist subschemas'
     const validate = ajv.compile(subschema);
     assert.equal(validate(snippets[heading]), true, heading + ': ' + JSON.stringify(validate.errors));
   }
+});
+
+// npm 11, bundled with the supported Node 24, prints its run banner to stdout, so a
+// redirected `npm run` writes that banner and the local file path into the saved file.
+test('every documented npm run command that saves its output to a file uses --silent', async () => {
+  const root = new URL('../', import.meta.url);
+  const skip = new Set(['.git', 'node_modules', 'dist', 'test-results', 'work', 'captures']);
+  const files = [];
+  const walk = async directory => {
+    for (const entry of await readdir(directory, { withFileTypes: true })) {
+      if (skip.has(entry.name)) continue;
+      const url = new URL(entry.name + (entry.isDirectory() ? '/' : ''), directory);
+      if (entry.isDirectory()) await walk(url);
+      else if (/\.(?:md|mjs)$/.test(entry.name)) files.push(url);
+    }
+  };
+  await walk(root);
+  const redirected = /\bnpm run (?!--silent\b)[^\n`'"]*\s>\s*[^\s>&]/g;
+  const offenders = [];
+  let commands = 0;
+  for (const url of files) {
+    const text = await readFile(url, 'utf8');
+    commands += (text.match(/\bnpm run --silent [^\n`'"]*\s>\s*[^\s>&]/g) ?? []).length;
+    for (const match of text.matchAll(redirected)) offenders.push(url.pathname.slice(root.pathname.length) + ': ' + match[0]);
+  }
+  assert.deepEqual(offenders, []);
+  assert.ok(commands >= 2, 'the freeze and check receipt save commands are documented');
 });

@@ -31,6 +31,8 @@ npx playwright install chromium firefox
 npm run test:browser
 ```
 
+To check one record without the full suite, use `npm run check:specialist -- <lane> <file.json>` for a specialist record or `npm run check:packet -- <file.json>` for a workbench packet or bundle; both print `--help`.
+
 On Windows, run the two Python commands as `py -B tools/verify_release.py` and `py -B -m unittest discover -s tests -v`. `npm run test:browser` rebuilds `dist/` first, then runs the Chromium and Firefox browser and accessibility suite that CI runs; the browser install is needed once per Playwright version.
 
 Before opening a pull request:

@@ -1,6 +1,6 @@
 {
   "name": "crypto-research-desk",
-  "version": "1.11.0",
+  "version": "1.12.0",
   "private": true,
   "type": "module",
   "description": "A browser-only workspace for evidence-led crypto research.",
@@ -16,6 +16,8 @@
     "pretest:production": "npm run build",
     "test:production": "playwright test --config playwright.production.config.mjs",
     "check:specialist": "node tools/check-specialist.mjs",
+    "check:packet": "node tools/check-packet.mjs",
+    "freeze:receipt": "node tools/freeze-receipt.mjs",
     "check:version": "node tools/check-version.mjs"
   },
   "devDependencies": {

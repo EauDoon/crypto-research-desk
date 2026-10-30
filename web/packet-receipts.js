@@ -19,6 +19,14 @@ export async function validationReceipt(packet, now = Date.now()) {
     limitation: 'Local structural checks only. This digest detects byte changes; it is not a signature, authenticated review, source verification, or evidence of forecast accuracy.' };
 }
 
+// Release 1.11.0 recorded a missing publication or review time as 'Capture time is UNKNOWN.'.
+// A receipt that differs only in that recorded wording is the same check of the same bytes.
+const LEGACY_TIME_GAPS = Object.freeze([
+  [/^sources\[\d+\]\.publishedAt$/, 'Publication time is UNKNOWN.'], [/^riskReview\.reviewedAt$/, 'Review time is UNKNOWN.'],
+]);
+const legacyTimeGaps = record => ({ ...record, gaps: record.gaps.map(item => LEGACY_TIME_GAPS
+  .some(([path, message]) => path.test(item.path) && item.message === message) ? { ...item, message: 'Capture time is UNKNOWN.' } : item) });
+
 export async function verifyReceipt(text, packet, now = Date.now()) {
   if (typeof text !== 'string' || new TextEncoder().encode(text).length > 65536) throw new Error('Receipt JSON must be at most 64 KiB.');
   const receipt = parsePacket(text);
@@ -33,8 +41,9 @@ export async function verifyReceipt(text, packet, now = Date.now()) {
   if (Object.keys(receipt).length !== keys.length || keys.some(key => !Object.hasOwn(receipt, key))) throw new Error('Receipt fields do not match the supported format.');
   const ordered = value => Array.isArray(value) ? value.map(ordered) : value !== null && typeof value === 'object'
     ? Object.fromEntries(Object.keys(value).sort().map(key => [key, ordered(value[key])])) : value;
+  const recorded = JSON.stringify(ordered(receipt));
   return { digestMatches: receipt.packetSha256 === current.packetSha256,
-    recordMatches: expected !== null && JSON.stringify(ordered(receipt)) === JSON.stringify(ordered(expected)),
+    recordMatches: expected !== null && [expected, legacyTimeGaps(expected)].some(record => recorded === JSON.stringify(ordered(record))),
     checkedAt: receipt.checkedAt, currentChartEligible: validatePacket(snapshot, now).chartEligible };
 }
 

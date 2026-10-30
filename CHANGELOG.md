@@ -6,8 +6,16 @@ Record user-visible changes under `[Unreleased]` as they merge. A release moves 
 
 ## [Unreleased]
 
+## [1.12.0] - 2026-10-30
+
+This release adds offline checks for workbench packets, freeze receipts against their retained bytes, run and conflict ledgers, and the Chief's accepted research states, and makes `check:specialist` name what is wrong. Packet schema 1, the five read-only specialists, the four forecast horizons, the independent risk gate, the browser storage key and research core 1.1.0 are unchanged. Every new record field is optional, and specialist records, packets, check receipts and packet bundles saved by 1.11.0 still pass, import and verify.
+
 ### Added
 
+- Chief records can now carry their accepted research states. The Chief's documented product is one brief and accepted research states, but the chief schema had no field for states, so the named fail mode of a FAIL verdict with `decision_candidate` could only be caught by reading. An optional `states` array records each subject's state with the Risk verdict and delivery disposition it follows, and `check:specialist -- chief` fails a `decision_candidate` under a FAIL or UNKNOWN verdict or a repair or withhold disposition, a blank subject or reason, and a subject given two states, ignoring case, spacing and look-alike letters. Chief records without `states` pass exactly as before.
+- `run_ledger` and `conflict_ledger` lanes in `check:specialist`, with schemas and the examples [run-ledger.json](examples/run-ledger.json) and [conflict-ledger.json](examples/conflict-ledger.json). The charter, the Chief and Risk workers and the delivery gate all require both ledgers, but neither had a contract or a check. A run ledger now fails when a mode's required lane is absent (a full scan without Risk, for example), when a required lane never completed and the product is not labelled incomplete, when a row ends before it starts, or, in the staged modes, when Quant started before its inputs finished or Risk started before the lanes it reviews. Repairs and re-runs after Risk still pass. A conflict ledger fails when a resolution contradicts its observations, when a resolved value is not the recorded opened-source value, or when a capture follows the cutoff. Whether that value was really read from the opened page stays manual review.
+- Freeze receipts can now be built from, and checked against, the bytes the desk retained. `npm run freeze:receipt -- <capture> --url <URL> --captured-at <time>` computes the sha256 and byte count from the capture file, checks the receipt with the freeze lane and prints it, and refuses an http URL or a time without an offset. Save the receipt with `npm run --silent freeze:receipt -- ... > <file>`, because npm 11, which ships with Node 24, prints its run banner to standard output. `npm run check:specialist -- freeze <receipt> --bytes <capture>` adds a `retained` result of MATCH or MISMATCH for both values once the receipt passes its schema, and a mismatch is a mechanical FAIL. A mistyped or invented hash used to pass the freeze lane, because only the receipt's shape was checked. `source-freeze` stays UNKNOWN: matching bytes do not prove where or when they were captured.
+- `npm run check:packet`, an offline checker for the schema-version-1 packets the workbench imports. It applies the browser's own parser, validator and receipt rules without a page: a valid packet prints its `crypto-research-check-receipt.v1` receipt in exactly the format of the browser download (save it with `npm run --silent`), an invalid packet prints the validator's errors and exits 1, a packet bundle must match its own receipt as on import, `--receipt` verifies a saved receipt, and `--require-chart` fails unless the chart gate is open. A desk run on a host without a browser can now confirm its packet before handing it over. [examples/demo-packet.json](examples/demo-packet.json) is the **Load demo** packet as a file.
 - Tests that require each validation rule to report its own issue at its own path, in the browser packet validator and in `check:specialist`. Disabling one rule at a time used to leave the suite green for 26 of the validator's 76 checks and 6 of the checker's 13 semantic rules, including the rule that keeps a `deliver` disposition with unresolved unknowns off the chart. Four validator checks still survive because another check rejects the same input first.
 
 ### Changed
@@ -17,8 +25,14 @@ Record user-visible changes under `[Unreleased]` as they merge. A release moves 
 
 ### Fixed
 
-- A missing source publication time or review time is reported as `Publication time is UNKNOWN.` or `Review time is UNKNOWN.` in the repair queue, the brief and the repair worksheet. Both used to read `Capture time is UNKNOWN.`, naming a different field from the one to fill. Missing capture times keep their message, and no validity, completeness or chart decision changes.
+- The worked named-ticker example told readers to use an Example control and an inspector that the workbench does not have. It now points to its run ledger and incomplete Quant packet and the commands that check them.
+- `check:specialist` now says what is wrong with a record. A schema error keeps its `path` and `rule` and gains a `detail` object naming the missing or unexpected field, the allowed values, the expected type or format, the pattern or the limit, so a freeze receipt without `bytes` reports `missingProperty: bytes` instead of a bare `required`. An unusable input names its cause on stderr (a file that cannot be opened, a path that is not a regular file, a file over 320 KiB, invalid UTF-8, or the parser's message such as a duplicate key with its character position) instead of one generic line for all of them. Exit codes, the output shape, semantic-rule errors and the rule that local paths are never echoed are unchanged.
+- A missing source publication time or review time is reported as `Publication time is UNKNOWN.` or `Review time is UNKNOWN.` in the repair queue, the brief and the repair worksheet. Both used to read `Capture time is UNKNOWN.`, naming a different field from the one to fill. Missing capture times keep their message, and no validity, completeness or chart decision changes. Check receipts and packet bundles saved by 1.11.0 record the old wording, so receipt verification, bundle import and `check:packet` accept exactly that wording at those two fields, and a 1.11.0 draft's receipt or bundle still verifies.
 - The live production smoke no longer fails in Firefox when its second page reopens `/` in the same browser context. Production serves `/` with `must-revalidate`, and Firefox reports that revalidation as 304 where Chromium reports the cached 200. Only that navigation accepts a 304; every other navigation still requires 200. The 1.11.0 deployment itself was healthy: Chromium passed the same smoke.
+
+### Security
+
+- The lockfile moves fast-uri, a development-only dependency of Ajv, from 3.1.8 to 3.1.9, which clears the four moderate advisories `npm audit` reported against 3.0.0 to 3.1.8. `npm audit` now reports no vulnerabilities. The browser build never included it.
 
 ## [1.11.0] - 2026-10-09
 
@@ -188,5 +202,6 @@ One stricter rule affects saved data: a packet whose sources differ only by empt
 - Added fail-closed authority, evidence, conflict, source, and state controls.
 - Added an exact core-file verifier and local regression tests.
 
-[Unreleased]: https://github.com/EauDoon/crypto-research-desk/compare/v1.11.0...HEAD
+[Unreleased]: https://github.com/EauDoon/crypto-research-desk/compare/v1.12.0...HEAD
+[1.12.0]: https://github.com/EauDoon/crypto-research-desk/compare/v1.11.0...v1.12.0
 [1.11.0]: https://github.com/EauDoon/crypto-research-desk/compare/v1.1.0...v1.11.0
