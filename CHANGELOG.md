@@ -20,6 +20,10 @@ Record user-visible changes under `[Unreleased]` as they merge. A release moves 
 - A missing source publication time or review time is reported as `Publication time is UNKNOWN.` or `Review time is UNKNOWN.` in the repair queue, the brief and the repair worksheet. Both used to read `Capture time is UNKNOWN.`, naming a different field from the one to fill. Missing capture times keep their message, and no validity, completeness or chart decision changes.
 - The live production smoke no longer fails in Firefox when its second page reopens `/` in the same browser context. Production serves `/` with `must-revalidate`, and Firefox reports that revalidation as 304 where Chromium reports the cached 200. Only that navigation accepts a 304; every other navigation still requires 200. The 1.11.0 deployment itself was healthy: Chromium passed the same smoke.
 
+### Security
+
+- The lockfile moves fast-uri, a development-only dependency of Ajv, from 3.1.8 to 3.1.9, which clears the four moderate advisories `npm audit` reported against 3.0.0 to 3.1.8. `npm audit` now reports no vulnerabilities. The browser build never included it.
+
 ## [1.11.0] - 2026-10-09
 
 This release records everything merged since 1.10.0 plus its own changes. Packet schema 1, the five read-only specialists, the four forecast horizons, the independent risk gate, the browser storage key and research core 1.1.0 are unchanged.
