@@ -58,6 +58,44 @@ test('schema and semantic regressions fail without accepting coercion or missing
   assert.equal(checkSpecialist('risk_officer', withheld).mechanical, 'PASS');
 });
 
+// Regression guard. A case that only asserts FAIL cannot show that a given rule
+// still works when the same record also trips the schema or a second rule:
+// deleting the rule leaves the verdict at FAIL. Six of the thirteen semantic
+// rules could be deleted that way with the suite still green. Each case below
+// starts from a record that passes, breaks one thing, and must report exactly
+// that rule at exactly that path.
+test('each semantic rule fires on its own violation and names its path', () => {
+  const method = { basis: 'judgmental', description: 'Synthetic.', sourceWindow: 'Synthetic.', observationFrequency: 'Synthetic.',
+    transformations: 'None.', regimeAdjustment: 'None.', eventAssumptions: 'None.', limitations: 'Synthetic.', sampleSize: null };
+  const source = { title: 'Example', url: freeze.url, type: 'primary', publishedAt: '2026-09-10T09:00:00Z',
+    capturedAt: '2026-09-10T10:00:00Z', claim: 'Example', excerpt: 'Example' };
+  const warned = { ...structuredClone(risk), verdict: 'WARN', delivery: 'deliver_with_warning' };
+  const flagged = { ...structuredClone(risk), delivery: 'deliver_with_warning' };
+  const cases = [
+    ['quant_portfolio', { ...structuredClone(quant), sources: [source] },
+      p => { p.sources[0].publishedAt = '2026-09-10T11:00:00Z'; }, '/sources/0', 'publication-after-capture'],
+    ['quant_portfolio', { ...structuredClone(quant), method },
+      p => { p.method.basis = 'empirical'; }, '/method/sampleSize', 'sample-required-for-nonjudgmental-method'],
+    ['quant_portfolio', { ...structuredClone(quant), method },
+      p => { p.method.basis = 'model-derived'; }, '/method/sampleSize', 'sample-required-for-nonjudgmental-method'],
+    ['risk_officer', warned, p => { p.assertions[0].result = 'FAIL'; p.assertions[0].repair = 'Repair.'; },
+      '/delivery', 'failed-or-unknown-assertion-blocks-delivery'],
+    ['risk_officer', warned, p => { p.assertions[0].result = 'UNKNOWN'; p.assertions[0].repair = 'Obtain evidence.'; },
+      '/delivery', 'failed-or-unknown-assertion-blocks-delivery'],
+    ['risk_officer', risk, p => { p.verdict = 'WARN'; }, '/delivery', 'warning-disposition-required'],
+    ['risk_officer', risk, p => { p.unknowns = ['Unresolved question.']; }, '/delivery', 'warning-disposition-required'],
+    ['risk_officer', flagged, p => { p.assertions[2].result = 'WARN'; p.assertions[2].repair = 'Repair.'; },
+      '/verdict', 'pass-requires-pass-assertions'],
+    ['risk_officer', risk, p => { p.assertions[1].evidence = ' '; }, '/assertions/1', 'evidence-and-repair-required'],
+    ['risk_officer', warned, p => { p.assertions[3].result = 'WARN'; }, '/assertions/3', 'evidence-and-repair-required'],
+  ];
+  for (const [lane, original, mutate, path, rule] of cases) {
+    assert.deepEqual(checkSpecialist(lane, original).errors, [], 'baseline for ' + rule);
+    const packet = structuredClone(original); mutate(packet);
+    assert.deepEqual(checkSpecialist(lane, packet).errors, [{ path, rule }], mutate.toString());
+  }
+});
+
 test('offline CLI has explicit exits, bounded reads and generic parse errors', () => {
   const command = new URL('../tools/check-specialist.mjs', import.meta.url);
   const run = (...args) => spawnSync(process.execPath, [fileURLToPath(command), ...args], { encoding: 'utf8' });
