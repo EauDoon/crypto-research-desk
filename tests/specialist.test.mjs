@@ -458,6 +458,8 @@ test('each Chief state rule fires on its own violation and names its path', () =
     [p => { p.states[1].reason = ' '; }, '/states/1', 'nonblank-state-record'],
     [p => { p.states[1].subject = ' '; }, '/states/1', 'nonblank-state-record'],
     [p => { p.states[1].subject = p.states[0].subject; }, '/states/1', 'one-state-per-subject'],
+    [p => { p.states[1].subject = ' ' + p.states[0].subject.toLowerCase() + ' '; }, '/states/1', 'one-state-per-subject'],
+    [p => { p.states[1].subject = p.states[0].subject.replace('-', ' -'); p.states[0].subject = p.states[0].subject.replace('-', '  -'); }, '/states/1', 'one-state-per-subject'],
   ];
   for (const [mutate, path, rule] of cases) {
     const record = structuredClone(statedChief); mutate(record);

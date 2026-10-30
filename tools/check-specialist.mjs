@@ -3,7 +3,7 @@ import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import Ajv2020 from 'ajv/dist/2020.js';
 import { MAX_JSON_INPUT_BYTES, MAX_PACKET_BYTES } from '../web/packet-constants.js';
-import { portableJson } from '../web/packet-parse.js';
+import { aliasKey, portableJson } from '../web/packet-parse.js';
 import { safeSourceUrl, timestamp } from '../web/packet-validate.js';
 import { InputError, hashFile, readJsonFile, versionLine } from './runtime.mjs';
 
@@ -131,6 +131,7 @@ export function checkSpecialist(lane, packet, { capture = null } = {}) {
     }
     if (lane === 'chief') {
       // Accepted states follow Independent Risk: FAIL, UNKNOWN, repair or withhold blocks decision_candidate.
+      // Subjects compare as the workbench compares names: case, width, confusables and spacing ignored.
       const subjects = new Set();
       for (const [index, row] of (packet.states ?? []).entries()) {
         const path = '/states/' + index;
@@ -138,8 +139,9 @@ export function checkSpecialist(lane, packet, { capture = null } = {}) {
           fail(path, 'failed-or-unknown-risk-blocks-decision-candidate');
         }
         if (!row.subject.trim() || !row.reason.trim()) fail(path, 'nonblank-state-record');
-        if (subjects.has(row.subject)) fail(path, 'one-state-per-subject');
-        subjects.add(row.subject);
+        const subject = aliasKey(row.subject);
+        if (subjects.has(subject)) fail(path, 'one-state-per-subject');
+        subjects.add(subject);
       }
     }
     if (lane === 'run_ledger') checkRunLedger(packet, fail);
