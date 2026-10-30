@@ -123,6 +123,45 @@ test('--receipt verifies a receipt against the packet', async t => {
   assert.doesNotMatch(large.stderr, /sensitive/);
 });
 
+// Release 1.11.0 recorded every missing required time as 'Capture time is UNKNOWN.'.
+const LEGACY_TIME_GAP = /^(?:sources\[\d+\]\.publishedAt|riskReview\.reviewedAt)$/;
+const legacyWording = receipt => ({ ...receipt,
+  gaps: receipt.gaps.map(item => LEGACY_TIME_GAP.test(item.path) ? { ...item, message: 'Capture time is UNKNOWN.' } : item) });
+
+test('receipts and bundles saved by 1.11.0 with the old missing-time wording still verify', async t => {
+  const { write } = await scratch(t);
+  const draft = examplePacket(); draft.sources[0].publishedAt = '';
+  const review = examplePacket(); review.riskReview.reviewedAt = '';
+  for (const [name, packet, path, current] of [['draft', draft, 'sources[0].publishedAt', 'Publication time is UNKNOWN.'],
+    ['review', review, 'riskReview.reviewedAt', 'Review time is UNKNOWN.']]) {
+    const receipt = await validationReceipt(packet);
+    assert.equal(receipt.gaps.find(item => item.path === path).message, current);
+    const legacy = legacyWording(receipt);
+    assert.equal(legacy.gaps.find(item => item.path === path).message, 'Capture time is UNKNOWN.');
+    const legacyText = JSON.stringify(legacy, null, 2) + '\n';
+    assert.deepEqual(await verifyReceipt(legacyText, packet),
+      { digestMatches: true, recordMatches: true, checkedAt: legacy.checkedAt, currentChartEligible: false }, name);
+    const bundle = JSON.stringify({ format: 'crypto-research-bundle.v1', packet, receipt: legacy }) + '\n';
+    assert.equal(JSON.stringify(await readResearchBundle(bundle)), JSON.stringify(packet), name + ' bundle imports');
+    const bundled = run(await write(name + '-bundle.json', bundle));
+    assert.equal(bundled.status, 0, name + ': ' + bundled.stderr);
+    const packetPath = await write(name + '-packet.json', JSON.stringify(packet, null, 2) + '\n');
+    const saved = run(packetPath, '--receipt', await write(name + '-receipt.json', legacyText));
+    assert.equal(saved.status, 0, name + ': ' + saved.stdout);
+    // Only the exact 1.11.0 wording at the field 1.11.0 wrote it is accepted.
+    for (const message of ['Review time is UNKNOWN.', 'Information is UNKNOWN.']) {
+      if (message === current) continue;
+      const altered = { ...legacy, gaps: legacy.gaps.map(item => item.path === path ? { ...item, message } : item) };
+      assert.equal((await verifyReceipt(JSON.stringify(altered), packet)).recordMatches, false, name + ' ' + message);
+    }
+  }
+  const blank = blankPacket();
+  const misplaced = await validationReceipt(blank);
+  const swapped = { ...misplaced, gaps: misplaced.gaps.map(item => item.message === 'Information is UNKNOWN.' ? { ...item, message: 'Capture time is UNKNOWN.' } : item) };
+  assert.notDeepEqual(swapped.gaps, misplaced.gaps);
+  assert.equal((await verifyReceipt(JSON.stringify(swapped), blank)).recordMatches, false, 'other fields keep their wording');
+});
+
 test('unusable inputs and arguments exit 2 with the reason named and no path echoed', async t => {
   const { directory, write } = await scratch(t);
   const cases = [
