@@ -6,6 +6,10 @@ Record user-visible changes under `[Unreleased]` as they merge. A release moves 
 
 ## [Unreleased]
 
+### Fixed
+
+- Reject named-pipe JSON inputs without blocking on open. Packet, specialist and freeze tools keep their existing regular-file diagnostics and input limits.
+
 ## [1.12.0] - 2026-10-30
 
 This release adds offline checks for workbench packets, freeze receipts against their retained bytes, run and conflict ledgers, and the Chief's accepted research states, and makes `check:specialist` name what is wrong. Packet schema 1, the five read-only specialists, the four forecast horizons, the independent risk gate, the browser storage key and research core 1.1.0 are unchanged. Every new record field is optional, and specialist records, packets, check receipts and packet bundles saved by 1.11.0 still pass, import and verify.
