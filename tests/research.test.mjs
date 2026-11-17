@@ -163,3 +163,13 @@ test('risk handoff omission counts include only research gaps when output is tru
   assert.equal(handoff.omittedGapCount, 16);
   assert(handoff.localGaps.every(gap => !gap.path.startsWith('riskReview')));
 });
+
+test('source search matches canonically equivalent Unicode without mutating evidence', () => {
+  const source = { ...examplePacket().sources[0], title: 'Café research', claim: 'Cafe\u0301 evidence' };
+  const original = JSON.stringify(source);
+  assert(research.sourceMatches(source, 'CAFE\u0301', 'primary'));
+  assert(research.sourceMatches({ ...source, title: '', claim: 'Cafe\u0301 evidence' }, 'CAFÉ'));
+  assert(!research.sourceMatches(source, 'cafe'), 'accents remain meaningful');
+  assert(!research.sourceMatches(source, 'café', 'secondary'));
+  assert.equal(JSON.stringify(source), original, 'search must not rewrite source evidence');
+});

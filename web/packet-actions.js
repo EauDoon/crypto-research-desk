@@ -48,8 +48,8 @@ export function evidenceAgeCheck(packet, maximumHours, now = Date.now()) {
 }
 
 export function sourceMatches(source, query = '', type = 'all') {
-  const text = [source.id, source.title, source.claim, source.excerpt, source.url].join(' ').toLowerCase();
-  return (type === 'all' || source.type === type) && text.includes(query.trim().slice(0, 200).toLowerCase());
+  const text = [source.id, source.title, source.claim, source.excerpt, source.url].join(' ').normalize('NFC').toLowerCase();
+  return (type === 'all' || source.type === type) && text.includes(query.trim().normalize('NFC').slice(0, 200).toLowerCase());
 }
 
 export function filterEvidence(packet, query = '', type = 'all', coverage = 'all', now = Date.now()) {
