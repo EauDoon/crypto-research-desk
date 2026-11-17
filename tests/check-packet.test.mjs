@@ -221,3 +221,16 @@ test('the library returns exit codes for parsed input and parses arguments stric
   assert.equal(parseArguments(['a.json', '--receipt', '--require-chart']), null);
   assert.equal(parseArguments(['-x']), null);
 });
+
+
+test('a named pipe is rejected without waiting for a writer', { skip: process.platform === 'win32' }, async t => {
+  const { directory } = await scratch(t);
+  const pipe = join(directory, 'input.json');
+  const created = spawnSync('mkfifo', [pipe], { encoding: 'utf8' });
+  assert.equal(created.status, 0, created.stderr);
+  const result = spawnSync(process.execPath, [command, pipe], { encoding: 'utf8', timeout: 3000 });
+  assert.equal(result.error, undefined, 'the checker must not wait for a pipe writer');
+  assert.equal(result.status, 2);
+  assert.match(result.stderr, /The path is not a regular file/);
+  assert.equal(result.stdout, '');
+});

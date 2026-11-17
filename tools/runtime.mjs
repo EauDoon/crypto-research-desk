@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { createReadStream, readFileSync } from 'node:fs';
+import { constants, createReadStream, readFileSync } from 'node:fs';
 import { open, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { parsePacket } from '../web/packet-parse.js';
@@ -40,7 +40,8 @@ export class InputError extends Error {}
 // loading it whole.
 export async function readJsonFile(path, limit) {
   let file;
-  try { file = await open(path, 'r'); } catch {
+  // Nonblocking open lets the descriptor check reject a FIFO without a writer.
+  try { file = await open(path, constants.O_RDONLY | (constants.O_NONBLOCK || 0)); } catch {
     const kind = await stat(path).catch(() => null);
     throw new InputError(kind && !kind.isFile() ? 'The path is not a regular file.' : 'The file cannot be opened.');
   }
