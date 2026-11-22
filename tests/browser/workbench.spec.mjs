@@ -51,6 +51,71 @@ test('the default view is explicitly synthetic, local, and accessible', async ({
   await checkAccessibility(page);
 });
 
+test.describe('dated source indicator', () => {
+  async function expectDates(page, label, passed, chartVisible) {
+    const row = page.locator('#gate-checks li').filter({ hasText: 'Source contents remain unverified' });
+    await expect(row).toContainText(label);
+    await expect(row.locator('.check-icon')).toHaveText(passed ? '✓' : '!');
+    await expect(page.locator('#chart-area svg')).toHaveCount(chartVisible ? 1 : 0);
+  }
+
+  test('accepts equal publication, capture and cutoff instants across offsets', async ({ page }) => {
+    const packet = examplePacket();
+    packet.sources[0].publishedAt = '2026-08-20T11:00:00+02:00';
+    packet.sources[0].capturedAt = packet.reference.capturedAt;
+    await importPacket(page, packet);
+    await expectDates(page, '2 dated source records', true, true);
+  });
+
+  test('warns on a new packet with no sources', async ({ page }) => {
+    await page.locator('#new-packet').click();
+    await page.locator('#close-editor').click();
+    await expectDates(page, '0 dated source records', false, false);
+  });
+
+  test('counts the dated row when another lacks publication', async ({ page }) => {
+    const packet = examplePacket();
+    packet.sources[0].publishedAt = '';
+    await importPacket(page, packet);
+    await expectDates(page, '1 of 2 source records dated', false, false);
+  });
+
+  test('does not count publications without capture times', async ({ page }) => {
+    const packet = examplePacket();
+    for (const source of packet.sources) source.capturedAt = '';
+    await importPacket(page, packet);
+    await expectDates(page, '0 of 2 source records dated', false, false);
+  });
+
+  test('repairs an undated record while its independent review stays pending', async ({ page }) => {
+    const packet = examplePacket();
+    packet.sources = [packet.sources[0]];
+    packet.riskReview.sourceIds = [packet.sources[0].id];
+    packet.sources[0].publishedAt = packet.sources[0].capturedAt = '';
+    await importPacket(page, packet);
+    await expectDates(page, '0 of 1 source record dated', false, false);
+    await page.locator('#edit-details').click();
+    await page.locator('[name="source-0-publishedAt"]').fill('2026-08-20T07:00:00Z');
+    await page.locator('[name="source-0-capturedAt"]').fill('2026-08-20T08:30:00Z');
+    await page.getByRole('button', { name: 'Save details', exact: true }).click();
+    await expect(page.locator('#review-status')).toHaveText('Pending review');
+    await expectDates(page, '1 dated source record', true, false);
+  });
+
+  test('counts date gaps beyond the displayed issue limit', async ({ page }) => {
+    const packet = examplePacket();
+    packet.sources = Array.from({ length: 32 }, (_, index) => ({
+      ...packet.sources[0], id: 'source-' + index, url: 'https://example.com/' + index,
+      title: '', claim: '', excerpt: '',
+    }));
+    packet.sources.at(-1).publishedAt = '';
+    packet.riskReview.sourceIds = packet.sources.map(source => source.id);
+    await importPacket(page, packet);
+    await expect(page.locator('#gap-list')).toContainText('omitted');
+    await expectDates(page, '31 of 32 source records dated', false, false);
+  });
+});
+
 test('startup fails closed when JavaScript is unavailable', async ({ browser, baseURL }) => {
   await withIsolatedPage(browser, { javaScriptEnabled: false, baseURL }, async noScriptPage => {
     await gotoOnce(noScriptPage, '/', { waitUntil: 'commit' });

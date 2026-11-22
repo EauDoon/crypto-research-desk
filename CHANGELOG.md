@@ -8,6 +8,8 @@ Record user-visible changes under `[Unreleased]` as they merge. A release moves 
 
 ### Fixed
 
+- The dated-source check now shows how many source records pass the publication and capture time checks. It warns when any record lacks valid dates or the packet has no sources.
+
 - Evidence search matches composed and decomposed Unicode equally while retaining accents, literal matching, type filters and original evidence bytes.
 
 - Reject named-pipe JSON inputs without blocking on open. Packet, specialist and freeze tools keep their existing regular-file diagnostics and input limits.
