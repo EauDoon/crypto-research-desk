@@ -16,6 +16,35 @@ function research() {
   return packet;
 }
 const validate = packet => validatePacket(packet, NOW);
+
+for (const [description, field, value] of [
+  ['impossible calendar date', 'publishedAt', '2026-02-30T07:00:00Z'],
+  ['publication after capture', 'publishedAt', '2026-08-20T08:30:00.001Z'],
+  ['capture after cutoff', 'capturedAt', '2026-08-20T09:00:00.001Z'],
+]) {
+  test('dated source count excludes ' + description, () => {
+    const packet = examplePacket();
+    packet.sources[0][field] = value;
+    const report = validate(packet);
+    assert.equal(report.valid, false);
+    assert.equal(report.chartEligible, false);
+    assert.equal(report.datedSourceCount, 1);
+  });
+}
+
+test('dated source count follows the same five-minute clock allowance as the chart', () => {
+  const packet = examplePacket();
+  packet.sources[1].capturedAt = packet.reference.capturedAt;
+  packet.riskReview.reviewedAt = packet.reference.capturedAt;
+  const boundary = Date.parse(packet.reference.capturedAt) - 5 * 60_000;
+  const within = validatePacket(packet, boundary);
+  const outside = validatePacket(packet, boundary - 1);
+  assert.equal(within.chartEligible, true);
+  assert.equal(outside.chartEligible, false);
+  assert.equal(within.datedSourceCount, 2);
+  assert.equal(outside.datedSourceCount, 1);
+});
+
 function rejectMutations(mutations, complete = false) {
   for (const mutate of mutations) {
     const packet = research(); mutate(packet);

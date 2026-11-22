@@ -201,6 +201,7 @@ export function safeSourceUrl(value) {
 export function validatePacket(packet, now = Date.now()) {
   const errors = [], gaps = [], warnings = [];
   const issueCounts = { errors: 0, gaps: 0, warnings: 0 };
+  let datedSourceCount = 0;
   const add = (list, kind, path, message) => {
     issueCounts[kind]++;
     if (list.length < 80) list.push({ path, message });
@@ -221,7 +222,7 @@ export function validatePacket(packet, now = Date.now()) {
       errors, gaps, warnings,
       errorCount: issueCounts.errors, gapCount: issueCounts.gaps, warningCount: issueCounts.warnings,
       omittedIssueCounts, issuesTruncated: Object.values(omittedIssueCounts).some(count => count > 0),
-      horizonChecks,
+      horizonChecks, datedSourceCount,
     };
   };
   if (typeof now !== 'number' || !Number.isFinite(now)) {
@@ -328,10 +329,13 @@ export function validatePacket(packet, now = Date.now()) {
         if (packet.kind === 'research' && /(?:^|\.)example\.(com|org|net)$/.test(new URL(sourceUrl).hostname)) gap(path + '.url', 'Example domains do not support real research.');
       }
       if (!['primary', 'secondary'].includes(source.type)) error(path + '.type', 'Choose primary or secondary.');
+      // Use the full issue totals, since the displayed lists can omit later sources.
+      const issuesBeforeDates = issueCounts.errors + issueCounts.gaps;
       const published = date(source.publishedAt, path + '.publishedAt', true, 'Publication time');
       const captured = date(source.capturedAt, path + '.capturedAt');
       if (published !== null && captured !== null && published > captured) error(path, 'Publication cannot be after capture.');
       if (captured !== null && cutoff !== null && captured > cutoff) error(path + '.capturedAt', 'Evidence must be captured by the common forecast cutoff.');
+      if (issueCounts.errors + issueCounts.gaps === issuesBeforeDates) datedSourceCount++;
       if (captured !== null) latestEvidence = Math.max(latestEvidence ?? captured, captured);
     });
     if (packet.sources.length && !packet.sources.some(source => source?.type === 'primary')) gap('sources', 'No primary source has been recorded.');

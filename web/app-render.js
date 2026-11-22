@@ -256,8 +256,8 @@ export function render(updateContent = true, now = Date.now()) {
   renderEvidenceAudit(now);
   renderOverview(now);
   renderMonitoring(now);
-  if (!validatePacket(packet, now).chartEligible) clearSensitivity();
   const report = validatePacket(packet, now);
+  if (!report.chartEligible) clearSensitivity();
   setLastValidation(validationSignature(report));
   const synthetic = packet.kind === 'synthetic';
   setText('provenance-tag', synthetic ? 'SYNTHETIC EXAMPLE' : 'UNVERIFIED RESEARCH');
@@ -280,10 +280,15 @@ export function render(updateContent = true, now = Date.now()) {
   setText('invalidation', packet.invalidation); setText('liquidity', packet.liquidity);
   setText('structure-status', report.complete ? 'Structure complete' : 'INCOMPLETE');
   const completed = packet.horizons.filter(horizon => horizon.status === 'complete').length;
+  const sourceCount = packet.sources.length;
+  const sourceNoun = sourceCount === 1 ? 'source record' : 'source records';
+  const allSourcesDated = report.datedSourceCount === sourceCount;
+  const sourceDateLabel = allSourcesDated ? sourceCount + ' dated ' + sourceNoun
+    : report.datedSourceCount + ' of ' + sourceCount + ' ' + sourceNoun + ' dated';
   const checks = [
     [report.valid, 'Schema and ranges', 'Strict field, timestamp, and interval checks'],
     [completed === 4, completed + ' of 4 horizons supplied', 'Each complete horizon totals exactly 100%'],
-    [packet.sources.length > 0, packet.sources.length + ' dated source records', 'Source contents remain unverified'],
+    [allSourcesDated && sourceCount > 0, sourceDateLabel, 'Source contents remain unverified'],
     [report.chartEligible, report.chartEligible ? 'Review record supplied' : 'Chart remains withheld', 'No identity or approval authentication'],
   ];
   $('gate-checks').replaceChildren(...checks.map(([ok, title, detail]) => {
