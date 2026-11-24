@@ -777,3 +777,9 @@ test('a missing time names the field that is missing', () => {
   assert.equal(messageAt(packet, 'riskReview.reviewedAt'), 'Review time is UNKNOWN.');
   assert.equal(validate(packet).chartEligible, false);
 });
+
+test('narrow return bands do not collapse into an empty displayed interval', () => {
+  assert.equal(returnLabel({ lower: 100.0001, upper: 100.0002 }, 100), '≈ +0.0001% to below +0.0002%');
+  assert.equal(returnLabel({ lower: 100.0001, upper: null }, 100), '≈ +0.0001% or higher');
+  assert.equal(returnLabel({ lower: 0, upper: Number.MIN_VALUE }, 1), 'Return bounds indistinguishable at numeric precision; use the price interval.');
+});
