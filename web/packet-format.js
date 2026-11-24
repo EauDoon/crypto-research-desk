@@ -72,11 +72,20 @@ export function intervalLabel(scenario) {
 
 export function returnLabel(scenario, referencePrice) {
   if (!finitePrice(referencePrice) || referencePrice === 0) return 'UNKNOWN';
-  if (![scenario.lower, ...(scenario.upper === null ? [] : [scenario.upper])]
-    .every(price => Number.isFinite((price / referencePrice - 1) * 100))) return 'UNKNOWN (numeric overflow)';
-  const percent = price => new Intl.NumberFormat('en-US', { maximumFractionDigits: 2, signDisplay: 'exceptZero' })
-    .format((price / referencePrice - 1) * 100) + '%';
-  return '≈ ' + percent(scenario.lower) + (scenario.upper === null ? ' or higher' : ' to below ' + percent(scenario.upper));
+  const prices = scenario.upper === null ? [scenario.lower] : [scenario.lower, scenario.upper];
+  if (!prices.every(finitePrice)) return 'UNKNOWN';
+  const returns = prices.map(price => ((price - referencePrice) / referencePrice) * 100);
+  if (!returns.every(Number.isFinite)) return 'UNKNOWN (numeric overflow)';
+  // Keep ordinary labels compact, but never round a real move to 0% or
+  // print the same bound on both sides of a nonempty price interval.
+  for (const digits of [2, 4, 6, 8, 12, 16, 20]) {
+    const formatter = new Intl.NumberFormat('en-US', { maximumFractionDigits: digits, signDisplay: 'exceptZero' });
+    const labels = returns.map(value => formatter.format(value));
+    if (labels.some((label, i) => label === '0' && prices[i] !== referencePrice)) continue;
+    if (labels.length === 2 && labels[0] === labels[1]) continue;
+    return '≈ ' + labels[0] + '%' + (labels.length === 1 ? ' or higher' : ' to below ' + labels[1] + '%');
+  }
+  return 'Return bounds indistinguishable at numeric precision; use the price interval.';
 }
 
 export function chartThresholds(packet, now = Date.now()) {

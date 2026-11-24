@@ -14,6 +14,12 @@ This repository stands up a research-only crypto agent team. Do not add a sixth 
 - Source-freeze receipts (canonical URL, capturedAt, sha256, bytes)
 - Worked ticker, hunt, and independent-risk examples
 
+## Next workbench patch: readable scenario bounds
+
+1. Preserve the exact price interval as the reference; add percentage precision only when the usual two decimals would hide a move or merge two boundaries.
+2. Check narrow, one-sided, ordinary and numerically indistinguishable bands. Both the workbench and the Markdown export must use the same label function.
+3. Require the existing release checks and production artifact smoke. No schema, research-core, evidence-gate or execution changes.
+
 ## Now
 
 - Run deterministic checks, then complete independent semantic review before delivery
