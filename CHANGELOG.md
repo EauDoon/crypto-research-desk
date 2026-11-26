@@ -16,6 +16,8 @@ Record user-visible changes under `[Unreleased]` as they merge. A release moves 
 
 ### Fixed
 
+- The first tap on a route-map camera button after a quick horizontal swipe now activates the control, including when Chromium withholds the native click. A vertical swipe still scrolls the page.
+
 - The packet checks hid their pass and warning icons from the accessibility tree without providing an equivalent status. Each check now includes its outcome as screen-reader text.
 
 - Next workbench patch: preserve narrow nonzero return ranges in scenario tables and Markdown exports. Percentages display extra decimal places when two-decimal rounding would flatten the result; if the bounds still cannot be distinguished, use the exact price interval alongside them.

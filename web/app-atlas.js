@@ -213,6 +213,33 @@ byId('jump-details').addEventListener('click', () => byId('focus-name').focus())
 byId('left').addEventListener('click', () => rotate(-0.17));
 byId('right').addEventListener('click', () => rotate(0.17));
 byId('reset').addEventListener('click', () => { yaw = homeYaw; tilt = homeTilt; draw(); });
+// After a fast graph swipe Chromium can deliver a stationary camera tap's
+// touchend without a click. Activate valid taps here and cancel their native
+// click, leaving the same button click handlers for mouse and keyboard users.
+const camera = document.querySelector('.camera');
+let cameraTap;
+camera.addEventListener('touchstart', event => {
+  const button = event.target.closest('button');
+  const touch = event.touches[0];
+  cameraTap = event.touches.length === 1 && button ? { button, id: touch.identifier,
+    x: touch.clientX, y: touch.clientY } : undefined;
+}, { passive: true });
+camera.addEventListener('touchmove', event => {
+  const touch = event.touches[0];
+  if (cameraTap && (event.touches.length !== 1 ||
+    Math.hypot(touch.clientX - cameraTap.x, touch.clientY - cameraTap.y) > 8)) cameraTap = undefined;
+}, { passive: true });
+camera.addEventListener('touchcancel', () => { cameraTap = undefined; });
+camera.addEventListener('touchend', event => {
+  const tap = cameraTap, touch = event.changedTouches[0];
+  cameraTap = undefined;
+  if (!tap || !event.cancelable || event.touches.length || touch.identifier !== tap.id ||
+    Math.hypot(touch.clientX - tap.x, touch.clientY - tap.y) > 8 ||
+    !tap.button.contains(document.elementFromPoint(touch.clientX, touch.clientY))) return;
+  event.preventDefault();
+  tap.button.focus({ preventScroll: true });
+  tap.button.click();
+}, { passive: false });
 plot.addEventListener('pointerdown', event => {
   if (!event.isPrimary || event.button !== 0) return;
   drag = { id: event.pointerId, x: event.clientX, y: event.clientY, start: event.clientX,
