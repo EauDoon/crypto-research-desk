@@ -6,7 +6,13 @@ Record user-visible changes under `[Unreleased]` as they merge. A release moves 
 
 ## [Unreleased]
 
+### Added
+
+- Explore four documented research workflows in a local 3D route map. Inspect incoming and outgoing handoffs, open the governing source, share a stage link and export the chosen route as JSON. The printable route reference also works without JavaScript.
+
 ### Fixed
+
+- The packet checks hid their pass and warning icons from the accessibility tree without providing an equivalent status. Each check now includes its outcome as screen-reader text.
 
 - Next workbench patch: preserve narrow nonzero return ranges in scenario tables and Markdown exports. Percentages display extra decimal places when two-decimal rounding would flatten the result; if the bounds still cannot be distinguished, use the exact price interval alongside them.
 

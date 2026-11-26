@@ -4,17 +4,17 @@
 // before the re-export shims (packet.js, app.js), and example.js imports from
 // packet.js, so the packet shim is hashed first. tests/web.test.mjs checks it.
 export const HASHED_SOURCES = Object.freeze([
-  'favicon.svg', 'styles.css',
+  'favicon.svg', 'styles.css', 'atlas.css',
   'packet-constants.js', 'packet-parse.js', 'packet-validate.js',
   'packet-format.js', 'packet-export.js', 'packet-receipts.js', 'packet-actions.js',
   'packet.js',
   'example.js',
-  'app-utils.js', 'app-state.js', 'app-editor.js', 'app-render.js',
+  'app-utils.js', 'app-atlas.js', 'app-state.js', 'app-editor.js', 'app-render.js',
   'app-events.js', 'app-bootstrap.js',
   'app.js',
 ]);
 // Pages published under their own names, after hashed references are rewritten.
-export const STATIC_PAGES = Object.freeze(['index.html', '404.html', 'robots.txt']);
+export const STATIC_PAGES = Object.freeze(['index.html', '404.html', 'robots.txt', 'atlas.html']);
 export const PUBLIC_FILES = Object.freeze([...STATIC_PAGES, ...HASHED_SOURCES]);
 export const CSP = "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; font-src 'self'; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'; worker-src 'none'; manifest-src 'self'";
 export const SECURITY_HEADERS = Object.freeze({
@@ -27,5 +27,5 @@ export const SECURITY_HEADERS = Object.freeze({
   'Cross-Origin-Resource-Policy': 'same-origin',
   'X-DNS-Prefetch-Control': 'off',
 });
-export const HASHED_ASSET = /^(?:app|packet|example)(?:-[a-z][a-z0-9]*)?\.[a-f0-9]{64}\.js$|^styles\.[a-f0-9]{64}\.css$|^favicon\.[a-f0-9]{64}\.svg$/;
-export const MANAGED_FILE = name => ['index.html', '404.html', 'robots.txt', 'build-info.json'].includes(name) || HASHED_ASSET.test(name);
+export const HASHED_ASSET = /^(?:app|packet|example)(?:-[a-z][a-z0-9]*)?\.[a-f0-9]{64}\.js$|^(?:styles|atlas)\.[a-f0-9]{64}\.css$|^favicon\.[a-f0-9]{64}\.svg$/;
+export const MANAGED_FILE = name => (STATIC_PAGES.includes(name) || name === 'build-info.json') || HASHED_ASSET.test(name);

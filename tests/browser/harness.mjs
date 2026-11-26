@@ -7,13 +7,13 @@ import { PREVIEW_ORIGIN } from './origin.mjs';
 
 export { gotoOnce, withIsolatedPage } from './navigation.mjs';
 
-// The hashed assets of the build under test, read on first use. Only Playwright
+// The workbench entry point’s hashed assets (the route explorer loads separately), read on first use. Only Playwright
 // specs reach this; `npm run test:browser` always builds dist/ first, while unit
 // tests import navigation.mjs, which never reads dist/.
 let builtAssets;
 function expectedAssets() {
   builtAssets ??= JSON.parse(readFileSync(new URL('../../dist/build-info.json', import.meta.url), 'utf8'))
-    .files.filter(name => HASHED_ASSET.test(name)).map(name => '/' + name);
+    .files.filter(name => HASHED_ASSET.test(name) && !/^(?:app-atlas|atlas)\./.test(name)).map(name => '/' + name);
   return builtAssets;
 }
 

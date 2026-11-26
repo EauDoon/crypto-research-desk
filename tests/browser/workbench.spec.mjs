@@ -56,6 +56,7 @@ test.describe('dated source indicator', () => {
     const row = page.locator('#gate-checks li').filter({ hasText: 'Source contents remain unverified' });
     await expect(row).toContainText(label);
     await expect(row.locator('.check-icon')).toHaveText(passed ? '✓' : '!');
+    expect(await row.ariaSnapshot()).toContain(passed ? 'Check passed.' : 'Needs attention.');
     await expect(page.locator('#chart-area svg')).toHaveCount(chartVisible ? 1 : 0);
   }
 
