@@ -294,7 +294,9 @@ export function render(updateContent = true, now = Date.now()) {
   $('gate-checks').replaceChildren(...checks.map(([ok, title, detail]) => {
     const li = element('li'), icon = element('span', ok ? '✓' : '!', 'check-icon' + (ok ? '' : ' warning'));
     icon.setAttribute('aria-hidden', 'true');
-    const text = element('div', title); text.append(element('small', detail)); li.append(icon, text); return li;
+    const text = element('div', title);
+    text.prepend(element('span', ok ? 'Check passed. ' : 'Needs attention. ', 'visually-hidden'));
+    text.append(element('small', detail)); li.append(icon, text); return li;
   }));
   const issues = [...report.errors, ...report.gaps];
   const issueTotal = report.errorCount + report.gapCount;

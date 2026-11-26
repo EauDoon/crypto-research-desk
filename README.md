@@ -20,9 +20,15 @@ npm run dev
 
 Open the `Research Desk preview` URL printed by the server, normally `http://127.0.0.1:4173`. The server listens on loopback only. For the verified hashed build, run `npm run build` followed by `npm run preview`.
 
+## Explore the research routes
+
+From the workbench, select **Explore research routes**. It opens `/atlas.html` in another tab so an unsaved packet stays in place. Pick a full scan, named-ticker forecast, opportunity hunt or independent risk review. Inspect a stage to trace incoming and outgoing handoffs and open its governing schema or charter. The graph uses the same browser-local build as the workbench.
+
+Use **Link to this stage** to copy a route and stage from the link menu, or choose **Download route JSON** to save the selected public workflow as `data.researchRoute` with its nodes and directed edges. The export describes the route and contains no packet data. Drag horizontally or use the rotation buttons to inspect depth. Reduced-motion mode uses discrete rotation controls. The route reference and linked stage directory work with JavaScript disabled and in print.
+
 ## Synthetic DEMO walkthrough
 
-The included `web/example.js` fixture gives a reproducible path through the shipped browser UI.
+Packet checks expose each pass or warning as text to screen readers. The included `web/example.js` fixture gives a reproducible path through the shipped browser UI.
 
 1. Open the local URL. The page shows `SYNTHETIC EXAMPLE`, `DEMO`, `100 USD`, `Structure complete`, and `SAMPLE THRESHOLDS`. The packet has `2 dated source records` and a self-reported `Deliver with warning, as recorded` review.
 2. Select `24 hours` under `Scenario tables` to inspect the fixture distribution. The four rows are `12 hours: 25% / 50% / 25%`, `24 hours: 30% / 45% / 25%`, `3 days: 30% / 40% / 30%`, and `7 days: 35% / 35% / 30%` for Bear / Base / Bull. Their chart boundaries are `94 / 106`, `90 / 112`, `84 / 121`, and `74 / 138` (Bear ceiling / Bull floor).
