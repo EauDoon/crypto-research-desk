@@ -93,3 +93,44 @@ test.describe('static route reference', () => {
     await expect(page.getByRole('link', { name: 'Independent risk source' })).toBeVisible();
   });
 });
+
+test.describe('touch camera controls', () => {
+  test.use({ hasTouch: true, viewport: { width: 360, height: 800 } });
+  test('first reset tap after a quick swipe activates once and a vertical swipe scrolls', async ({ page, browserName }) => {
+    test.skip(browserName !== 'chromium', 'Trusted multi-event touch input uses Chromium CDP.');
+    await gotoOnce(page, '/atlas.html');
+    const session = await page.context().newCDPSession(page);
+    const send = (type, points) => session.send('Input.dispatchTouchEvent', { type, touchPoints: points });
+    const point = (x, y) => [{ x, y, id: 1, radiusX: 4, radiusY: 4, force: 1 }];
+    const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
+    async function swipe(x, y, dx, dy) {
+      await send('touchStart', point(x, y));
+      for (let step = 1; step <= 4; step++) {
+        await pause(16);
+        await send('touchMove', point(x + dx * step / 4, y + dy * step / 4));
+      }
+      await send('touchEnd', []);
+    }
+    const plot = await page.locator('#plot').boundingBox();
+    const reset = await page.locator('#reset').boundingBox();
+    const selected = page.locator('.node.selected');
+    const original = await selected.getAttribute('transform');
+    await page.locator('#reset').evaluate(button => {
+      button.dataset.clicks = '0';
+      button.addEventListener('click', () => { button.dataset.clicks = String(Number(button.dataset.clicks) + 1); });
+    });
+    await swipe(plot.x + 40, plot.y + 90, 80, 0);
+    await expect(selected).not.toHaveAttribute('transform', original);
+    await pause(50);
+    await page.touchscreen.tap(reset.x + reset.width / 2, reset.y + reset.height / 2);
+    await expect(selected).toHaveAttribute('transform', original);
+    await expect(page.locator('#reset')).toHaveAttribute('data-clicks', '1');
+    await page.touchscreen.tap(reset.x + reset.width / 2, reset.y + reset.height / 2);
+    await expect(page.locator('#reset')).toHaveAttribute('data-clicks', '2');
+    await send('touchStart', point(reset.x + reset.width / 2, reset.y + reset.height / 2));
+    await send('touchCancel', []);
+    await expect(page.locator('#reset')).toHaveAttribute('data-clicks', '2');
+    await swipe(plot.x + 75, plot.y + plot.height - 30, 0, -170);
+    await expect.poll(() => page.evaluate(() => scrollY)).toBeGreaterThan(25);
+  });
+});
