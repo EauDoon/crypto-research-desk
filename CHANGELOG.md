@@ -6,6 +6,10 @@ Record user-visible changes under `[Unreleased]` as they merge. A release moves 
 
 ## [Unreleased]
 
+### Changed
+
+- The research route map highlights the selected stage’s handoffs and frames each route for its stage count. Rotated labels stay inside the map and avoid neighboring labels. The desktop inspector sits beside the map, and phone users can jump directly to the selected stage details.
+
 ### Added
 
 - Explore four documented research workflows in a local 3D route map. Inspect incoming and outgoing handoffs, open the governing source, share a stage link and export the chosen route as JSON. The printable route reference also works without JavaScript.
