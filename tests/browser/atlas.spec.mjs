@@ -56,6 +56,33 @@ test('compact reduced-motion view supports keyboard controls and a readable dire
   await expect(page.locator('#stages li')).toHaveCount(8);
 });
 
+test('rotated phone labels stay within the map and each handoff follows the inspected stage', async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 740 });
+  await gotoOnce(page, '/atlas.html#route=full&stage=quant');
+  await expect(page.locator('#geometry .edge.active')).toHaveCount(4);
+  await expect(page.locator('#route-count')).toHaveText('8 stages · 9 handoffs');
+  for (const direction of ['Rotate left', 'Rotate right']) {
+    for (let step = 0; step < 5; step++) {
+      await page.getByRole('button', { name: direction }).click();
+      const problems = await page.locator('#plot').evaluate(plot => {
+        const frame = plot.getBoundingClientRect();
+        const bounds = [...plot.querySelectorAll('.node text')].map(text => text.getBoundingClientRect());
+        return bounds.some((box, index) => box.left < frame.left || box.right > frame.right ||
+          box.top < frame.top || box.bottom > frame.bottom || bounds.slice(index + 1).some(other =>
+            Math.min(box.right, other.right) - Math.max(box.left, other.left) > 1 &&
+            Math.min(box.bottom, other.bottom) - Math.max(box.top, other.top) > 1));
+      });
+      expect(problems).toBe(false);
+    }
+    await page.getByRole('button', { name: 'Reset view' }).click();
+  }
+  await page.getByRole('button', { name: 'Stage details for Quant comparison' }).click();
+  await expect(page.locator('#focus-name')).toBeFocused();
+  await page.locator('#mode').selectOption('review');
+  await expect(page.locator('#route-count')).toHaveText('2 stages · 1 handoff');
+  await expect(page.locator('#geometry .edge.active')).toHaveCount(1);
+});
+
 test.describe('static route reference', () => {
   test.use({ javaScriptEnabled: false });
   test('all four routes and eight source links are available without scripting', async ({ page }) => {

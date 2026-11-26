@@ -22,7 +22,7 @@ Open the `Research Desk preview` URL printed by the server, normally `http://127
 
 ## Explore the research routes
 
-From the workbench, select **Explore research routes**. It opens `/atlas.html` in another tab so an unsaved packet stays in place. Pick a full scan, named-ticker forecast, opportunity hunt or independent risk review. Inspect a stage to trace incoming and outgoing handoffs and open its governing schema or charter. The graph uses the same browser-local build as the workbench.
+From the workbench, select **Explore research routes**. It opens `/atlas.html` in another tab so an unsaved packet stays in place. Pick a full scan, named-ticker forecast, opportunity hunt or independent risk review. Select a stage to highlight its handoffs in gold. On a phone, use **Stage details** to jump to the inspector. Inspect a stage to trace incoming and outgoing handoffs and open its governing schema or charter. The graph uses the same browser-local build as the workbench.
 
 Use **Link to this stage** to copy a route and stage from the link menu, or choose **Download route JSON** to save the selected public workflow as `data.researchRoute` with its nodes and directed edges. The export describes the route and contains no packet data. Drag horizontally or use the rotation buttons to inspect depth. Reduced-motion mode uses discrete rotation controls. The route reference and linked stage directory work with JavaScript disabled and in print.
 

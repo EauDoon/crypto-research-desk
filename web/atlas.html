@@ -13,29 +13,43 @@
   <a class="skip" href="#routes">Skip to route reference</a>
   <header><a class="brand" href="/">c<span>.</span> <b>Crypto Research Desk</b></a><a href="/">Open workbench</a></header>
   <main>
-    <h1>Research routes</h1>
-    <p class="lead">Follow the evidence from a research question to independent review. Select a route to see which handoffs it needs.</p>
+    <div class="page-heading">
+      <h1>Research routes</h1>
+      <p class="lead">Trace the evidence, calculations and independent review behind a research brief.</p>
+    </div>
     <section id="explorer" hidden aria-label="Interactive route explorer">
-      <div class="toolbar">
-        <label>Research route<select id="mode"></select></label>
-        <label>Inspect stage<select id="stage"></select></label>
-      </div>
-      <div class="view">
-        <svg id="plot" viewBox="-435 -172 870 344" aria-hidden="true" focusable="false">
-          <defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 Z"/></marker></defs>
-          <g id="geometry"></g>
-        </svg>
-        <div class="camera" role="group" aria-label="Adjust graph view">
-          <button id="left" type="button" aria-label="Rotate left">↶</button>
-          <button id="right" type="button" aria-label="Rotate right">↷</button>
-          <button id="reset" type="button">Reset view</button>
+      <div class="map-panel">
+        <div class="toolbar">
+          <label>Research route<select id="mode"></select></label>
+          <p id="route-count"></p>
+          <button id="jump-details" type="button">Stage details ↓</button>
+        </div>
+        <div class="view">
+          <svg id="plot" viewBox="-435 -172 870 344" aria-hidden="true" focusable="false">
+            <defs>
+              <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M 0 0 L 10 5 L 0 10 Z"/></marker>
+              <marker id="active-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M 0 0 L 10 5 L 0 10 Z"/></marker>
+            </defs>
+            <g id="geometry"></g>
+          </svg>
+          <div class="view-footer">
+            <span class="key">Selected handoffs</span>
+            <div class="camera" role="group" aria-label="Adjust graph view">
+              <button id="left" type="button" aria-label="Rotate left">↶</button>
+              <button id="right" type="button" aria-label="Rotate right">↷</button>
+              <button id="reset" type="button">Reset view</button>
+            </div>
+          </div>
         </div>
       </div>
       <section class="inspect" aria-labelledby="focus-name">
-        <div><p class="kind" id="focus-kind"></p><h2 id="focus-name" tabindex="-1"></h2><p id="focus-summary"></p><a id="source">Read source</a></div>
+        <label>Inspect stage<select id="stage"></select></label>
+        <p class="kind" id="focus-kind"></p>
+        <h2 id="focus-name" tabindex="-1"></h2><p id="focus-summary"></p>
         <div id="handoffs"></div>
+        <div class="sources"><a id="source">Read source</a><a id="permalink">Link to this stage</a></div>
       </section>
-      <div class="actions"><a id="permalink">Link to this stage</a><button id="download" type="button">Download route JSON</button></div>
+      <div class="actions"><a href="#routes">Read route reference ↓</a><button id="download" type="button">Download route JSON</button></div>
     </section>
     <section id="routes"><h2>Route reference</h2><dl class="routes">
       <dt data-mode="full" data-edges="intake-regime intake-fundamentals intake-scout regime-quant fundamentals-quant scout-quant quant-draft draft-risk risk-brief">Full market scan</dt><dd>Intake → three independent evidence lanes → Quant → Chief’s draft → Risk → reviewed brief.</dd>
