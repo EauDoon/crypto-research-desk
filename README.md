@@ -11,7 +11,7 @@ Research remains governed by [AGENTS.md](AGENTS.md), the frozen project charter.
 
 ## Run the workbench locally
 
-Requires Node 24, as declared in `package.json`.
+Requires Node 24, as declared in `package.json`. On another Node major the server, the build and `npm test` stop with `requires Node 24.x`; `.nvmrc` pins 24, so `nvm use` selects it.
 
 ```powershell
 npm ci --ignore-scripts

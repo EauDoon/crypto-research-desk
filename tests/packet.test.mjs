@@ -208,6 +208,16 @@ test('look-ahead evidence, duplicate sources, invalid zones, and future reviews 
     p => { p.riskReview.reviewedAt = '2026-08-20T08:59:00Z'; },
     p => { p.riskReview.reviewedAt = '2026-08-20T11:00:00Z'; },
   ]);
+  // A numeric UTC offset is not an IANA name. Newer Intl builds accept one as a
+  // timeZone and older ones throw, so the same packet must not depend on the runtime.
+  for (const zone of ['+05:30', '-08:00', '+0530', '-08']) {
+    const offsetZone = examplePacket(); offsetZone.reference.timezone = zone;
+    assert.deepEqual(validate(offsetZone).errors, [{ path: 'reference.timezone', message: 'Use an IANA timezone such as UTC or Asia/Singapore.' }], zone);
+  }
+  for (const zone of ['UTC', 'Asia/Singapore', 'America/Argentina/Buenos_Aires', 'Etc/GMT-14']) {
+    const namedZone = examplePacket(); namedZone.reference.timezone = zone;
+    assert.equal(validate(namedZone).valid, true, zone);
+  }
   const exampleAsResearch = examplePacket(); exampleAsResearch.kind = 'research';
   assert.equal(validate(exampleAsResearch).complete, false);
   const noPrimary = research(); noPrimary.sources.forEach(source => { source.type = 'secondary'; });

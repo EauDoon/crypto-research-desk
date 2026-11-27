@@ -16,6 +16,10 @@ Record user-visible changes under `[Unreleased]` as they merge. A release moves 
 
 ### Fixed
 
+- A numeric UTC offset such as `+05:30` was accepted as the packet display timezone, although the schema requires an IANA name. Newer runtimes accept an offset there and older ones reject it, so the same packet could pass one check and fail another. The validator, the browser import and `npm run check:packet` now reject it in every runtime with the existing timezone message. A saved packet that used an offset needs an IANA name such as `Asia/Kolkata` before it imports.
+
+- The unsupported Node message from the server, the build and the tests now says how to switch: `nvm use` reads the pinned `.nvmrc`.
+
 - The first tap on a route-map camera button after a quick horizontal swipe now activates the control, including when Chromium withholds the native click. A vertical swipe still scrolls the page.
 
 - The packet checks hid their pass and warning icons from the accessibility tree without providing an equivalent status. Each check now includes its outcome as screen-reader text.

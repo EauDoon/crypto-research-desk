@@ -288,8 +288,13 @@ export function validatePacket(packet, now = Date.now()) {
     else if (!finitePrice(packet.reference.price) || packet.reference.price === 0) error('reference.price', 'Use a finite positive price no greater than 1 trillion.');
     cutoff = date(packet.reference.capturedAt, 'reference.capturedAt');
     if (line(packet.reference.timezone, 'reference.timezone', true, 100)) {
-      try { new Intl.DateTimeFormat('en-US', { timeZone: packet.reference.timezone }).format(); }
-      catch { error('reference.timezone', 'Use an IANA timezone such as UTC or Asia/Singapore.'); }
+      // A numeric UTC offset such as '+05:30' is not an IANA name. Newer Intl builds
+      // accept one and older builds throw, so it is refused before the Intl lookup
+      // to keep a packet's validity the same in every runtime.
+      try {
+        if (/^[+-]/.test(packet.reference.timezone)) throw new RangeError('Offset identifier.');
+        new Intl.DateTimeFormat('en-US', { timeZone: packet.reference.timezone }).format();
+      } catch { error('reference.timezone', 'Use an IANA timezone such as UTC or Asia/Singapore.'); }
     }
   }
   for (const key of ['thesis', 'disconfirmingEvidence', 'invalidation', 'liquidity']) text(packet[key], key);
