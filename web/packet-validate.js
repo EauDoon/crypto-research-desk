@@ -292,8 +292,10 @@ export function validatePacket(packet, now = Date.now()) {
       // accept one and older builds throw, so it is refused before the Intl lookup
       // to keep a packet's validity the same in every runtime.
       try {
-        if (/^[+-]/.test(packet.reference.timezone)) throw new RangeError('Offset identifier.');
-        new Intl.DateTimeFormat('en-US', { timeZone: packet.reference.timezone }).format();
+        // U+2212 MINUS SIGN is refused with the ASCII signs: some Intl builds read it as an offset sign.
+        if (/^[+\-\u2212]/.test(packet.reference.timezone)) throw new RangeError('Offset identifier.');
+        const zone = new Intl.DateTimeFormat('en-US', { timeZone: packet.reference.timezone }).resolvedOptions().timeZone;
+        if (/^[+-]\d/.test(zone)) throw new RangeError('Offset identifier.');
       } catch { error('reference.timezone', 'Use an IANA timezone such as UTC or Asia/Singapore.'); }
     }
   }
