@@ -210,7 +210,7 @@ test('look-ahead evidence, duplicate sources, invalid zones, and future reviews 
   ]);
   // A numeric UTC offset is not an IANA name. Newer Intl builds accept one as a
   // timeZone and older ones throw, so the same packet must not depend on the runtime.
-  for (const zone of ['+05:30', '-08:00', '+0530', '-08']) {
+  for (const zone of ['+05:30', '-08:00', '+0530', '-08', '\u221205:30', '\u221208']) {
     const offsetZone = examplePacket(); offsetZone.reference.timezone = zone;
     assert.deepEqual(validate(offsetZone).errors, [{ path: 'reference.timezone', message: 'Use an IANA timezone such as UTC or Asia/Singapore.' }], zone);
   }
