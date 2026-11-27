@@ -1,3 +1,5 @@
+<p align="center"><img src=".github/assets/banner.svg" alt="Crypto Research Desk. Research-only crypto market intelligence: five specialist functions build one forecast packet and an independent risk gate reviews it. The browser workbench inspects, edits, reviews and exports packets, and starts on a synthetic DEMO packet. Shown as five pillars feeding one packet that rises through a gate ring." width="100%"></p>
+
 # Crypto Research Desk
 
 [![build](https://img.shields.io/github/actions/workflow/status/EauDoon/crypto-research-desk/ci.yml?branch=main)](https://github.com/EauDoon/crypto-research-desk/actions)
